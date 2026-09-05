@@ -99,6 +99,31 @@ for (const n of [2, 3, 6])
           (p) => p.states.get(common) === peers[0].states.get(common),
         ),
       );
+      peers[0].ws.send(
+        JSON.stringify({
+          type: "input",
+          gameId: id,
+          seq: ++peers[0].seq,
+          input: { ...idleInput(), shelter: true },
+        }),
+      );
+      await until(
+        () => peers.every((p) => p.room!.game!.players[0].sheltering),
+        "shelter stance",
+      );
+      assert.ok(peers.every((p) => p.room!.game!.players[0].wetness === 0));
+      peers[0].ws.send(
+        JSON.stringify({
+          type: "input",
+          gameId: id,
+          seq: ++peers[0].seq,
+          input: idleInput(),
+        }),
+      );
+      await until(
+        () => peers.every((p) => !p.room!.game!.players[0].sheltering),
+        "release shelter",
+      );
       peers[1].ws.send(
         JSON.stringify({
           type: "input",

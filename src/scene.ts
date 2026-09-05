@@ -1,3 +1,4 @@
+import { WEATHER, rainStrength, SHIELD_RADIUS } from "./weather";
 import * as THREE from "three";
 import {
   COLORS,
@@ -85,6 +86,9 @@ function paperBird(color: string): THREE.Group {
       ],
       color,
     );
+    wing.geometry.translate(0, -0.35, 0);
+    wing.position.y = 0.35;
+    wing.scale.z = 1.28;
     wing.name = `wing${s}`;
     group.add(wing);
   }
@@ -127,6 +131,9 @@ export class PaperScene {
   private root = new THREE.Group();
   private camera = new THREE.OrthographicCamera();
   private birds: THREE.Group[] = [];
+  private rain: THREE.LineSegments | null = null;
+  private rainSeeds: { x: number; z: number; phase: number; speed: number }[] =
+    [];
   private tiles: THREE.Group[] = [];
   private keys: THREE.Group[] = [];
   private stars: THREE.Mesh[] = [];
@@ -371,11 +378,140 @@ export class PaperScene {
       );
       shadow.rotation.x = -Math.PI / 2;
       shadow.position.y = 0.015;
-      group.add(bird, bridge, label, shadow);
+      const shelter = new THREE.Group();
+      shelter.name = "shelter";
+      for (let side = 0; side < 4; side++) {
+        const a = (side * Math.PI) / 2,
+          b = ((side + 1) * Math.PI) / 2;
+        const panel = facet(
+          [
+            0,
+            1.62,
+            0,
+            Math.cos(a) * SHIELD_RADIUS,
+            1.25,
+            Math.sin(a) * SHIELD_RADIUS,
+            Math.cos(b) * SHIELD_RADIUS,
+            1.25,
+            Math.sin(b) * SHIELD_RADIUS,
+          ],
+          side % 2 ? COLORS[p.id] : "#f4ead4",
+        );
+        shelter.add(panel);
+      }
+      for (const side of [-1, 1]) {
+        shelter.add(
+          facet(
+            [0, 0.4, 0.08, 0, 1.62, 0, side * SHIELD_RADIUS, 1.25, 0],
+            COLORS[p.id],
+          ),
+        );
+      }
+      const ring = new THREE.Mesh(
+        new THREE.RingGeometry(SHIELD_RADIUS - 0.035, SHIELD_RADIUS, 64),
+        new THREE.MeshBasicMaterial({
+          color: COLORS[p.id],
+          transparent: true,
+          opacity: 0.35,
+          side: THREE.DoubleSide,
+        }),
+      );
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.035;
+      shelter.add(ring);
+      const wet = new THREE.Group();
+      wet.name = "wet-meter";
+      wet.position.set(0, 1.24, 0);
+      const back = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.8, 0.06),
+        new THREE.MeshBasicMaterial({
+          color: "#fff6df",
+          depthTest: false,
+          transparent: true,
+          opacity: 0.7,
+        }),
+      );
+      const fill = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.8, 0.06),
+        new THREE.MeshBasicMaterial({ color: "#627f8c", depthTest: false }),
+      );
+      fill.name = "fill";
+      fill.position.z = 0.001;
+      wet.add(back, fill);
+      group.add(bird, bridge, label, shadow, shelter, wet);
       group.position.set(p.x, p.y, p.z);
       this.root.add(group);
       this.birds.push(group);
     }
+    // Layered washi roofs and slender wooden posts mark real dry zones.
+    WEATHER[g.level].awnings.forEach((a) => {
+      const roof = slab(
+        { x: a.x, y: a.y, z: a.z, w: a.w + 0.12, d: a.d + 0.12, h: 0.16 },
+        "#8b6851",
+      );
+      this.root.add(roof);
+      const yBase = a.y - 3.4;
+      for (const side of [-1, 1]) {
+        const post = new THREE.Mesh(
+          new THREE.BoxGeometry(0.075, 3.35, 0.075),
+          material("#6d6351"),
+        );
+        post.position.set(
+          a.x + side * (a.w / 2 - 0.12),
+          yBase + 1.67,
+          a.z - a.d / 2 + 0.16,
+        );
+        this.root.add(post);
+      }
+      const lantern = new THREE.Mesh(
+        new THREE.SphereGeometry(0.2, 12, 8),
+        material("#ce785a"),
+      );
+      lantern.scale.set(0.78, 1.2, 0.78);
+      lantern.position.set(a.x + a.w / 2 - 0.35, a.y - 0.5, a.z + 0.8);
+      this.root.add(lantern);
+      const title = textSprite("雨宿り · 檐下晾干", "#725f4d", 0.5);
+      title.name = "awning-label";
+      title.position.set(a.x, a.y + 0.42, a.z);
+      this.root.add(title);
+      for (let x = -a.w / 2 + 0.3; x < a.w / 2; x += 0.4) {
+        const slat = new THREE.Mesh(
+          new THREE.BoxGeometry(0.025, 0.03, a.d),
+          material("#a08e70"),
+        );
+        slat.position.set(a.x + x, a.y + 0.018, a.z);
+        this.root.add(slat);
+      }
+    });
+    this.rainSeeds = [];
+    WEATHER[g.level].zones.forEach((zone, zi) => {
+      for (let i = 0; i < 160; i++)
+        this.rainSeeds.push({
+          x: zone.x + (((i * 0.618033 + zi * 0.37) % 1) - 0.5) * zone.w,
+          z: zone.z + (((i * 0.414213 + zi * 0.19) % 1) - 0.5) * zone.d,
+          phase: (i * 0.754877) % 1,
+          speed: 1 + (i % 7) * 0.08,
+        });
+    });
+    const rainGeo = new THREE.BufferGeometry();
+    rainGeo.setAttribute(
+      "position",
+      new THREE.BufferAttribute(
+        new Float32Array(this.rainSeeds.length * 6),
+        3,
+      ).setUsage(THREE.DynamicDrawUsage),
+    );
+    this.rain = new THREE.LineSegments(
+      rainGeo,
+      new THREE.LineBasicMaterial({
+        color: "#657e88",
+        transparent: true,
+        opacity: 0.46,
+        depthWrite: false,
+      }),
+    );
+    this.rain.frustumCulled = false;
+    this.root.add(this.rain);
     // Paper motes make depth readable while the camera turns.
     const dots: number[] = [];
     for (let i = 0; i < 90; i++)
@@ -399,9 +535,12 @@ export class PaperScene {
     );
     this.initialized = false;
   }
-  render(g: Game, local: number, dt: number) {
+  render(g: Game, local: number, dt: number, preview = false) {
     if (g.level !== this.level || g.mode !== this.count) this.build(g);
     this.clock += dt;
+    this.root.children.forEach((o) => {
+      if (o.name === "awning-label") o.visible = !preview;
+    });
     const l = LEVELS[g.level];
     const player = g.players[local] ?? g.players[0];
     const yawTarget = (g.view * Math.PI) / 2;
@@ -464,6 +603,7 @@ export class PaperScene {
       node.visible = !p.arrived || g.status === "won";
       const bird = node.getObjectByName("bird")!;
       const bridge = node.getObjectByName("bridge")!;
+      node.getObjectByName("shelter")!.visible = p.sheltering === true;
       bird.visible = !p.folded;
       bridge.visible = p.folded;
       bird.rotation.y = (g.view * Math.PI) / 2 + (p.facing < 0 ? Math.PI : 0);
@@ -471,11 +611,36 @@ export class PaperScene {
       bird.position.y = p.grounded ? Math.sin(this.clock * 7 + i) * 0.025 : 0;
       for (const s of [-1, 1]) {
         const wing = bird.getObjectByName(`wing${s}`)!;
-        wing.rotation.x = p.grounded
-          ? Math.sin(this.clock * 3 + i) * 0.06
-          : Math.sin(this.clock * (p.vy < 0 ? 5 : 14)) * s * 0.16;
+        const amplitude = p.grounded ? 0.38 : p.vy < 0 ? 0.5 : 0.9;
+        wing.rotation.x = p.sheltering
+          ? s * 0.08
+          : Math.sin(this.clock * (p.grounded ? 5 : p.vy < 0 ? 7 : 11) + i) *
+            s *
+            amplitude;
+        wing.scale.z = p.sheltering ? 1.7 : 1.28;
       }
+      bird.traverse((o) => {
+        if (
+          o instanceof THREE.Mesh &&
+          o.material instanceof THREE.MeshStandardMaterial
+        )
+          o.material.color
+            .set(COLORS[p.id])
+            .lerp(new THREE.Color("#586f82"), (p.wetness ?? 0) / 160);
+      });
+      const meter = node.getObjectByName("wet-meter")!;
+      meter.visible = (p.wetness ?? 0) > 1;
+      meter.rotation.copy(this.camera.rotation);
+      meter.position.y = p.sheltering ? 2.0 : 1.24;
+      const fill = meter.getObjectByName("fill") as THREE.Mesh;
+      fill.scale.x = Math.max(0.01, (p.wetness ?? 0) / 100);
+      fill.position.x = -0.4 * (1 - fill.scale.x);
+      (fill.material as THREE.MeshBasicMaterial).color.set(
+        (p.wetness ?? 0) > 70 ? "#b44f40" : "#627f8c",
+      );
       const label = node.getObjectByName("label") as THREE.Sprite;
+      label.position.y = p.sheltering ? 2.4 : 1.6;
+      label.visible = !preview;
       label.material.opacity = i === local ? 1 : 0.55;
       label.scale.set(i === local ? 3.2 : 2.56, i === local ? 0.48 : 0.384, 1);
       node.traverse((o) => {
@@ -515,6 +680,7 @@ export class PaperScene {
     this.signs.forEach((o, i) => {
       const sign = l.signs[i];
       o.visible =
+        !preview &&
         (sign.view === undefined || sign.view === g.view) &&
         Math.hypot(sign.x - player.x, sign.z - player.z) < 8;
     });
@@ -535,6 +701,48 @@ export class PaperScene {
     const pm = glow.material as THREE.MeshBasicMaterial;
     const opened = g.keys.length === l.keys.length && (!l.gate || g.gateOpen);
     pm.opacity = opened ? 0.52 + Math.sin(this.clock * 2) * 0.12 : 0.12;
+    if (this.rain) {
+      const pos = this.rain.geometry.getAttribute(
+        "position",
+      ) as THREE.BufferAttribute;
+      const time = g.status === "playing" ? this.clock : g.motionTime;
+      this.rainSeeds.forEach((seed, i) => {
+        let bottom = -2.5;
+        for (const a of WEATHER[g.level].awnings)
+          if (
+            Math.abs(seed.x - a.x) < a.w / 2 &&
+            Math.abs(seed.z - a.z) < a.d / 2
+          )
+            bottom = Math.max(bottom, a.y + 0.05);
+        for (const p of g.players)
+          if (
+            p.sheltering &&
+            Math.hypot(seed.x - p.x, seed.z - p.z) < SHIELD_RADIUS
+          )
+            bottom = Math.max(bottom, p.y + 1.6);
+        for (const raw of l.platforms) {
+          const p = platformAt(raw, g.motionTime);
+          if (
+            Math.abs(seed.x - p.x) < p.w / 2 &&
+            Math.abs(seed.z - p.z) < p.d / 2
+          )
+            bottom = Math.max(bottom, p.y + 0.02);
+        }
+        const y =
+          bottom +
+          (1 - ((time * 0.7 * seed.speed + seed.phase) % 1)) * (12 - bottom);
+        pos.setXYZ(i * 2, seed.x, y, seed.z);
+        pos.setXYZ(
+          i * 2 + 1,
+          seed.x + 0.045,
+          Math.max(bottom, y - 0.3 * seed.speed),
+          seed.z,
+        );
+      });
+      pos.needsUpdate = true;
+      (this.rain.material as THREE.LineBasicMaterial).opacity =
+        rainStrength(g.level, g.motionTime) > 1 ? 0.53 : 0.3;
+    }
     this.renderer.render(this.scene, this.camera);
   }
   dispose() {

@@ -1,0 +1,98 @@
+import type { Point } from "./game";
+export interface RainZone {
+  x: number;
+  z: number;
+  w: number;
+  d: number;
+  rate: number;
+}
+export interface Awning extends Point {
+  w: number;
+  d: number;
+}
+export interface Weather {
+  zones: RainZone[];
+  awnings: Awning[];
+  period: number;
+}
+const start: Awning = { x: 0.5, y: 3.4, z: 0, w: 7, d: 3.8 };
+export const WEATHER: Weather[] = [
+  {
+    period: 12,
+    zones: [
+      { x: 8, z: 0, w: 11, d: 4, rate: 10 },
+      { x: 11, z: -4, w: 4, d: 6, rate: 15 },
+      { x: 22, z: -7, w: 17, d: 4, rate: 17 },
+    ],
+    awnings: [
+      start,
+      { x: 10, y: 3.4, z: 0, w: 2.6, d: 3.6 },
+      { x: 16, y: 3.4, z: -7, w: 3.2, d: 3.6 },
+      { x: 28.5, y: 3.4, z: -7, w: 3.4, d: 3.6 },
+    ],
+  },
+  {
+    period: 10,
+    zones: [
+      { x: 8, z: 0, w: 11, d: 4, rate: 12 },
+      { x: 11, z: -4, w: 4, d: 6, rate: 17 },
+      { x: 22, z: -7, w: 17, d: 4, rate: 21 },
+    ],
+    awnings: [
+      start,
+      { x: 8, y: 3.5, z: 0, w: 2.4, d: 3.6 },
+      { x: 17.5, y: 3.4, z: -7, w: 1.4, d: 3.6 },
+      { x: 28.5, y: 3.4, z: -7, w: 3.4, d: 3.6 },
+    ],
+  },
+  {
+    period: 11,
+    zones: [
+      { x: 8, z: 0, w: 11, d: 4, rate: 6 },
+      { x: 11, z: -4, w: 4, d: 6, rate: 12 },
+      { x: 22, z: -7, w: 17, d: 4, rate: 20 },
+    ],
+    awnings: [
+      start,
+      { x: 17, y: 4.6, z: -7, w: 3.6, d: 3.6 },
+      { x: 28.5, y: 4.6, z: -7, w: 3.4, d: 3.6 },
+    ],
+  },
+  {
+    period: 9,
+    zones: [
+      { x: 8, z: 0, w: 11, d: 4, rate: 15 },
+      { x: 11, z: -4.5, w: 4, d: 7, rate: 20 },
+      { x: 23, z: -8, w: 20, d: 4, rate: 23 },
+    ],
+    awnings: [
+      start,
+      { x: 8, y: 3.5, z: 0, w: 2.3, d: 3.6 },
+      { x: 15, y: 3.5, z: -8, w: 2.8, d: 3.6 },
+      { x: 27, y: 3.4, z: -8, w: 1.3, d: 3.6 },
+      { x: 31, y: 3.4, z: -8, w: 2.6, d: 3.6 },
+    ],
+  },
+];
+export function rainStrength(level: number, t: number): number {
+  return t % WEATHER[level].period < WEATHER[level].period * 0.38 ? 1.45 : 0.75;
+}
+export function rainfall(level: number, p: Point, t: number): number {
+  return Math.max(
+    0,
+    ...WEATHER[level].zones
+      .filter(
+        (r) => Math.abs(p.x - r.x) <= r.w / 2 && Math.abs(p.z - r.z) <= r.d / 2,
+      )
+      .map((r) => r.rate * rainStrength(level, t)),
+  );
+}
+export function underAwning(level: number, p: Point): boolean {
+  return WEATHER[level].awnings.some(
+    (r) =>
+      p.y + 0.88 < r.y &&
+      Math.abs(p.x - r.x) < r.w / 2 &&
+      Math.abs(p.z - r.z) < r.d / 2,
+  );
+}
+export const SHIELD_RADIUS = 2.6;

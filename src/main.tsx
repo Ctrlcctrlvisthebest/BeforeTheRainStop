@@ -151,7 +151,12 @@ function App() {
             [currentSession.current.slot]: input.current,
           });
       }
-      s.render(display, currentSession.current?.slot ?? 0, dt);
+      s.render(
+        display,
+        currentSession.current?.slot ?? 0,
+        dt,
+        phaseRef.current !== "game",
+      );
       if (now - ui > 100) {
         setHud(structuredClone(game.current));
         ui = now;
@@ -177,6 +182,7 @@ function App() {
         fold: held.has("ShiftLeft") || held.has("ShiftRight"),
         turn: held.has("KeyQ") || held.has("KeyE"),
         reset: held.has("KeyR"),
+        shelter: held.has("KeyS") || held.has("ArrowDown"),
       };
       if (phaseRef.current === "game" && currentSession.current)
         connection.current?.input(game.current.id, input.current);
@@ -194,6 +200,8 @@ function App() {
       "KeyQ",
       "KeyE",
       "KeyR",
+      "KeyS",
+      "ArrowDown",
     ];
     const down = (e: KeyboardEvent) => {
       if (
@@ -344,7 +352,7 @@ function App() {
     isPlaying = phase === "game",
     won = isPlaying && hud.status === "won";
   const touch = (
-    field: "axis" | "jump" | "fold" | "turn",
+    field: "axis" | "jump" | "fold" | "turn" | "shelter",
     value: number | boolean,
     label: string,
   ) => (
@@ -373,11 +381,13 @@ function App() {
       <canvas ref={canvas} tabIndex={0} aria-label="千纸鹤横版游戏场景" />
       <div className="grain" />
       <header className="brand">
-        <span className="brand-icon">◇</span>
+        <span className="brand-icon">
+          雨<br />宿
+        </span>
         <div>
           雨停之前<small>BEFORE THE RAIN STOPS</small>
         </div>
-        <span className="edition">另一面 · ACTION EDITION</span>
+        <span className="edition">雨がやむまで · 紙鶴の旅</span>
       </header>
       <nav className="tools">
         <button
@@ -403,24 +413,45 @@ function App() {
         <>
           <div className="intro">
             <span className="eyebrow">1 / 2 / 3 / 6 人 · 纸上合作冒险</span>
+            <div className="title-art" aria-hidden="true">
+              <svg viewBox="0 0 360 360">
+                <circle
+                  cx="180"
+                  cy="180"
+                  r="134"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="9"
+                  strokeDasharray="815 40"
+                />
+                <path
+                  d="M20 240 Q90 185 155 242 T335 240 M20 255 Q90 200 155 257 T335 255 M20 270 Q90 215 155 272 T335 270"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1"
+                />
+              </svg>
+            </div>
+            <span className="vertical-note" aria-hidden="true">
+              雨がやむまで
+            </span>
             <h1>
-              换个角度，
-              <br />
-              一起到家。
+              <span>雨停之前，</span>
+              <span>为你留一片晴。</span>
             </h1>
             <p>
-              向前跑，跳过断口。
+              把翅膀借给同伴，把雨留在身后。
               <br />
-              路被挡住时，转动世界。
+              跳跃、转面，在屋檐间一起前行。
             </p>
             <div className="intro-controls">
-              <kbd>← →</kbd> 跑 <kbd>空格</kbd> 跳 <kbd>Q</kbd> 换一面
+              <kbd>空格</kbd> 起飞 <kbd>Q</kbd> 转面 <kbd>S</kbd> 挡雨
             </div>
           </div>
           <section className="panel menu">
             <div className="panel-top">
-              <span>开始一场纸上旅行</span>
-              <b>01 — 04</b>
+              <span>旅の支度 · 旅途准备</span>
+              <b>全 四 帖</b>
             </div>
             <label>
               你的名字
@@ -481,7 +512,7 @@ function App() {
             <p className="fine">每人一只纸鹤 · 用房间码邀请好友 · 不需要注册</p>
           </section>
           <footer>
-            一张纸的路，不止一个方向。<span>横版动作 × 90° 视角切换</span>
+            愿每一只纸鹤，都能等到雨停。<span>折り鶴 · 雨宿り · 帰り道</span>
           </footer>
         </>
       )}
@@ -556,6 +587,13 @@ function App() {
                 ⚿ {hud.keys.length}/{l.keys.length}
               </span>
               <span>✦ {hud.stars.length}/3</span>
+              {l.gate && (
+                <span className="gate-progress">
+                  {hud.gateOpen
+                    ? "机关已开"
+                    : `机关 ${Math.round(((hud.gateCharge ?? 0) / 4) * 100)}%`}
+                </span>
+              )}
               <span>
                 ◷ {Math.floor(hud.time / 60)}:
                 {String(Math.floor(hud.time % 60)).padStart(2, "0")}
@@ -566,6 +604,53 @@ function App() {
                 </span>
               )}
             </div>
+          </section>
+          <section
+            className={`rain-hud ${(local.wetness ?? 0) > 70 ? "soaked" : ""}`}
+            aria-label="纸鹤湿度"
+          >
+            <div>
+              <span>纸的湿度</span>
+              <strong>
+                {Math.round(local.wetness ?? 0)}
+                <small>%</small>
+              </strong>
+            </div>
+            <div
+              className="wet-track"
+              role="progressbar"
+              aria-label="淋湿程度"
+              aria-valuenow={Math.round(local.wetness ?? 0)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
+              <i style={{ width: `${local.wetness ?? 0}%` }} />
+            </div>
+            <p>
+              {local.rainCover === "roof"
+                ? "檐下 · 正在晾干"
+                : local.rainCover === "ally"
+                  ? "同伴庇护 · 正在晾干"
+                  : local.sheltering
+                    ? "展翼挡雨 · 自己仍会慢慢淋湿"
+                    : local.rainCover === "rain"
+                      ? "正在淋雨 · S 展翼 / 寻找屋檐"
+                      : "晴处 · 纸翼轻盈"}
+            </p>
+            {hud.mode > 1 && (
+              <div className="team-wet">
+                {hud.players.map((p) => (
+                  <span
+                    key={p.id}
+                    title={`${NAMES[p.id]}：${Math.round(p.wetness ?? 0)}%`}
+                  >
+                    <i style={{ background: COLORS[p.id] }} />
+                    {p.arrived ? "已到家" : `${Math.round(p.wetness ?? 0)}%`}
+                    {p.sheltering ? " · 挡雨" : ""}
+                  </span>
+                ))}
+              </div>
+            )}
           </section>
           <aside className="compass">
             <div>
@@ -607,7 +692,7 @@ function App() {
           </aside>
           <div className="bottom-hint">
             <kbd>← →</kbd> 移动 <kbd>空格</kbd> 跳 / 按住滑翔 <kbd>Q</kbd> 转动{" "}
-            <kbd>Shift</kbd> 折成桥 <kbd>R</kbd> 回存档旗
+            <kbd>S / ↓</kbd> 挡雨 <kbd>Shift</kbd> 折桥 <kbd>R</kbd> 回存档旗
           </div>
           <div className="touch-controls">
             <div>
@@ -617,6 +702,7 @@ function App() {
             <div>
               {touch("turn", true, "Q 转面")}
               {touch("fold", true, "折桥")}
+              {touch("shelter", true, "挡雨")}
               {touch("jump", true, "跳 / 滑翔")}
             </div>
           </div>
@@ -690,13 +776,19 @@ function App() {
               <dd>跳跃；在下落时按住，展开翅膀滑翔</dd>
               <dt>Q / E</dt>
               <dd>世界旋转 90°，左右键转而控制另一条轴。联机时全队共享视角</dd>
+              <dt>S / ↓</dt>
+              <dd>
+                在地面按住展翼，原地为附近同伴挡雨。自己仍缓慢淋湿；两只纸鹤可以互相遮雨晾干。
+              </dd>
               <dt>Shift</dt>
               <dd>落地后按住折成桥，让同伴从翅膀上走过；也能跳到同伴头上</dd>
               <dt>R</dt>
               <dd>回到你最近点亮的存档旗</dd>
             </dl>
             <p>
-              找齐钥匙，所有纸鹤抵达金色灯门才过关。多人机关需要同时站上两块圆垫；单人只需一块。星星是额外挑战。
+              雨幕会打湿纸鹤，湿度满时回到最近存档旗。檐下和晴处能快速晾干；画面中的檐亭就是避雨处。找齐钥匙，所有纸鹤抵达金色灯门才过关。机关要踩住
+              4
+              秒：多人同时站上两块圆垫，单人只需一块；可以边踩边挡雨。星星是额外挑战。
             </p>
             {isPlaying && (
               <button className="primary" onClick={() => restart(false)}>

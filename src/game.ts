@@ -1,3 +1,4 @@
+import { rainfall, underAwning, SHIELD_RADIUS } from "./weather";
 export const MODES = [1, 2, 3, 6] as const;
 export type Mode = (typeof MODES)[number];
 export const COLORS = [
@@ -64,7 +65,7 @@ export const LEVELS: Level[] = [
     sub: "跑起来，世界还有另一面。",
     hint: "← → / A D 移动 · 空格跳跃，按住滑翔 · Q 转动世界",
     color: "#91b9a2",
-    sky: "#cfe5df",
+    sky: "#dfe2d9",
     spawn: { x: -1, y: 0, z: 0 },
     exit: { x: 29, y: 0, z: -7 },
     platforms: [...base(), { ...p(12.3, 0, 0.55, 3, 4.2, 4.2), kind: "wall" }],
@@ -82,7 +83,7 @@ export const LEVELS: Level[] = [
       { x: 2, y: 0, z: 0, text: "空格 跳过断口" },
       { x: 10, y: 0.8, z: 0, text: "Q 转到侧面 →", view: 0 },
       { x: 11, y: 0.6, z: -6.5, text: "Q 回到正面 →", view: 1 },
-      { x: 20, y: 0.4, z: -7, text: "按住空格 · 滑翔" },
+      { x: 20, y: 0.4, z: -7, text: "雨中按住 S · 替同伴挡雨" },
     ],
     pads: [],
     winds: [],
@@ -93,7 +94,7 @@ export const LEVELS: Level[] = [
     sub: "有人搭桥，有人先走。",
     hint: "Shift 展开成桥 · 可以跳到同伴头上 · 合作踩亮圆形机关",
     color: "#c4ac83",
-    sky: "#eee2cd",
+    sky: "#e7dfd0",
     spawn: { x: -1, y: 0, z: 0 },
     exit: { x: 29, y: 0, z: -7 },
     platforms: [
@@ -113,10 +114,10 @@ export const LEVELS: Level[] = [
       { x: 17, y: 0, z: -7 },
     ],
     signs: [
-      { x: 2, y: 0, z: 0, text: "Shift · 把翅膀借给同伴" },
+      { x: 2, y: 0, z: 0, text: "S 挡雨 · Shift 折桥" },
       { x: 8, y: 0.2, z: 0, text: "踩台阶 / 叠高拿钥匙" },
       { x: 11, y: 0.4, z: -6.5, text: "Q 回到正面" },
-      { x: 18, y: 0.5, z: -7, text: "一起踩亮机关" },
+      { x: 18, y: 0.5, z: -7, text: "踩住 4 秒 · S 展翼挡雨" },
     ],
     pads: [
       { x: 16, y: 0, z: -7 },
@@ -131,7 +132,7 @@ export const LEVELS: Level[] = [
     sub: "风会带你去高一点的地方。",
     hint: "进入风柱会上升 · 跳上移动纸台 · 侧面藏着下一条路",
     color: "#a7a1c9",
-    sky: "#e0dcf0",
+    sky: "#dddde4",
     spawn: { x: -1, y: 0, z: 0 },
     exit: { x: 29, y: 1.2, z: -7 },
     platforms: [
@@ -175,7 +176,7 @@ export const LEVELS: Level[] = [
     sub: "窗内的灯，为所有人亮着。",
     hint: "雨刃会周期出现 · 观察节奏再跳 · 找齐钥匙后一起抵达灯门",
     color: "#7ca8b5",
-    sky: "#cddce9",
+    sky: "#d0dadd",
     spawn: { x: -1, y: 0, z: 0 },
     exit: { x: 31, y: 0, z: -8 },
     platforms: [
@@ -206,7 +207,7 @@ export const LEVELS: Level[] = [
       { x: 2, y: 0, z: 0, text: "这次，也要一起到家" },
       { x: 10, y: 0.6, z: 0, text: "Q · 换一条轴前进" },
       { x: 11, y: 0.5, z: -7.5, text: "Q · 回到正面" },
-      { x: 27, y: 0.4, z: -8, text: "一起打开最后的门" },
+      { x: 27, y: 0.4, z: -8, text: "踩住 4 秒 · 一起挡雨开门" },
     ],
     pads: [
       { x: 26, y: 0, z: -8 },
@@ -226,6 +227,7 @@ export interface Input {
   fold: boolean;
   turn: boolean;
   reset: boolean;
+  shelter: boolean;
 }
 export const idleInput = (): Input => ({
   axis: 0,
@@ -233,6 +235,7 @@ export const idleInput = (): Input => ({
   fold: false,
   turn: false,
   reset: false,
+  shelter: false,
 });
 export interface Bird extends Point {
   id: number;
@@ -241,6 +244,9 @@ export interface Bird extends Point {
   vy: number;
   grounded: boolean;
   folded: boolean;
+  sheltering: boolean;
+  wetness: number;
+  rainCover: "dry" | "rain" | "roof" | "ally" | "self";
   facing: number;
   checkpoint: number;
   deaths: number;
@@ -267,6 +273,7 @@ export interface Game {
   keys: number[];
   stars: number[];
   gateOpen: boolean;
+  gateCharge: number;
   status: "playing" | "won";
 }
 export type Inputs = Record<number, Input>;
@@ -288,6 +295,7 @@ export function newGame(mode: Mode, level = 0, id = "solo"): Game {
     keys: [],
     stars: [],
     gateOpen: false,
+    gateCharge: 0,
     status: "playing",
     players: Array.from({ length: mode }, (_, i) => ({
       id: i,
@@ -298,6 +306,9 @@ export function newGame(mode: Mode, level = 0, id = "solo"): Game {
       vy: 0,
       grounded: true,
       folded: false,
+      sheltering: false,
+      wetness: 0,
+      rainCover: "dry",
       facing: 1,
       checkpoint: -1,
       deaths: 0,
@@ -359,6 +370,9 @@ function respawn(g: Game, p: Bird): void {
     vy: 0,
     grounded: false,
     folded: false,
+    sheltering: false,
+    wetness: 0,
+    rainCover: "dry",
     support: -1,
     coyote: 0,
     invulnerable: 1.2,
@@ -367,9 +381,13 @@ function respawn(g: Game, p: Bird): void {
 }
 export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
   if (g.status !== "playing") return;
+  g.gateCharge ??= 0;
   g.tick++;
   g.time += dt;
   for (const p of g.players) {
+    p.wetness ??= 0;
+    p.sheltering ??= false;
+    p.rainCover ??= "dry";
     const i = inputs[p.id] ?? idleInput();
     if (i.turn && !p.wasTurn && !p.arrived && g.time - g.flipAt > 0.8) {
       g.view = g.view === 0 ? 1 : 0;
@@ -403,8 +421,9 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
       p.x += after.x - before.x;
       p.z += after.z - before.z;
     }
-    p.folded = input.fold && p.grounded;
-    if (p.jumpBuffer > 0 && p.coyote > 0 && !p.folded) {
+    p.sheltering = input.shelter === true && p.grounded;
+    p.folded = input.fold && p.grounded && !p.sheltering;
+    if (p.jumpBuffer > 0 && p.coyote > 0 && !p.folded && !p.sheltering) {
       p.vy = 9.3;
       p.grounded = false;
       p.coyote = 0;
@@ -412,9 +431,10 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
     }
     const axis = g.view === 0 ? "x" : "z";
     const dir = g.view === 0 ? 1 : -1;
-    const speed = p.folded
-      ? 0
-      : Math.max(-1, Math.min(1, input.axis)) * 5.3 * dir;
+    const speed =
+      p.folded || p.sheltering
+        ? 0
+        : Math.max(-1, Math.min(1, input.axis)) * 5.3 * dir;
     const velocity = axis === "x" ? "vx" : "vz";
     const other = axis === "x" ? "vz" : "vx";
     p[other] = 0;
@@ -501,6 +521,7 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
     }
     // Folded wings need support beneath the body, not only the tips; they cannot fly across gaps.
     if (p.folded && !p.grounded) p.folded = false;
+    if (!p.grounded) p.sheltering = false;
     const l = LEVELS[g.level];
     if (
       p.y < -7 ||
@@ -559,6 +580,7 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
       respawn(g, p);
     }
   }
+  applyRain(g, dt);
   const l = LEVELS[g.level];
   if (l.pads.length && !g.gateOpen) {
     const required = Math.min(g.mode, l.pads.length);
@@ -572,16 +594,65 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
             Math.abs(pad.y - p.y) < 0.4,
         ),
       );
-    if (lit.length === required) g.gateOpen = true;
+    g.gateCharge = lit.length === required ? Math.min(4, g.gateCharge + dt) : 0;
+    if (g.gateCharge >= 4) g.gateOpen = true;
   }
   if (g.players.every((p) => p.arrived)) g.status = "won";
+}
+export function rainCover(g: Game, p: Bird): Bird["rainCover"] {
+  if (
+    underAwning(g.level, p) ||
+    bodies(g).some(
+      (b) =>
+        b.y - b.h > p.y + 0.88 &&
+        Math.abs(p.x - b.x) < b.w / 2 &&
+        Math.abs(p.z - b.z) < b.d / 2,
+    )
+  )
+    return "roof";
+  if (!rainfall(g.level, p, g.motionTime)) return "dry";
+  if (
+    g.players.some(
+      (q) =>
+        q.id !== p.id &&
+        !q.arrived &&
+        q.sheltering &&
+        q.grounded &&
+        Math.hypot(q.x - p.x, q.z - p.z) < SHIELD_RADIUS &&
+        p.y + 0.88 <= q.y + 1.5 &&
+        p.y >= q.y - 2.5,
+    )
+  )
+    return "ally";
+  return p.sheltering ? "self" : "rain";
+}
+export function applyRain(g: Game, dt: number): void {
+  // Resolve protection simultaneously, before wet birds respawn, so slot order cannot affect cover.
+  const states = g.players.map((p) => rainCover(g, p));
+  g.players.forEach((p, index) => {
+    if (p.arrived) return;
+    p.rainCover = states[index];
+    if (p.invulnerable > 0) return;
+    const rate = rainfall(g.level, p, g.motionTime);
+    const change =
+      p.rainCover === "roof" || p.rainCover === "dry"
+        ? -25
+        : p.rainCover === "ally"
+          ? -10
+          : p.rainCover === "self"
+            ? rate * 0.28
+            : rate;
+    p.wetness = Math.max(0, Math.min(100, (p.wetness ?? 0) + change * dt));
+    if (p.wetness >= 100) respawn(g, p);
+  });
 }
 export function cleanInput(value: unknown): Input | null {
   if (!value || typeof value !== "object") return null;
   const i = value as Record<string, unknown>;
   if (
     ![-1, 0, 1].includes(i.axis as number) ||
-    ["jump", "fold", "turn", "reset"].some((k) => typeof i[k] !== "boolean")
+    ["jump", "fold", "turn", "reset"].some((k) => typeof i[k] !== "boolean") ||
+    (i.shelter !== undefined && typeof i.shelter !== "boolean")
   )
     return null;
   return {
@@ -590,5 +661,6 @@ export function cleanInput(value: unknown): Input | null {
     fold: i.fold as boolean,
     turn: i.turn as boolean,
     reset: i.reset as boolean,
+    shelter: i.shelter === true,
   };
 }

@@ -88,12 +88,15 @@ for (const mode of [1, 2, 3, 6] as const)
     g.keys = [0];
     Object.assign(g.players[0], { x: 16, y: 0, z: -7 });
     tick(g);
-    assert.equal(g.gateOpen, mode === 1);
+    assert.equal(g.gateOpen, false);
     if (mode > 1) {
       Object.assign(g.players[1], { x: 19, y: 0, z: -7 });
-      tick(g);
-      assert.equal(g.gateOpen, true);
     }
+    const guarding = Object.fromEntries(
+      g.players.map((p) => [p.id, { ...idleInput(), shelter: true }]),
+    );
+    for (let n = 0; n < 245; n++) stepGame(g, guarding);
+    assert.equal(g.gateOpen, true);
     Object.assign(g.players[0], { x: 29, y: 0, z: -7 });
     tick(g);
     assert.equal(g.status, mode === 1 ? "won" : "playing");
@@ -113,4 +116,106 @@ test("network input validation rejects invalid motion and strips seat spoofing",
   assert.equal(cleanInput({ ...idleInput(), axis: 100 }), null);
   assert.equal(cleanInput({ ...idleInput(), jump: "yes" }), null);
   assert.deepEqual(cleanInput({ ...idleInput(), slot: 5 }), idleInput());
+});
+
+test("rain accumulates wetness, roofs and dry areas restore paper", () => {
+  const g = newGame(1);
+  Object.assign(g.players[0], { x: 19, y: 0, z: -7 });
+  tick(g, {}, 90);
+  assert.ok(g.players[0].wetness > 20);
+  Object.assign(g.players[0], { x: 16, wetness: 75 });
+  tick(g, {}, 90);
+  assert.equal(g.players[0].rainCover, "roof");
+  assert.ok(g.players[0].wetness < 40);
+  Object.assign(g.players[0], { x: 1, y: 0, z: 0 });
+  tick(g, {}, 120);
+  assert.equal(g.players[0].wetness, 0);
+});
+test("S holds position and reduces own rain while protecting a nearby teammate", () => {
+  const g = newGame(2);
+  Object.assign(g.players[0], { x: 19, y: 0, z: -7 });
+  Object.assign(g.players[1], { x: 20.5, y: 0, z: -7, wetness: 40 });
+  const exposed = structuredClone(g);
+  for (let n = 0; n < 90; n++) {
+    stepGame(g, { 0: { ...idleInput(), shelter: true, axis: 1, jump: true } });
+    stepGame(exposed, {});
+  }
+  assert.equal(g.players[0].x, 19);
+  assert.equal(g.players[0].y, 0);
+  assert.ok(g.players[0].wetness > 0);
+  assert.ok(g.players[0].wetness < exposed.players[0].wetness * 0.35);
+  assert.equal(g.players[1].rainCover, "ally");
+  assert.ok(g.players[1].wetness < 30);
+});
+test("two cranes can mutually shelter, in either camera view and independent of slot order", () => {
+  for (const view of [0, 1] as const) {
+    const g = newGame(2);
+    g.view = view;
+    Object.assign(g.players[0], { x: 19, y: 0, z: -7, wetness: 50 });
+    Object.assign(g.players[1], { x: 20.5, y: 0, z: -7, wetness: 50 });
+    for (let n = 0; n < 90; n++)
+      stepGame(g, {
+        0: { ...idleInput(), shelter: true },
+        1: { ...idleInput(), shelter: true },
+      });
+    assert.ok(g.players.every((p) => p.rainCover === "ally" && p.wetness < 36));
+    assert.equal(g.players[0].wetness, g.players[1].wetness);
+  }
+});
+test("protection has limited range and stops when released", () => {
+  const g = newGame(2);
+  Object.assign(g.players[0], { x: 19, y: 0, z: -7 });
+  Object.assign(g.players[1], { x: 22, y: 0, z: -7 });
+  stepGame(g, { 0: { ...idleInput(), shelter: true } });
+  assert.equal(g.players[1].rainCover, "rain");
+  Object.assign(g.players[1], { x: 19.8 });
+  stepGame(g, { 0: { ...idleInput(), shelter: true } });
+  assert.equal(g.players[1].rainCover, "ally");
+  stepGame(g, {});
+  assert.equal(g.players[1].rainCover, "rain");
+});
+test("soaking returns only the affected crane to its dry checkpoint", () => {
+  const g = newGame(2);
+  g.keys = [0];
+  Object.assign(g.players[0], {
+    x: 19,
+    y: 0,
+    z: -7,
+    wetness: 99.99,
+    checkpoint: 1,
+  });
+  const other = { ...g.players[1] };
+  stepGame(g, {});
+  assert.equal(g.players[0].deaths, 1);
+  assert.equal(g.players[0].wetness, 0);
+  assert.equal(g.players[0].x, 16);
+  assert.equal(g.players[1].x, other.x);
+  assert.deepEqual(g.keys, [0]);
+});
+test("new rain fields and optional shelter input preserve existing room saves", () => {
+  const g = newGame(1);
+  delete (g.players[0] as any).wetness;
+  delete (g.players[0] as any).rainCover;
+  delete (g.players[0] as any).sheltering;
+  delete (g as any).gateCharge;
+  tick(g);
+  assert.equal(g.players[0].wetness, 0);
+  assert.equal(g.gateCharge, 0);
+  const input: any = idleInput();
+  delete input.shelter;
+  assert.equal(cleanInput(input)?.shelter, false);
+  assert.equal(cleanInput({ ...idleInput(), shelter: "yes" }), null);
+});
+test("pressure pads need continuous shelter time; stepping away cancels charge", () => {
+  const g = newGame(1, 1);
+  Object.assign(g.players[0], { x: 16, y: 0, z: -7 });
+  tick(g, { shelter: true }, 120);
+  assert.ok(g.gateCharge > 1.9 && g.gateCharge < 2.1);
+  assert.equal(g.gateOpen, false);
+  Object.assign(g.players[0], { x: 17.5 });
+  tick(g);
+  assert.equal(g.gateCharge, 0);
+  Object.assign(g.players[0], { x: 16 });
+  tick(g, { shelter: true }, 245);
+  assert.equal(g.gateOpen, true);
 });

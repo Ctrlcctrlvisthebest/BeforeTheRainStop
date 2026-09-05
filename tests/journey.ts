@@ -73,11 +73,18 @@ export function completeLevel(level: number) {
     move(19, true);
     waitGround();
   }
+  if (level === 1) {
+    move(16);
+    tick({ shelter: true }, 250);
+  }
   move(20.6);
   move(26, true);
   waitGround();
   if (level === 2) move(29);
   else if (level === 3) {
+    tick({ shelter: true }, 250);
+    move(27);
+    tick({}, 180);
     move(28);
     move(31, true);
   } else move(29);
