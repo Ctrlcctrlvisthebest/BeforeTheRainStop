@@ -14,7 +14,7 @@ import { completeLevel } from "./journey";
 function tick(g: Game, i: Partial<Input> = {}, n = 1) {
   for (let t = 0; t < n; t++) stepGame(g, { 0: { ...idleInput(), ...i } });
 }
-for (let i = 0; i < 4; i++)
+for (let i = 0; i < LEVELS.length; i++)
   test(`level ${i + 1}: run, jump, turn, collect keys and finish without teleporting`, () => {
     const g = completeLevel(i);
     assert.equal(g.status, "won");
@@ -74,7 +74,7 @@ test("jumping on another bird creates a stack; a folded bird provides a wider la
 });
 test("falling restores individual checkpoint and preserves team collectibles", () => {
   const g = newGame(1);
-  g.keys = [0];
+  g.keys = g.savedKeys = [0];
   Object.assign(g.players[0], { checkpoint: 1, x: 100, y: -8 });
   tick(g);
   assert.equal(g.players[0].deaths, 1);
@@ -86,7 +86,7 @@ for (const mode of [1, 2, 3, 6] as const)
   test(`${mode} players: pressure pad requirement and every bird must arrive`, () => {
     const g = newGame(mode, 1);
     g.bridgeLatched = true; // Isolate the final pressure pads from the earlier crossing.
-    g.keys = [0];
+    g.keys = g.savedKeys = [0];
     Object.assign(g.players[0], { x: 16, y: 0, z: -7 });
     tick(g);
     assert.equal(g.gateOpen, false);
@@ -180,7 +180,7 @@ test("protection has limited range and stops when released", () => {
 });
 test("soaking returns only the affected crane to its dry checkpoint", () => {
   const g = newGame(2);
-  g.keys = [0];
+  g.keys = g.savedKeys = [0];
   Object.assign(g.players[0], {
     x: 19,
     y: 0,
@@ -326,3 +326,54 @@ test("old saves get durability and old clients can omit repair", () => {
   assert.equal(cleanInput(old)?.repair, false);
   assert.equal(cleanInput({ ...idleInput(), repair: 1 }), null);
 });
+
+test("both lantern-ferry gaps require a moving landing even with edge jumps and held gliding", () => {
+  const l = LEVELS[5],
+    platforms = l.platforms;
+  try {
+    l.platforms = platforms.filter((p) => !p.motion);
+    for (const [edge, y, z, far] of [
+      [4.5, 0, 0, 12.5],
+      [24.5, 3.3, -7, 33],
+    ])
+      for (const offset of [-0.6, 0, 0.2, 0.7]) {
+        const g = newGame(1, 5),
+          p = g.players[0];
+        Object.assign(p, { x: edge + offset, y, z, vx: 5.3 });
+        let crossed = false;
+        for (let n = 0; n < 120; n++) {
+          stepGame(g, { 0: { ...idleInput(), axis: 1, jump: true } });
+          if (p.x >= far - 0.28 && p.y >= y - 0.05) crossed = true;
+        }
+        assert.equal(crossed, false, `edge ${edge}, offset ${offset}`);
+      }
+  } finally {
+    l.platforms = platforms;
+  }
+});
+
+for (const level of [4, 5, 6, 7])
+  for (const mode of [1, 2, 3, 6] as const)
+    test(`new chapter ${level + 1}, ${mode} players: pads are physically reachable and the entire team can finish`, () => {
+      const g = newGame(mode, level),
+        l = LEVELS[level];
+      g.bridgeLatched = true;
+      g.keys = g.savedKeys = l.keys.map((_, i) => i);
+      if (l.gate) {
+        for (let i = 0; i < Math.min(mode, l.pads.length); i++)
+          Object.assign(g.players[i], l.pads[i], {
+            y: l.pads[i].y + 0.2,
+            grounded: false,
+          });
+        const inputs = Object.fromEntries(
+          g.players.map((p) => [p.id, { ...idleInput(), shelter: true }]),
+        );
+        for (let n = 0; n < 265; n++) stepGame(g, inputs);
+        assert.equal(g.gateOpen, true);
+        assert.ok(g.players.every((p) => p.deaths === 0));
+      }
+      for (const p of g.players)
+        Object.assign(p, l.exit, { y: l.exit.y + 0.1, grounded: false });
+      stepGame(g, {});
+      assert.equal(g.status, "won");
+    });

@@ -19,7 +19,7 @@ const tick = (g: Game, n = 1, inputs: Inputs = {}) => {
   for (let i = 0; i < n; i++) stepGame(g, inputs);
 };
 test("every awning has a small fire; every blazing obstacle is roofed", () => {
-  for (let l = 0; l < 4; l++) {
+  for (let l = 0; l < LEVELS.length; l++) {
     assert.equal(CAMPFIRES[l].length, WEATHER[l].awnings.length);
     CAMPFIRES[l].forEach((f) => assert.equal(underAwning(l, f), true));
     LEVELS[l].hazards.forEach((f) => {
@@ -37,7 +37,7 @@ test("every awning has a small fire; every blazing obstacle is roofed", () => {
   }
 });
 test("all starting seats remain safely away from heat while waiting for teammates", () => {
-  for (let l = 0; l < 4; l++) {
+  for (let l = 0; l < LEVELS.length; l++) {
     const g = newGame(6, l);
     tick(g, 720);
     assert.ok(g.players.every((p) => p.deaths === 0 && p.heat === 0));
@@ -56,8 +56,8 @@ test("a small fire dries fully wet paper before the warning threshold", () => {
 test("staying by a fire warns, then shatters only that crane and preserves team progress", () => {
   const g = newGame(2),
     p = g.players[0];
-  g.keys = [0];
-  g.stars = [0];
+  g.keys = g.savedKeys = [0];
+  g.stars = g.savedStars = [0];
   Object.assign(p, { x: 10, y: 0, z: 0, checkpoint: 0 });
   tick(g, 330);
   assert.ok(p.heat >= FIRE_WARNING);

@@ -4,14 +4,21 @@ import { idleInput, MAX_FOLDS } from "../src/game";
 import type { PublicRoom } from "../src/room";
 const base = process.env.TEST_SERVER ?? "http://127.0.0.1:8788";
 async function post(path: string, body: unknown) {
-  const r = await fetch(base + "/api" + path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const d = (await r.json()) as any;
-  assert.ok(r.ok, JSON.stringify(d));
-  return d;
+  for (let attempt = 0; ; attempt++) {
+    const r = await fetch(base + "/api" + path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const d = (await r.json()) as any;
+    // The suite creates twelve rooms; respect the service's ten-per-minute limit.
+    if (r.status === 429 && path === "/rooms" && attempt < 6) {
+      await new Promise((resolve) => setTimeout(resolve, 10000));
+      continue;
+    }
+    assert.ok(r.ok, JSON.stringify(d));
+    return d;
+  }
 }
 async function until(check: () => boolean, label: string) {
   const end = Date.now() + 7000;
@@ -359,6 +366,140 @@ for (const capacity of [2, 3, 6])
           p.room!.game!.players.slice(1).every((q) => q.deaths === 0),
         ),
       );
+      assert.ok(peers.every((p) => p.errors.length === 0));
+    } finally {
+      peers.forEach((p) => p.ws.close());
+    }
+  });
+
+for (const capacity of [2, 3, 6])
+  test(`${capacity} real WebSockets: new chapter pickups roll back, reappear and save at the next rack`, async () => {
+    const created = await post("/rooms", {
+        capacity,
+        level: 4,
+        name: "checkpoint host",
+      }),
+      sessions = [created];
+    for (let i = 1; i < capacity; i++)
+      sessions.push(
+        await post(`/rooms/${created.room.code}/join`, {
+          name: `traveler ${i}`,
+        }),
+      );
+    const peers = sessions.map((s) => peer(created.room.code, s.token));
+    try {
+      await until(
+        () => peers.every((p) => p.room?.players.every((q) => q.online)),
+        "connect new chapter",
+      );
+      peers[0].ws.send(
+        JSON.stringify({ type: "command", command: { type: "start" } }),
+      );
+      await until(
+        () => peers.every((p) => p.room?.game?.status === "playing"),
+        "start new chapter",
+      );
+      const game = () => peers[0].room!.game!,
+        bird = () => game().players[0];
+      const send = (input: Partial<ReturnType<typeof idleInput>> = {}) =>
+        peers[0].ws.send(
+          JSON.stringify({
+            type: "input",
+            gameId: game().id,
+            seq: ++peers[0].seq,
+            input: { ...idleInput(), ...input },
+          }),
+        );
+      const settle = async () => {
+        send();
+        await new Promise((r) => setTimeout(r, 200));
+      };
+      const move = async (target: number, jump = false) => {
+        const axis = game().view === 0 ? "x" : "z",
+          dir = Math.sign(target - bird()[axis]);
+        send({ axis: dir * (game().view === 0 ? 1 : -1), jump });
+        await until(
+          () => dir * (target - bird()[axis]) < 0.2,
+          `reach ${axis} ${target}`,
+        );
+        await settle();
+      };
+      const turn = async () => {
+        const view = game().view;
+        send({ turn: true });
+        await until(
+          () => peers.every((p) => p.room!.game!.view !== view),
+          "shared turn",
+        );
+        await settle();
+        await new Promise((r) => setTimeout(r, 700));
+      };
+      await move(3.8);
+      await move(8, true);
+      await until(
+        () => bird().grounded && bird().checkpoint === 0,
+        "first rack",
+      );
+      await turn();
+      await move(3.5);
+      await until(
+        () =>
+          peers.every((p) => p.room!.game!.players[0].carriedKeys.includes(0)),
+        "carried key on every client",
+      );
+      assert.ok(peers.every((p) => !p.room!.game!.savedKeys.includes(0)));
+      const deaths = bird().deaths;
+      send({ reset: true });
+      await until(
+        () =>
+          peers.every((p) => p.room!.game!.players[0].deaths === deaths + 1),
+        "carrier returned",
+      );
+      await settle();
+      assert.ok(
+        peers.every((p) => !p.room!.game!.keys.includes(0)),
+        "key visible again to the entire room",
+      );
+      assert.ok(
+        peers.every((p) =>
+          p.room!.game!.players.slice(1).every((q) => q.deaths === 0),
+        ),
+      );
+      await move(3.5);
+      await until(() => bird().carriedKeys.includes(0), "recollect");
+      await move(6);
+      await turn();
+      await move(12);
+      await until(
+        () =>
+          peers.every(
+            (p) =>
+              p.room!.game!.savedKeys.includes(0) &&
+              p.room!.game!.players[0].carriedKeys.length === 0,
+          ),
+        "saved at next rack",
+      );
+      send({ reset: true });
+      await until(() => bird().deaths === deaths + 2, "return after saving");
+      await settle();
+      assert.ok(
+        peers.every((p) => p.room!.game!.keys.includes(0)),
+        "saved key remains",
+      );
+      peers[capacity - 1].ws.close();
+      await until(
+        () => !peers[0].room!.players[capacity - 1].online,
+        "disconnect",
+      );
+      peers[capacity - 1] = peer(
+        created.room.code,
+        sessions[capacity - 1].token,
+      );
+      await until(
+        () => peers.every((p) => p.room?.players.every((q) => q.online)),
+        "reconnect with saved key",
+      );
+      assert.deepEqual(peers[capacity - 1].room!.game!.savedKeys, [0]);
       assert.ok(peers.every((p) => p.errors.length === 0));
     } finally {
       peers.forEach((p) => p.ws.close());

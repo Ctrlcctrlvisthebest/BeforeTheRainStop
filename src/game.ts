@@ -1,3 +1,10 @@
+import { EXTRA_LEVELS } from "./chapters";
+import {
+  initializeCollectibles,
+  collect,
+  bankCollectibles,
+  dropCollectibles,
+} from "./collectibles";
 import { CROSSINGS, bankPoint, bridgePlank, dockBank } from "./bridges";
 import {
   rainfall,
@@ -241,6 +248,7 @@ export const LEVELS: Level[] = [
       { x: 30, y: 0, z: -8, w: 0.7, d: 2.7 },
     ],
   },
+  ...EXTRA_LEVELS,
 ];
 export interface Input {
   axis: number;
@@ -282,6 +290,11 @@ export interface Bird extends Point {
   rainCover: "dry" | "rain" | "roof" | "ally" | "self";
   facing: number;
   checkpoint: number;
+  carriedKeys: number[];
+  carriedStars: number[];
+  lastDropped: number;
+  lastBanked: number;
+  bankedUntil: number;
   deaths: number;
   arrived: boolean;
   coyote: number;
@@ -305,6 +318,8 @@ export interface Game {
   players: Bird[];
   keys: number[];
   stars: number[];
+  savedKeys: number[];
+  savedStars: number[];
   gateOpen: boolean;
   gateCharge: number;
   bridgeLatched: boolean;
@@ -330,6 +345,8 @@ export function newGame(mode: Mode, level = 0, id = "solo"): Game {
     flips: 0,
     keys: [],
     stars: [],
+    savedKeys: [],
+    savedStars: [],
     gateOpen: false,
     gateCharge: 0,
     bridgeLatched: false,
@@ -360,6 +377,11 @@ export function newGame(mode: Mode, level = 0, id = "solo"): Game {
       rainCover: "dry",
       facing: 1,
       checkpoint: -1,
+      carriedKeys: [],
+      carriedStars: [],
+      lastDropped: 0,
+      lastBanked: 0,
+      bankedUntil: 0,
       deaths: 0,
       arrived: false,
       coyote: 0.12,
@@ -420,6 +442,7 @@ export function activeHazard(period: number | undefined, t: number): boolean {
 }
 function respawn(g: Game, p: Bird, reason: Bird["lastFailure"] = "fall"): void {
   const l = LEVELS[g.level];
+  dropCollectibles(g, p);
   const s = l.checkpoints[p.checkpoint] ?? l.spawn;
   const offset = (p.id % 3) * 0.4;
   const fireBesideRack = l.hazards.some(
@@ -453,6 +476,7 @@ function respawn(g: Game, p: Bird, reason: Bird["lastFailure"] = "fall"): void {
 }
 export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
   if (g.status !== "playing") return;
+  initializeCollectibles(g);
   g.gateCharge ??= 0;
   g.bridgeLatched ??= false;
   g.bridgeCharge ??= 0;
@@ -703,6 +727,7 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
       respawn(g, p, "scorched");
       continue;
     }
+    let reachedCheckpoint = false;
     l.checkpoints.forEach((c, index) => {
       if (
         index > p.checkpoint &&
@@ -710,6 +735,7 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
         Math.abs(c.y - p.y) < 1
       ) {
         p.checkpoint = index;
+        reachedCheckpoint = true;
         p.foldsLeft = MAX_FOLDS;
         p.repairProgress = 0;
       }
@@ -720,7 +746,7 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
         Math.hypot(k.x - p.x, k.z - p.z) < 0.8 &&
         Math.abs(k.y - (p.y + 0.45)) < 0.9
       )
-        g.keys.push(index);
+        collect(g, p, "keys", index);
     });
     l.stars.forEach((k, index) => {
       if (
@@ -728,8 +754,9 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
         Math.hypot(k.x - p.x, k.z - p.z) < 0.85 &&
         Math.abs(k.y - (p.y + 0.45)) < 1
       )
-        g.stars.push(index);
+        collect(g, p, "stars", index);
     });
+    if (reachedCheckpoint) bankCollectibles(g, p);
     if (
       g.keys.length === l.keys.length &&
       (!l.gate || g.gateOpen) &&
@@ -737,6 +764,7 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
       Math.abs(l.exit.y - p.y) < 1.2
     ) {
       p.arrived = true;
+      bankCollectibles(g, p);
       p.vx = 0;
       p.vz = 0;
       p.vy = 0;
@@ -784,7 +812,8 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
         : 0;
     if (g.gateCharge >= 4) g.gateOpen = true;
   }
-  if (g.players.every((p) => p.arrived)) g.status = "won";
+  if (g.players.every((p) => p.arrived) && g.keys.length === l.keys.length)
+    g.status = "won";
 }
 export function rainCover(g: Game, p: Bird): Bird["rainCover"] {
   if (

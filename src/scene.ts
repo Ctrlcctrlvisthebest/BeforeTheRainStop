@@ -899,9 +899,9 @@ export class PaperScene {
     const yawTarget = (g.view * Math.PI) / 2;
     this.yaw += (yawTarget - this.yaw) * Math.min(1, dt * 12);
     const goal = new THREE.Vector3(
-      player.x + (g.view === 0 ? 4 : 0),
+      player.x + (g.view === 0 ? 4 * player.facing : 0),
       Math.max(1.3, player.y + 1.3),
-      player.z - (g.view === 1 ? 4 : 0),
+      player.z - (g.view === 1 ? 4 * player.facing : 0),
     );
     if (!this.initialized) {
       this.target.copy(goal);

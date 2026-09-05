@@ -1,3 +1,4 @@
+import { EXTRA_WEATHER } from "./chapters";
 import type { Point } from "./game";
 export interface RainZone {
   x: number;
@@ -74,6 +75,7 @@ export const WEATHER: Weather[] = [
       { x: 31, y: 3.4, z: -8, w: 2.9, d: 3.6 },
     ],
   },
+  ...EXTRA_WEATHER,
 ];
 export const FIRE_DRY_RATE = 26;
 export const FIRE_HEAT_RATE = 12.5;

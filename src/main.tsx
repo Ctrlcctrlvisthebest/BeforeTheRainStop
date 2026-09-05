@@ -355,6 +355,35 @@ function App() {
     local = hud.players[session?.slot ?? 0] ?? hud.players[0],
     isPlaying = phase === "game",
     won = isPlaying && hud.status === "won";
+  const mapPlatforms = l.platforms.filter(
+    (p) => !["wall", "low-roof", "railing"].includes(p.kind ?? ""),
+  );
+  const minX =
+    Math.min(
+      ...mapPlatforms.map(
+        (p) => p.x - p.w / 2 - (p.motion?.axis === "x" ? p.motion.range : 0),
+      ),
+    ) - 1.5;
+  const maxX =
+    Math.max(
+      ...mapPlatforms.map(
+        (p) => p.x + p.w / 2 + (p.motion?.axis === "x" ? p.motion.range : 0),
+      ),
+    ) + 1.5;
+  const minZ =
+    Math.min(
+      ...mapPlatforms.map(
+        (p) => p.z - p.d / 2 - (p.motion?.axis === "z" ? p.motion.range : 0),
+      ),
+    ) - 1.5;
+  const maxZ =
+    Math.max(
+      ...mapPlatforms.map(
+        (p) => p.z + p.d / 2 + (p.motion?.axis === "z" ? p.motion.range : 0),
+      ),
+    ) + 1.5;
+  const carriedKeys = local.carriedKeys?.length ?? 0,
+    carriedStars = local.carriedStars?.length ?? 0;
   const touch = (
     field: "axis" | "jump" | "fold" | "turn" | "shelter" | "repair",
     value: number | boolean,
@@ -442,7 +471,9 @@ function App() {
           <section className="panel menu">
             <div className="panel-top">
               <span>{t("启程挂签")}</span>
-              <b>{t("四个关卡")}</b>
+              <b>
+                {LEVELS.length} {t("个关卡")}
+              </b>
             </div>
             <label>
               {t("你的名字")}
@@ -586,7 +617,9 @@ function App() {
               <span>
                 ⚿ {hud.keys.length}/{l.keys.length}
               </span>
-              <span>✦ {hud.stars.length}/3</span>
+              <span>
+                ✦ {hud.stars.length}/{l.stars.length}
+              </span>
               {l.gate && (
                 <span className="gate-progress">
                   {CROSSINGS[hud.level] && !hud.bridgeLatched
@@ -629,8 +662,9 @@ function App() {
                           ? hud.mode === 1
                             ? "保持纸桥 2 秒，木桥会自动接通"
                             : "同伴从纸桥上走到对岸，踩住金色踏板 2 秒"
-                          : hud.level === 3 && hud.view === 0
-                            ? "先按 Q 转到侧面，再靠近金色桥钉"
+                          : (CROSSINGS[hud.level].axis === "x" ? 0 : 1) !==
+                              hud.view
+                            ? "先按 Q 转面对齐断桥，再靠近金色桥钉"
                             : "走到断口前的金色桥钉，按住 Shift 搭桥",
                     )}
                   </p>
@@ -795,16 +829,48 @@ function App() {
               </div>
             )}
           </section>
-          {local.lastFailure &&
-            local.failureUntil > hud.time &&
-            local.lastFailure !== "fall" && (
+          <div
+            className={`carry-hud ${carriedKeys + carriedStars ? "pending" : ""}`}
+            role="status"
+          >
+            {carriedKeys + carriedStars > 0 ? (
+              <>
+                <b>
+                  {t("未存档")} · ⚿ {carriedKeys} · ✦ {carriedStars}
+                </b>
+                <span>{t("带到下一个许愿架 · 死亡后需重新拾取")}</span>
+              </>
+            ) : local.bankedUntil > hud.time ? (
+              <>
+                <b>
+                  ⚑ {t("已存入许愿架")} · {local.lastBanked} {t("件物品")}
+                </b>
+                <span>{t("这部分收集，死亡后会保留")}</span>
+              </>
+            ) : (
+              <span>
+                ⚑ {t("已存档")} · ⚿ {hud.savedKeys?.length ?? 0} · ✦{" "}
+                {hud.savedStars?.length ?? 0}
+              </span>
+            )}
+          </div>
+          {local.failureUntil > hud.time &&
+            (local.lastDropped > 0 ||
+              (local.lastFailure && local.lastFailure !== "fall")) && (
               <div className="failure-notice" role="alert">
                 {t(
                   local.lastFailure === "scorched"
                     ? "碰到旺火，纸鹤烧毁了 · 已返回许愿架"
                     : local.lastFailure === "brittle"
                       ? "烤得太久，纸鹤脆裂了 · 已返回许愿架"
-                      : "纸鹤湿透了 · 已返回许愿架",
+                      : local.lastFailure === "soaked"
+                        ? "纸鹤湿透了 · 已返回许愿架"
+                        : "已返回最近的许愿架",
+                )}
+                {local.lastDropped > 0 && (
+                  <small>
+                    {local.lastDropped} {t("件未存档物品已复位 · 请重新拾取")}
+                  </small>
                 )}
               </div>
             )}
@@ -813,7 +879,10 @@ function App() {
               <b>{t(hud.view === 0 ? "正面 · 左右" : "侧面 · 前后")}</b>
               <kbd>Q</kbd>
             </div>
-            <svg viewBox="-4 -12 39 17" aria-label={t("俯视路线图")}>
+            <svg
+              viewBox={`${minX} ${minZ} ${maxX - minX} ${maxZ - minZ}`}
+              aria-label={t("俯视路线图")}
+            >
               {l.platforms
                 .filter(
                   (p) =>
@@ -933,14 +1002,20 @@ function App() {
             </p>
             <div className="score">
               {"✦".repeat(hud.stars.length)}
-              <span>{"✧".repeat(3 - hud.stars.length)}</span>
+              <span>
+                {"✧".repeat(Math.max(0, l.stars.length - hud.stars.length))}
+              </span>
             </div>
             <p className="fine">
               {hud.players.reduce((sum, p) => sum + p.deaths, 0)}{" "}
               {t("次重新起飞")} · {hud.mode} {t("只纸鹤平安抵达")}
             </p>
             <button className="primary" onClick={() => restart(true)}>
-              {t(hud.level === 3 ? "再来一趟" : "下一阵风 · 下一关")}
+              {t(
+                hud.level === LEVELS.length - 1
+                  ? "再来一趟"
+                  : "下一阵风 · 下一关",
+              )}
               <span>→</span>
             </button>
             {session && (
@@ -992,7 +1067,9 @@ function App() {
                 {t("在起点或存档许愿架旁站稳，按住 2 秒修补；移动会中断。")}
               </dd>
               <dt>R</dt>
-              <dd>{t("返回最近存档许愿架。湿度清零，耐折不会重置。")}</dd>
+              <dd>
+                {t("返回最近许愿架，未存档物品复位。湿度清零，耐折不会重置。")}
+              </dd>
             </dl>
             <p>
               {t(
@@ -1002,6 +1079,11 @@ function App() {
             <p>
               {t(
                 "屋檐和同伴只能挡雨，靠近小火堆才能烤干；F 只修补耐折。烘烤程度到 65 时尽快离开，到 100 会脆裂失败。旺火碰到就烧毁，必须跳过；湿透或烧毁后回到许愿架。",
+              )}
+            </p>
+            <p className="save-rule">
+              {t(
+                "钥匙和星星先随身携带，到达下一个新许愿架才存档。死亡或按 R 返回会让自己未存档的物品回到原处；队友携带及已存档的物品保留。灯门会保存最后一段收集。",
               )}
             </p>
             <p>

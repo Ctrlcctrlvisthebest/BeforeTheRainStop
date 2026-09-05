@@ -50,3 +50,25 @@ test("leaving lobby transfers hosting and permits replacement", () => {
   assert.equal(r.host, 1);
   assert.equal(joinRoom(r, "new", "c", 0), 0);
 });
+
+for (const level of [3, 7])
+  test(`chapter ${level + 1} advances through the eight-chapter campaign after all votes`, () => {
+    let r = makeRoom("ABCDEFGH", 3, level, "host", "a", 0);
+    joinRoom(r, "friend", "b", 0);
+    joinRoom(r, "friend", "c", 0);
+    r.players.forEach((p) => (p.online = true));
+    r = command(r, "a", { type: "start" }, 0, "g");
+    r.game!.status = "won";
+    for (const token of ["a", "b"])
+      r = command(
+        r,
+        token,
+        { type: "restart", gameId: "g", next: true },
+        0,
+        "g2",
+      );
+    assert.equal(r.level, level);
+    r = command(r, "c", { type: "restart", gameId: "g", next: true }, 0, "g2");
+    assert.equal(r.level, level === 3 ? 4 : 0);
+    assert.deepEqual(r.game!.savedKeys, []);
+  });

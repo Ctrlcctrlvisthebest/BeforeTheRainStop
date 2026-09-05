@@ -1,3 +1,4 @@
+import { completeExtraLevel } from "./chapter-journeys";
 import {
   newGame,
   stepGame,
@@ -6,6 +7,7 @@ import {
   type Input,
 } from "../src/game";
 export function completeLevel(level: number) {
+  if (level >= 4) return completeExtraLevel(level);
   const g = newGame(1, level);
   const b = g.players[0];
   function tick(i: Partial<Input> = {}, n = 1) {

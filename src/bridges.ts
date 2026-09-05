@@ -6,6 +6,7 @@ export interface BridgeCrossing extends Point {
   depth: number;
 }
 export const CROSSINGS: Record<number, BridgeCrossing> = {
+  6: { x: 15.2, y: 0, z: 6, axis: "x", near: -1, span: 2.6, depth: 3 },
   1: { x: 5.2, y: 0, z: 0, axis: "x", near: -1, span: 2.6, depth: 3 },
   3: { x: 11, y: 0, z: -4.4, axis: "z", near: 1, span: 2.6, depth: 3 },
 };

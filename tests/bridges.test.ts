@@ -39,7 +39,7 @@ function controls(g: Game) {
   };
   return { inputs, tick, move };
 }
-for (const level of [1, 3]) {
+for (const level of [1, 3, 6]) {
   test(`chapter ${level + 1}: low corridor defeats running, jumping and held gliding across the gap`, () => {
     const c = CROSSINGS[level],
       near = bankPoint(c, c.near),
@@ -98,6 +98,10 @@ for (const level of [1, 3]) {
           Object.assign(p, { x: 11, y: 0, z: -2.3 + i * 0.28 }),
         );
       }
+      if (level === 6)
+        g.players.forEach((p, i) =>
+          Object.assign(p, { x: 13.1 - i * 0.1, y: 0, z: 6 }),
+        );
       const { inputs, tick, move } = controls(g);
       move(0, bankPoint(c, c.near)[c.axis]);
       inputs[0].fold = true;

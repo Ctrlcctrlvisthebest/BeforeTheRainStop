@@ -1,5 +1,59 @@
 export type Language = "zh" | "en";
 const english: Record<string, string> = {
+  个关卡: "CHAPTERS",
+  未存档: "Unsaved",
+  "带到下一个许愿架 · 死亡后需重新拾取":
+    "Reach the next rack · dropped if you die",
+  已存入许愿架: "Saved at the wishing rack",
+  件物品: "items",
+  "这部分收集，死亡后会保留": "These items will survive a death",
+  已存档: "Saved",
+  已返回最近的许愿架: "Back at the last wishing rack",
+  "件未存档物品已复位 · 请重新拾取":
+    "unsaved items returned · collect them again",
+  "先按 Q 转面对齐断桥，再靠近金色桥钉":
+    "Press Q to align with the crossing, then approach the gold pins",
+  "返回最近许愿架，未存档物品复位。湿度清零，耐折不会重置。":
+    "Return to your last rack and drop unsaved items. Wetness clears; fold wear remains.",
+  "钥匙和星星先随身携带，到达下一个新许愿架才存档。死亡或按 R 返回会让自己未存档的物品回到原处；队友携带及已存档的物品保留。灯门会保存最后一段收集。":
+    "Carry keys and stars to the next new wishing rack to save them. Dying or pressing R returns your unsaved items to their original places. Your friends keep their items, and saved items stay saved. The lantern gate saves your final collection.",
+  雨廊回声: "Echoes in the Rain",
+  "带着愿望，绕回灯亮的那一面。":
+    "Carry your wishes around to the lantern light.",
+  "Q 转面折返 · 高台取钥匙 · 带到下一个许愿架存下":
+    "Q to turn back · climb for a key · carry it to the next rack",
+  "Q · 侧面向左走": "Q · go left in side view",
+  "Q · 正面向右走": "Q · go right in front view",
+  "Q · 沿雨廊折返": "Q · double back through the rain",
+  "Q · 跳过旺火去存档": "Q · jump the blaze to reach the rack",
+  渡风灯船: "Lantern Ferries",
+  "等一盏移动的灯，把愿望送上高处。":
+    "Wait for a drifting lantern. Send your wishes skyward.",
+  "断口太宽 · 借移动渡台换脚 · 乘风登上高廊":
+    "Ride the ferries across wide gaps · rise on the wind",
+  "等渡台靠近 · 上船再跳": "Wait for the ferry · ride, then jump",
+  "风柱托起 · 到高处按 Q": "Ride the wind · press Q up high",
+  "Q · 下一艘灯船": "Q · the next lantern ferry",
+  带着钥匙到对岸存档: "Carry the key to the far rack",
+  折桥送灯: "A Bridge for Your Light",
+  "你先过去，我在另一岸等你。":
+    "You go first. I will meet you on the other bank.",
+  "先转面取钥匙 · 桥钉旁搭桥 · 末段向左折返":
+    "Turn for the key · bridge at the pins · return left at the end",
+  "Q · 正面搭桥": "Q · bridge in front view",
+  "Q · 绕向后面的灯廊": "Q · around to the lantern walk",
+  "Q · 这次向左走": "Q · go left this time",
+  回灯长夜: "Home Through the Long Night",
+  "最后一段雨路，每个愿望都要带回家。":
+    "One last stretch of rain. Bring every wish home.",
+  "高廊向左折返 · 下到远处灯岸 · 烤干后一起开门":
+    "Return left up high · descend to the lights · dry, then open the gate",
+  "乘风上高廊 · 带走第一把钥匙": "Rise on the wind · take the first key",
+  "Q · 沿高廊走": "Q · along the upper walk",
+  "Q · 向远处的灯下降": "Q · descend toward the distant lights",
+  "Q · 最后一程向右走": "Q · go right for the final stretch",
+  "存下愿望 · 烤干就出发": "Save your wishes · leave when dry",
+
   "小火烤干 · 勿久留": "Dry by the fire · don't linger",
   "旺火 · 碰到即烧毁": "Blazing fire · deadly on contact",
   "小火烤干 · 旺火必须跳过": "Small fires dry paper · jump over blazes",
