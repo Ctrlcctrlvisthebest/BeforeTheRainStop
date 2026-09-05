@@ -1,7 +1,9 @@
+import { translate, type Language } from "./i18n";
 import { WEATHER, rainStrength, SHIELD_RADIUS } from "./weather";
 import * as THREE from "three";
 import {
   COLORS,
+  MAX_FOLDS,
   LEVELS,
   platformAt,
   activeHazard,
@@ -21,7 +23,7 @@ function slab(b: Platform, color: string): THREE.Group {
   const mats = [
     material(color),
     material(color),
-    material("#fff5d9"),
+    material("#8c98a3"),
     material(color),
     material(color),
     material(color),
@@ -35,7 +37,7 @@ function slab(b: Platform, color: string): THREE.Group {
   const edge = new THREE.LineSegments(
     new THREE.EdgesGeometry(geo),
     new THREE.LineBasicMaterial({
-      color: "#3f6056",
+      color: "#243442",
       transparent: true,
       opacity: 0.18,
     }),
@@ -107,7 +109,7 @@ function paperBird(color: string): THREE.Group {
   });
   return group;
 }
-function textSprite(text: string, color = "#34544e", scale = 1): THREE.Sprite {
+function textSprite(text: string, color = "#d6d9dc", scale = 1): THREE.Sprite {
   const canvas = document.createElement("canvas");
   canvas.width = 640;
   canvas.height = 96;
@@ -125,6 +127,253 @@ function textSprite(text: string, color = "#34544e", scale = 1): THREE.Sprite {
   sprite.scale.set(6.4 * scale, 0.96 * scale, 1);
   return sprite;
 }
+function box(
+  w: number,
+  h: number,
+  d: number,
+  color: string,
+  x = 0,
+  y = 0,
+  z = 0,
+) {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material(color));
+  mesh.position.set(x, y, z);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+function wishingRack(w: number, height: number, seed = 0): THREE.Group {
+  const rack = new THREE.Group();
+  for (const side of [-1, 1]) {
+    rack.add(
+      box(0.1, height, 0.13, "#443b37", side * (w / 2 - 0.08), height / 2),
+    );
+    const eave = box(
+      w / 2 + 0.22,
+      0.12,
+      0.9,
+      "#3a4149",
+      (side * w) / 4,
+      height + 0.13,
+      0,
+    );
+    eave.rotation.z = -side * 0.17;
+    rack.add(eave);
+  }
+  for (const y of [height - 0.25, height * 0.52])
+    rack.add(box(w, 0.065, 0.1, "#685446", 0, y, 0));
+  const count = Math.max(3, Math.floor(w / 0.45));
+  for (let i = 0; i < count; i++) {
+    const tag = new THREE.Group();
+    tag.name = "wish-tag";
+    tag.userData.phase = seed + i * 1.72;
+    tag.position.set(
+      -w / 2 + 0.23 + ((w - 0.46) * i) / Math.max(1, count - 1),
+      height - 0.28,
+      0.06,
+    );
+    const cord = box(0.012, 0.2, 0.012, "#ac6754", 0, -0.1, 0);
+    const shape = new THREE.Shape();
+    shape.moveTo(-0.15, -0.3);
+    shape.lineTo(0.15, -0.3);
+    shape.lineTo(0.15, -0.06);
+    shape.lineTo(0, 0.03);
+    shape.lineTo(-0.15, -0.06);
+    shape.closePath();
+    const plaque = new THREE.Mesh(
+      new THREE.ShapeGeometry(shape),
+      material(i % 3 ? "#ac8860" : "#c2aa84"),
+    );
+    (plaque.material as THREE.MeshStandardMaterial).side = THREE.DoubleSide;
+    plaque.position.y = -0.22;
+    tag.add(cord, plaque);
+    for (let j = 0; j < 3; j++)
+      tag.add(
+        box(
+          0.09 - (j % 2) * 0.025,
+          0.007,
+          0.007,
+          "#665246",
+          0,
+          -0.33 - j * 0.045,
+          0.007,
+        ),
+      );
+    rack.add(tag);
+    if (i % 2 === 0) {
+      const paper = box(
+        0.07,
+        0.38,
+        0.015,
+        "#d1cabc",
+        tag.position.x,
+        height * 0.52 - 0.23,
+        0.03,
+      );
+      paper.rotation.z = 0.1 * ((i % 3) - 1);
+      rack.add(paper);
+    }
+  }
+  return rack;
+}
+function unfoldedPaper(color: string): THREE.Group {
+  const sheet = new THREE.Group();
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute(
+    "position",
+    new THREE.BufferAttribute(new Float32Array(8 * 9), 3).setUsage(
+      THREE.DynamicDrawUsage,
+    ),
+  );
+  const uv: number[] = [];
+  const edge = [
+    [-1, -1],
+    [0, -1],
+    [1, -1],
+    [1, 0],
+    [1, 1],
+    [0, 1],
+    [-1, 1],
+    [-1, 0],
+  ];
+  for (let i = 0; i < 8; i++) {
+    const a = edge[i],
+      b = edge[(i + 1) % 8];
+    uv.push(
+      0.5,
+      0.5,
+      (a[0] + 1) / 2,
+      (a[1] + 1) / 2,
+      (b[0] + 1) / 2,
+      (b[1] + 1) / 2,
+    );
+  }
+  geometry.setAttribute("uv", new THREE.Float32BufferAttribute(uv, 2));
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = "#eee3cb";
+  ctx.fillRect(0, 0, 512, 512);
+  ctx.fillStyle = color;
+  ctx.globalAlpha = 0.23;
+  ctx.fillRect(0, 0, 512, 512);
+  ctx.globalAlpha = 1;
+  for (let i = 0; i < 2400; i++) {
+    ctx.fillStyle = i % 2 ? "#ffffff14" : "#594c3914";
+    ctx.fillRect((i * 73.37) % 512, (i * 37.91) % 512, 1, 1);
+  }
+  ctx.strokeStyle = "#6c5c4945";
+  ctx.lineWidth = 1.2;
+  for (const line of [
+    [0, 0, 512, 512],
+    [512, 0, 0, 512],
+    [256, 0, 256, 512],
+    [0, 256, 512, 256],
+  ]) {
+    ctx.beginPath();
+    ctx.moveTo(line[0], line[1]);
+    ctx.lineTo(line[2], line[3]);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 5;
+  ctx.strokeRect(447, 446, 35, 35);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(452, 475);
+  ctx.lineTo(463, 454);
+  ctx.lineTo(478, 475);
+  ctx.stroke();
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const mat = material("#ffffff");
+  mat.map = texture;
+  mat.side = THREE.DoubleSide;
+  const mesh = new THREE.Mesh(geometry, mat);
+  mesh.name = "paper-surface";
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.frustumCulled = false;
+  sheet.add(mesh);
+  const creaseGeo = new THREE.BufferGeometry();
+  creaseGeo.setAttribute(
+    "position",
+    new THREE.BufferAttribute(new Float32Array(8 * 6), 3).setUsage(
+      THREE.DynamicDrawUsage,
+    ),
+  );
+  const creases = new THREE.LineSegments(
+    creaseGeo,
+    new THREE.LineBasicMaterial({
+      color: "#69503d",
+      transparent: true,
+      opacity: 0.25,
+    }),
+  );
+  creases.name = "paper-creases";
+  creases.frustumCulled = false;
+  sheet.add(creases);
+  return sheet;
+}
+function shapePaper(
+  sheet: THREE.Object3D,
+  progress: number,
+  foldsLeft: number,
+  wetness: number,
+  time: number,
+  bridge: boolean,
+) {
+  const mesh = sheet.getObjectByName("paper-surface") as THREE.Mesh;
+  const pos = mesh.geometry.getAttribute("position") as THREE.BufferAttribute;
+  const wear = 1 - foldsLeft / MAX_FOLDS;
+  const half = bridge ? 1.6 : SHIELD_RADIUS;
+  const depth = bridge ? 0.45 : SHIELD_RADIUS;
+  const edges = [
+    [-1, -1],
+    [0, -1],
+    [1, -1],
+    [1, 0],
+    [1, 1],
+    [0, 1],
+    [-1, 1],
+    [-1, 0],
+  ];
+  const center = 0.4 + (bridge ? -0.16 : 0.91) * progress;
+  const vertices = edges.map(([x, z], i) => {
+    const nick = i % 2 ? wear * 0.28 : wear * 0.015;
+    return new THREE.Vector3(
+      x * (half - nick) * progress,
+      z === 0
+        ? center + 0.025
+        : center +
+            Math.abs(z) * (0.68 * (1 - progress)) +
+            Math.sin(time * 2 + i) * 0.025 * progress * (bridge ? 0.15 : 1),
+      z * (depth - nick) * progress,
+    );
+  });
+  for (let i = 0; i < 8; i++) {
+    const a = vertices[i],
+      b = vertices[(i + 1) % 8];
+    pos.setXYZ(i * 3, 0, center + 0.035 * progress, 0);
+    pos.setXYZ(i * 3 + 1, a.x, a.y, a.z);
+    pos.setXYZ(i * 3 + 2, b.x, b.y, b.z);
+  }
+  pos.needsUpdate = true;
+  mesh.geometry.computeVertexNormals();
+  (mesh.material as THREE.MeshStandardMaterial).color
+    .set("#ffffff")
+    .lerp(new THREE.Color("#8596a5"), wetness / 150);
+  const lines = sheet.getObjectByName("paper-creases") as THREE.LineSegments;
+  const lp = lines.geometry.getAttribute("position") as THREE.BufferAttribute;
+  vertices.forEach((v, i) => {
+    lp.setXYZ(i * 2, 0, center + 0.048, 0);
+    lp.setXYZ(i * 2 + 1, v.x, v.y + 0.012, v.z);
+  });
+  lp.needsUpdate = true;
+  (lines.material as THREE.LineBasicMaterial).opacity = 0.12 + wear * 0.65;
+}
+
 export class PaperScene {
   readonly renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -153,6 +402,8 @@ export class PaperScene {
   private width = 1000;
   private height = 600;
   private clock = 0;
+  private language: Language = "zh";
+  private wishes: THREE.Object3D[] = [];
   constructor(private canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({
       canvas,
@@ -165,12 +416,12 @@ export class PaperScene {
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
+    this.renderer.toneMappingExposure = 0.95;
     this.scene.add(
       this.root,
-      new THREE.HemisphereLight("#fff9e8", "#77938c", 2.5),
+      new THREE.HemisphereLight("#a7bfda", "#202c3c", 2.3),
     );
-    const sun = new THREE.DirectionalLight("#ffefd6", 3);
+    const sun = new THREE.DirectionalLight("#c4d6eb", 2.2);
     sun.position.set(-8, 18, 10);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -201,7 +452,10 @@ export class PaperScene {
       ) {
         o.geometry.dispose();
         const mats = Array.isArray(o.material) ? o.material : [o.material];
-        mats.forEach((m) => m.dispose());
+        mats.forEach((m) => {
+          if (m instanceof THREE.MeshStandardMaterial) m.map?.dispose();
+          m.dispose();
+        });
       }
       if (o instanceof THREE.Sprite) {
         o.material.map?.dispose();
@@ -222,14 +476,14 @@ export class PaperScene {
     this.windLines = [];
     const l = LEVELS[g.level];
     this.scene.background = new THREE.Color(l.sky);
-    this.scene.fog = new THREE.Fog(l.sky, 45, 95);
+    this.scene.fog = new THREE.Fog(l.sky, 32, 95);
     l.platforms.forEach((b) => {
       const node = slab(
         b,
         b.kind === "wall"
-          ? "#b39278"
+          ? "#594d47"
           : b.kind === "moving"
-            ? "#b08dcd"
+            ? "#778098"
             : l.color,
       );
       this.tiles.push(node);
@@ -267,7 +521,7 @@ export class PaperScene {
       this.stars.push(node);
     });
     l.signs.forEach((k) => {
-      const sprite = textSprite(k.text ?? "");
+      const sprite = textSprite(translate(this.language, k.text ?? ""));
       sprite.position.set(k.x, k.y + 2, k.z);
       this.signs.push(sprite);
       this.root.add(sprite);
@@ -281,18 +535,18 @@ export class PaperScene {
       this.pads.push(m);
       this.root.add(m);
     });
-    l.checkpoints.forEach((k) => {
-      const group = new THREE.Group();
-      const pole = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.035, 0.035, 1.5, 5),
-        material("#668473"),
+    [l.spawn, ...l.checkpoints].forEach((k) => {
+      const group = wishingRack(1.55, 1.75);
+      group.position.set(k.x, k.y, k.z - 1.05);
+      const title = textSprite(
+        translate(this.language, "许愿架 · F 修补"),
+        "#e5bd81",
+        0.55,
       );
-      pole.position.y = 0.75;
-      const flag = facet([0, 1.45, 0, 0.65, 1.32, 0, 0, 1.03, 0], "#f7c969");
-      group.add(pole, flag);
-      group.position.set(k.x, k.y, k.z + 0.8);
+      title.position.set(k.x, k.y + 2.25, k.z - 1.05);
+      title.name = "awning-label";
+      this.root.add(group, title);
       this.checkpoints.push(group);
-      this.root.add(group);
     });
     l.hazards.forEach((k) => {
       const group = new THREE.Group();
@@ -328,14 +582,14 @@ export class PaperScene {
     for (const s of [-1, 1]) {
       const post = new THREE.Mesh(
         new THREE.BoxGeometry(0.22, 2.6, 0.35),
-        material("#53756a"),
+        material("#705245"),
       );
       post.position.set(s * 0.8, 1.3, 0);
       this.portal.add(post);
     }
     const top = new THREE.Mesh(
       new THREE.BoxGeometry(1.85, 0.25, 0.35),
-      material("#53756a"),
+      material("#705245"),
     );
     top.position.y = 2.6;
     const door = new THREE.Mesh(
@@ -349,7 +603,11 @@ export class PaperScene {
     );
     door.position.y = 1.3;
     door.name = "glow";
-    const doorText = textSprite("一起到家", "#6c846b", 0.65);
+    const doorText = textSprite(
+      translate(this.language, "一起到家"),
+      "#e7c183",
+      0.65,
+    );
     doorText.position.y = 3.15;
     this.portal.add(top, door, doorText);
     this.portal.position.set(l.exit.x, l.exit.y, l.exit.z);
@@ -358,10 +616,7 @@ export class PaperScene {
       const group = new THREE.Group();
       const bird = paperBird(COLORS[p.id]);
       bird.name = "bird";
-      const bridge = slab(
-        { x: 0, y: 0.24, z: 0, w: 3.2, h: 0.09, d: 0.9 },
-        COLORS[p.id],
-      );
+      const bridge = unfoldedPaper(COLORS[p.id]);
       bridge.name = "bridge";
       bridge.visible = false;
       const label = textSprite(`${p.id + 1}`, COLORS[p.id], 0.4);
@@ -378,47 +633,10 @@ export class PaperScene {
       );
       shadow.rotation.x = -Math.PI / 2;
       shadow.position.y = 0.015;
-      const shelter = new THREE.Group();
+      const shelter = unfoldedPaper(COLORS[p.id]);
       shelter.name = "shelter";
-      for (let side = 0; side < 4; side++) {
-        const a = (side * Math.PI) / 2,
-          b = ((side + 1) * Math.PI) / 2;
-        const panel = facet(
-          [
-            0,
-            1.62,
-            0,
-            Math.cos(a) * SHIELD_RADIUS,
-            1.25,
-            Math.sin(a) * SHIELD_RADIUS,
-            Math.cos(b) * SHIELD_RADIUS,
-            1.25,
-            Math.sin(b) * SHIELD_RADIUS,
-          ],
-          side % 2 ? COLORS[p.id] : "#f4ead4",
-        );
-        shelter.add(panel);
-      }
-      for (const side of [-1, 1]) {
-        shelter.add(
-          facet(
-            [0, 0.4, 0.08, 0, 1.62, 0, side * SHIELD_RADIUS, 1.25, 0],
-            COLORS[p.id],
-          ),
-        );
-      }
-      const ring = new THREE.Mesh(
-        new THREE.RingGeometry(SHIELD_RADIUS - 0.035, SHIELD_RADIUS, 64),
-        new THREE.MeshBasicMaterial({
-          color: COLORS[p.id],
-          transparent: true,
-          opacity: 0.35,
-          side: THREE.DoubleSide,
-        }),
-      );
-      ring.rotation.x = -Math.PI / 2;
-      ring.position.y = 0.035;
-      shelter.add(ring);
+      group.userData.unfold = 0;
+      group.userData.shape = "shelter";
       const wet = new THREE.Group();
       wet.name = "wet-meter";
       wet.position.set(0, 1.24, 0);
@@ -443,45 +661,64 @@ export class PaperScene {
       this.root.add(group);
       this.birds.push(group);
     }
-    // Layered washi roofs and slender wooden posts mark real dry zones.
-    WEATHER[g.level].awnings.forEach((a) => {
-      const roof = slab(
-        { x: a.x, y: a.y, z: a.z, w: a.w + 0.12, d: a.d + 0.12, h: 0.16 },
-        "#8b6851",
-      );
-      this.root.add(roof);
-      const yBase = a.y - 3.4;
+    // Roofed wishing racks, cords and wooden plaques frame the dry stops.
+    WEATHER[g.level].awnings.forEach((a, index) => {
+      const rack = wishingRack(a.w, 3.4, index);
+      rack.position.set(a.x, a.y - 3.4, a.z - a.d / 2 + 0.12);
+      this.root.add(rack);
       for (const side of [-1, 1]) {
-        const post = new THREE.Mesh(
-          new THREE.BoxGeometry(0.075, 3.35, 0.075),
-          material("#6d6351"),
+        const roof = box(
+          a.w + 0.3,
+          0.13,
+          a.d / 2 + 0.18,
+          "#414b58",
+          a.x,
+          a.y + 0.14,
+          a.z + (side * a.d) / 4,
         );
-        post.position.set(
-          a.x + side * (a.w / 2 - 0.12),
-          yBase + 1.67,
-          a.z - a.d / 2 + 0.16,
-        );
-        this.root.add(post);
+        roof.rotation.x = side * 0.085;
+        this.root.add(roof);
       }
       const lantern = new THREE.Mesh(
-        new THREE.SphereGeometry(0.2, 12, 8),
-        material("#ce785a"),
+        new THREE.SphereGeometry(0.18, 10, 8),
+        material("#e6ac6b"),
       );
-      lantern.scale.set(0.78, 1.2, 0.78);
-      lantern.position.set(a.x + a.w / 2 - 0.35, a.y - 0.5, a.z + 0.8);
+      lantern.scale.set(0.8, 1.35, 0.8);
+      lantern.position.set(a.x + a.w / 2 - 0.3, a.y - 0.4, a.z + 0.8);
+      (lantern.material as THREE.MeshStandardMaterial).emissive.set("#e6a354");
+      (lantern.material as THREE.MeshStandardMaterial).emissiveIntensity = 1.2;
       this.root.add(lantern);
-      const title = textSprite("雨宿り · 檐下晾干", "#725f4d", 0.5);
+      const title = textSprite(
+        translate(this.language, "檐下晾干"),
+        "#bcc9d7",
+        0.5,
+      );
       title.name = "awning-label";
-      title.position.set(a.x, a.y + 0.42, a.z);
+      title.position.set(a.x, a.y + 0.5, a.z);
       this.root.add(title);
-      for (let x = -a.w / 2 + 0.3; x < a.w / 2; x += 0.4) {
-        const slat = new THREE.Mesh(
-          new THREE.BoxGeometry(0.025, 0.03, a.d),
-          material("#a08e70"),
-        );
-        slat.position.set(a.x + x, a.y + 0.018, a.z);
-        this.root.add(slat);
-      }
+    });
+    // A distant shrine courtyard remains behind the playable route in both views.
+    for (let i = 0; i < 5; i++) {
+      const rack = wishingRack(5.8, 3.6, i * 7);
+      rack.position.set(-7 + i * 10, -1.1, -20 - (i % 2) * 3);
+      this.root.add(rack);
+    }
+    const temple = new THREE.Group();
+    temple.add(box(27, 3, 5, "#28313e", 0, 1.5, 0));
+    for (const side of [-1, 1]) {
+      const roof = box(30, 0.4, 4.5, "#202c3a", 0, 3.9, side * 1.8);
+      roof.rotation.x = side * 0.22;
+      temple.add(roof);
+    }
+    for (let x = -12; x <= 12; x += 2.6) {
+      temple.add(box(0.2, 3.6, 0.22, "#403d3e", x, 1.8, 2.6));
+      temple.add(box(0.7, 1.3, 0.06, "#816b52", x, 1.8, 2.53));
+    }
+    temple.position.set(11, 0, -29);
+    this.root.add(temple);
+    this.wishes = [];
+    this.root.traverse((o) => {
+      if (o.name === "wish-tag") this.wishes.push(o);
     });
     this.rainSeeds = [];
     WEATHER[g.level].zones.forEach((zone, zi) => {
@@ -504,7 +741,7 @@ export class PaperScene {
     this.rain = new THREE.LineSegments(
       rainGeo,
       new THREE.LineBasicMaterial({
-        color: "#657e88",
+        color: "#a4b9d0",
         transparent: true,
         opacity: 0.46,
         depthWrite: false,
@@ -535,9 +772,26 @@ export class PaperScene {
     );
     this.initialized = false;
   }
-  render(g: Game, local: number, dt: number, preview = false) {
-    if (g.level !== this.level || g.mode !== this.count) this.build(g);
+  render(
+    g: Game,
+    local: number,
+    dt: number,
+    preview = false,
+    language: Language = "zh",
+  ) {
+    if (
+      g.level !== this.level ||
+      g.mode !== this.count ||
+      language !== this.language
+    ) {
+      this.language = language;
+      this.build(g);
+    }
     this.clock += dt;
+    this.wishes.forEach((o) => {
+      o.rotation.z = Math.sin(this.clock * 1.25 + o.userData.phase) * 0.055;
+      o.rotation.x = Math.sin(this.clock * 0.9 + o.userData.phase) * 0.045;
+    });
     this.root.children.forEach((o) => {
       if (o.name === "awning-label") o.visible = !preview;
     });
@@ -603,9 +857,37 @@ export class PaperScene {
       node.visible = !p.arrived || g.status === "won";
       const bird = node.getObjectByName("bird")!;
       const bridge = node.getObjectByName("bridge")!;
-      node.getObjectByName("shelter")!.visible = p.sheltering === true;
-      bird.visible = !p.folded;
-      bridge.visible = p.folded;
+      const shelter = node.getObjectByName("shelter")!;
+      const opening = p.sheltering || p.folded;
+      if (opening) node.userData.shape = p.folded ? "bridge" : "shelter";
+      const targetUnfold = opening ? 1 : 0;
+      node.userData.unfold = THREE.MathUtils.damp(
+        node.userData.unfold,
+        targetUnfold,
+        11,
+        dt,
+      );
+      const unfold = node.userData.unfold as number;
+      shelter.visible = unfold > 0.01 && node.userData.shape === "shelter";
+      bridge.visible = unfold > 0.01 && node.userData.shape === "bridge";
+      bird.visible = unfold < 0.93;
+      bird.scale.setScalar(Math.max(0.01, 1 - unfold));
+      shapePaper(
+        shelter,
+        unfold,
+        p.foldsLeft ?? MAX_FOLDS,
+        p.wetness ?? 0,
+        this.clock,
+        false,
+      );
+      shapePaper(
+        bridge,
+        unfold,
+        p.foldsLeft ?? MAX_FOLDS,
+        p.wetness ?? 0,
+        this.clock,
+        true,
+      );
       bird.rotation.y = (g.view * Math.PI) / 2 + (p.facing < 0 ? Math.PI : 0);
       bridge.rotation.y = (g.view * Math.PI) / 2;
       bird.position.y = p.grounded ? Math.sin(this.clock * 7 + i) * 0.025 : 0;
@@ -669,7 +951,7 @@ export class PaperScene {
             Math.abs(p.y - pad.y) < 0.4,
         );
       (m.material as THREE.MeshStandardMaterial).color.set(
-        on ? "#80bf8c" : "#d69b65",
+        on ? "#f1d69a" : "#8b7564",
       );
       m.scale.y = on ? 0.35 : 1;
     });
@@ -717,9 +999,10 @@ export class PaperScene {
         for (const p of g.players)
           if (
             p.sheltering &&
-            Math.hypot(seed.x - p.x, seed.z - p.z) < SHIELD_RADIUS
+            Math.abs(seed.x - p.x) < SHIELD_RADIUS &&
+            Math.abs(seed.z - p.z) < SHIELD_RADIUS
           )
-            bottom = Math.max(bottom, p.y + 1.6);
+            bottom = Math.max(bottom, p.y + 1.34);
         for (const raw of l.platforms) {
           const p = platformAt(raw, g.motionTime);
           if (
@@ -755,7 +1038,10 @@ export class PaperScene {
       ) {
         o.geometry.dispose();
         const mats = Array.isArray(o.material) ? o.material : [o.material];
-        mats.forEach((m) => m.dispose());
+        mats.forEach((m) => {
+          if (m instanceof THREE.MeshStandardMaterial) m.map?.dispose();
+          m.dispose();
+        });
       }
       if (o instanceof THREE.Sprite) {
         o.material.map?.dispose();

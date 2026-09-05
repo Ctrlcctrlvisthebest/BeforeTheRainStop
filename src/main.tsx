@@ -2,6 +2,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   LEVELS,
+  MAX_FOLDS,
+  REPAIR_SECONDS,
+  atRepairRack,
   MODES,
   COLORS,
   NAMES,
@@ -17,9 +20,22 @@ import { api, Connection, save, stored, type Session } from "./api";
 import type { PublicRoom } from "./room";
 import { PaperScene } from "./scene";
 import "./style.css";
+import { translate, type Language } from "./i18n";
 const KEY = "rain-action-session-v2";
 const initialCode = new URLSearchParams(location.search).get("room") ?? "";
 function App() {
+  const [language, setLanguage] = useState<Language>(() =>
+    stored<string>(localStorage, "rain-language") === "en" ? "en" : "zh",
+  );
+  const languageRef = useRef(language);
+  languageRef.current = language;
+  const t = (text: string) => translate(language, text);
+  useEffect(() => {
+    save(localStorage, "rain-language", language);
+    document.documentElement.lang = language === "zh" ? "zh-CN" : "en";
+    document.title =
+      translate(language, "雨停之前") + " · " + translate(language, "纸上祈愿");
+  }, [language]);
   const canvas = useRef<HTMLCanvasElement>(null),
     scene = useRef<PaperScene | null>(null),
     game = useRef<Game>(newGame(1)),
@@ -156,6 +172,7 @@ function App() {
         currentSession.current?.slot ?? 0,
         dt,
         phaseRef.current !== "game",
+        languageRef.current,
       );
       if (now - ui > 100) {
         setHud(structuredClone(game.current));
@@ -183,6 +200,7 @@ function App() {
         turn: held.has("KeyQ") || held.has("KeyE"),
         reset: held.has("KeyR"),
         shelter: held.has("KeyS") || held.has("ArrowDown"),
+        repair: held.has("KeyF"),
       };
       if (phaseRef.current === "game" && currentSession.current)
         connection.current?.input(game.current.id, input.current);
@@ -201,6 +219,7 @@ function App() {
       "KeyE",
       "KeyR",
       "KeyS",
+      "KeyF",
       "ArrowDown",
     ];
     const down = (e: KeyboardEvent) => {
@@ -344,7 +363,7 @@ function App() {
       await navigator.clipboard.writeText(u.href);
       setError("邀请链接已复制");
     } catch {
-      setError(`分享房间码：${session?.code}`);
+      setError(`${t("分享房间码")}: ${session?.code}`);
     }
   }
   const l = LEVELS[hud.level],
@@ -352,7 +371,7 @@ function App() {
     isPlaying = phase === "game",
     won = isPlaying && hud.status === "won";
   const touch = (
-    field: "axis" | "jump" | "fold" | "turn" | "shelter",
+    field: "axis" | "jump" | "fold" | "turn" | "shelter" | "repair",
     value: number | boolean,
     label: string,
   ) => (
@@ -377,92 +396,88 @@ function App() {
     </button>
   );
   return (
-    <main className={isPlaying ? "app playing" : "app"}>
-      <canvas ref={canvas} tabIndex={0} aria-label="千纸鹤横版游戏场景" />
+    <main
+      className={isPlaying ? "app playing" : "app"}
+      lang={language === "zh" ? "zh-CN" : "en"}
+    >
+      <canvas ref={canvas} tabIndex={0} aria-label={t("千纸鹤横版游戏场景")} />
+      <div className="atmosphere" />
       <div className="grain" />
       <header className="brand">
-        <span className="brand-icon">
-          雨<br />宿
-        </span>
+        <span className="brand-icon">{t("祈愿")}</span>
         <div>
-          雨停之前<small>BEFORE THE RAIN STOPS</small>
+          {t("雨停之前")}
+          <small>{t("纸上祈愿")}</small>
         </div>
-        <span className="edition">雨がやむまで · 紙鶴の旅</span>
+        <span className="edition">{t("纸鹤 · 许愿架 · 雨中归途")}</span>
       </header>
       <nav className="tools">
         <button
-          aria-label={muted ? "开启音效" : "关闭音效"}
+          className="language"
+          aria-label={t("切换语言")}
+          onClick={() => setLanguage(language === "zh" ? "en" : "zh")}
+        >
+          中文 / EN
+        </button>
+        <button
+          aria-label={t(muted ? "开启音效" : "关闭音效")}
           onClick={() => {
             mutedRef.current = !muted;
             setMuted(!muted);
             if (muted) sound(440);
           }}
         >
-          {muted ? "♪ 关" : "♪ 开"}
+          {t(muted ? "♪ 关" : "♪ 开")}
         </button>
-        <button onClick={() => setHelp((v) => !v)}>操作说明</button>
-        {isPlaying && <button onClick={leave}>返回大厅</button>}
+        <button onClick={() => setHelp((v) => !v)}>{t("操作说明")}</button>
+        {isPlaying && <button onClick={leave}>{t("返回大厅")}</button>}
       </nav>
       {error && (
         <div role="alert" className="toast" onClick={() => setError("")}>
-          {error}
+          {t(error)}
           <span>×</span>
         </div>
       )}
       {phase === "menu" && (
         <>
           <div className="intro">
-            <span className="eyebrow">1 / 2 / 3 / 6 人 · 纸上合作冒险</span>
-            <div className="title-art" aria-hidden="true">
-              <svg viewBox="0 0 360 360">
-                <circle
-                  cx="180"
-                  cy="180"
-                  r="134"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="9"
-                  strokeDasharray="815 40"
-                />
-                <path
-                  d="M20 240 Q90 185 155 242 T335 240 M20 255 Q90 200 155 257 T335 255 M20 270 Q90 215 155 272 T335 270"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1"
-                />
-              </svg>
-            </div>
-            <span className="vertical-note" aria-hidden="true">
-              雨がやむまで
+            <span className="eyebrow">
+              {t("1 / 2 / 3 / 6 人 · 纸上合作冒险")}
             </span>
             <h1>
-              <span>雨停之前，</span>
-              <span>为你留一片晴。</span>
+              <span>{t("雨停之前，")}</span>
+              <span>{t("愿你平安抵达。")}</span>
             </h1>
             <p>
-              把翅膀借给同伴，把雨留在身后。
+              {t("一张纸，一个愿望。")}
               <br />
-              跳跃、转面，在屋檐间一起前行。
+              {t("在雨幕与许愿架之间，替同伴留一片干燥。")}
             </p>
+            <div className="wish-tags" aria-hidden="true">
+              <i>◇</i>
+              <i>✦</i>
+              <i>◇</i>
+            </div>
             <div className="intro-controls">
-              <kbd>空格</kbd> 起飞 <kbd>Q</kbd> 转面 <kbd>S</kbd> 挡雨
+              <kbd>{t("空格")}</kbd> {t("起飞")} <kbd>Q</kbd> {t("转面")}{" "}
+              <kbd>S</kbd> {t("展纸挡雨")}
             </div>
           </div>
           <section className="panel menu">
             <div className="panel-top">
-              <span>旅の支度 · 旅途准备</span>
-              <b>全 四 帖</b>
+              <span>{t("启程挂签")}</span>
+              <b>{t("四个关卡")}</b>
             </div>
             <label>
-              你的名字
+              {t("你的名字")}
               <input
                 value={name}
                 maxLength={16}
-                placeholder="旅人"
+                placeholder={t("旅人")}
                 onChange={(e) => setName(e.target.value)}
               />
             </label>
-            <label>同行人数</label>
+            <label>{t("同行人数")}</label>
             <div className="modes">
               {MODES.map((m) => (
                 <button
@@ -471,12 +486,12 @@ function App() {
                   onClick={() => setMode(m)}
                 >
                   <strong>{m}</strong>
-                  <span>{m === 1 ? "独自探索" : "好友联机"}</span>
+                  <span>{t(m === 1 ? "独自探索" : "好友联机")}</span>
                 </button>
               ))}
             </div>
             <label>
-              出发关卡
+              {t("出发关卡")}
               <select
                 value={level}
                 onChange={(e) => {
@@ -487,45 +502,48 @@ function App() {
               >
                 {LEVELS.map((l, i) => (
                   <option key={i} value={i}>
-                    0{i + 1} · {l.name}
+                    0{i + 1} · {t(l.name)}
                   </option>
                 ))}
               </select>
             </label>
             <button className="primary" disabled={busy} onClick={create}>
-              {busy ? "正在连接…" : mode === 1 ? "开始冒险" : "创建好友房间"}
+              {t(busy ? "正在连接…" : mode === 1 ? "开始冒险" : "创建好友房间")}
               <span>↗</span>
             </button>
-            <div className="separator">已有同伴在等你</div>
+            <div className="separator">{t("已有同伴在等你")}</div>
             <div className="join">
               <input
-                aria-label="房间码"
+                aria-label={t("房间码")}
                 maxLength={8}
-                placeholder="输入 8 位房间码"
+                placeholder={t("输入 8 位房间码")}
                 value={code}
                 onChange={(e) => setCode(e.target.value.toUpperCase())}
               />
               <button disabled={busy} onClick={join}>
-                加入 →
+                {t("加入 →")}
               </button>
             </div>
-            <p className="fine">每人一只纸鹤 · 用房间码邀请好友 · 不需要注册</p>
+            <p className="fine">
+              {t("每人一只纸鹤 · 用房间码邀请好友 · 不需要注册")}
+            </p>
           </section>
           <footer>
-            愿每一只纸鹤，都能等到雨停。<span>折り鶴 · 雨宿り · 帰り道</span>
+            {t("把愿望系在檐下，把同伴带回家。")}
+            <span>{t("纸鹤 · 许愿架 · 雨中归途")}</span>
           </footer>
         </>
       )}
       {phase === "lobby" && room && (
         <section className="panel lobby">
-          <span className="eyebrow">等一阵一起出发的风</span>
-          <h2>{LEVELS[room.level].name}</h2>
+          <span className="eyebrow">{t("等同伴系好愿望，一起出发")}</span>
+          <h2>{t(LEVELS[room.level].name)}</h2>
           <div className="room-code">
             <div>
-              <small>房间码</small>
+              <small>{t("房间码")}</small>
               <strong>{room.code}</strong>
             </div>
-            <button onClick={copyInvite}>复制邀请 ↗</button>
+            <button onClick={copyInvite}>{t("复制邀请 ↗")}</button>
           </div>
           <div className="seats">
             {Array.from({ length: room.capacity }, (_, i) => {
@@ -534,23 +552,29 @@ function App() {
                 <div key={i} className="seat">
                   <span style={{ color: COLORS[i] }}>◇</span>
                   <div>
-                    {p?.name ?? "等待同伴"}
+                    {p
+                      ? p.name === "旅人"
+                        ? t("旅人")
+                        : p.name
+                      : t("等待同伴")}
                     <small>
-                      {p
-                        ? p.online
-                          ? "已连接"
-                          : "连接中…"
-                        : "分享房间码邀请加入"}
+                      {t(
+                        p
+                          ? p.online
+                            ? "已连接"
+                            : "连接中…"
+                          : "分享房间码邀请加入",
+                      )}
                     </small>
                   </div>
-                  {p?.slot === session?.slot && <b>你</b>}
-                  {p?.slot === room.host && <em>房主</em>}
+                  {p?.slot === session?.slot && <b>{t("你")}</b>}
+                  {p?.slot === room.host && <em>{t("房主")}</em>}
                 </div>
               );
             })}
           </div>
           <p className="fine">
-            每个人独立移动和跳跃。按 Q 会为全队转动视角；先和同伴打声招呼。
+            {t("每个人独立移动和跳跃。Q 会为全队转动视角，先和同伴商量。")}
           </p>
           <button
             className="primary"
@@ -563,12 +587,12 @@ function App() {
             onClick={() => connection.current?.command({ type: "start" })}
           >
             {session?.slot === room.host
-              ? `一起出发（${room.players.filter((p) => p.online).length}/${room.capacity}）`
-              : "等待房主开始"}
+              ? `${t("一起出发")} (${room.players.filter((p) => p.online).length}/${room.capacity})`
+              : t("等待房主开始")}
             <span>→</span>
           </button>
           <button className="text-button" onClick={leave}>
-            离开房间
+            {t("离开房间")}
           </button>
         </section>
       )}
@@ -578,8 +602,8 @@ function App() {
             <div className="stage">
               <b>0{hud.level + 1}</b>
               <div>
-                {l.name}
-                <small>{l.sub}</small>
+                {t(l.name)}
+                <small>{t(l.sub)}</small>
               </div>
             </div>
             <div className="stats">
@@ -590,8 +614,8 @@ function App() {
               {l.gate && (
                 <span className="gate-progress">
                   {hud.gateOpen
-                    ? "机关已开"
-                    : `机关 ${Math.round(((hud.gateCharge ?? 0) / 4) * 100)}%`}
+                    ? t("机关已开")
+                    : `${t("机关")} ${Math.round(((hud.gateCharge ?? 0) / 4) * 100)}%`}
                 </span>
               )}
               <span>
@@ -600,17 +624,17 @@ function App() {
               </span>
               {session && (
                 <span className={connected ? "online" : "offline"}>
-                  {connected ? "● 联机" : "● 重连中"}
+                  {t(connected ? "● 联机" : "● 重连中")}
                 </span>
               )}
             </div>
           </section>
           <section
             className={`rain-hud ${(local.wetness ?? 0) > 70 ? "soaked" : ""}`}
-            aria-label="纸鹤湿度"
+            aria-label={t("纸鹤状态")}
           >
-            <div>
-              <span>纸的湿度</span>
+            <div className="meter-heading">
+              <span>{t("纸的湿度")}</span>
               <strong>
                 {Math.round(local.wetness ?? 0)}
                 <small>%</small>
@@ -619,7 +643,7 @@ function App() {
             <div
               className="wet-track"
               role="progressbar"
-              aria-label="淋湿程度"
+              aria-label={t("淋湿程度")}
               aria-valuenow={Math.round(local.wetness ?? 0)}
               aria-valuemin={0}
               aria-valuemax={100}
@@ -627,26 +651,90 @@ function App() {
               <i style={{ width: `${local.wetness ?? 0}%` }} />
             </div>
             <p>
-              {local.rainCover === "roof"
-                ? "檐下 · 正在晾干"
-                : local.rainCover === "ally"
-                  ? "同伴庇护 · 正在晾干"
-                  : local.sheltering
-                    ? "展翼挡雨 · 自己仍会慢慢淋湿"
-                    : local.rainCover === "rain"
-                      ? "正在淋雨 · S 展翼 / 寻找屋檐"
-                      : "晴处 · 纸翼轻盈"}
+              {t(
+                local.rainCover === "roof"
+                  ? "檐下 · 正在晾干"
+                  : local.rainCover === "ally"
+                    ? "同伴庇护 · 正在晾干"
+                    : local.sheltering
+                      ? "展成方纸 · 自己仍会缓慢淋湿"
+                      : local.rainCover === "rain"
+                        ? "正在淋雨 · S 展纸 / 寻找屋檐"
+                        : "避雨处 · 纸翼轻盈",
+              )}
             </p>
+            <div
+              className={`fold-condition ${(local.foldsLeft ?? MAX_FOLDS) <= 2 ? "fragile" : ""}`}
+            >
+              <div className="meter-heading">
+                <span>{t("剩余耐折")}</span>
+                <b>
+                  {local.foldsLeft ?? MAX_FOLDS} / {MAX_FOLDS}
+                </b>
+              </div>
+              <div
+                className="fold-pips"
+                role="meter"
+                aria-label={t("耐折次数")}
+                aria-valuenow={local.foldsLeft ?? MAX_FOLDS}
+                aria-valuemin={0}
+                aria-valuemax={MAX_FOLDS}
+              >
+                {Array.from({ length: MAX_FOLDS }, (_, i) => (
+                  <i
+                    key={i}
+                    className={
+                      i < (local.foldsLeft ?? MAX_FOLDS) ? "intact" : "spent"
+                    }
+                  />
+                ))}
+              </div>
+              <p>
+                {t(
+                  local.foldBlocked
+                    ? local.foldsLeft === 0
+                      ? "纸已破损，先去许愿架修补"
+                      : "湿纸太脆，先晾干或修补"
+                    : local.wetness >= 60
+                      ? "湿度 ≥ 60%：每次消耗 2 格"
+                      : "每次展纸或折桥消耗 1 格",
+                )}
+              </p>
+            </div>
+            {atRepairRack(hud, local) ? (
+              <div className="repair-hint">
+                <span>
+                  {t(
+                    local.repairProgress >= REPAIR_SECONDS
+                      ? "修补完成"
+                      : local.repairProgress > 0
+                        ? "修补中"
+                        : "按住 F · 修补纸张",
+                  )}
+                </span>
+                <div className="repair-track">
+                  <i
+                    style={{
+                      width: `${((local.repairProgress ?? 0) / REPAIR_SECONDS) * 100}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <p className="repair-away">{t("许愿架可修补 · R 返回存档处")}</p>
+            )}
             {hud.mode > 1 && (
               <div className="team-wet">
                 {hud.players.map((p) => (
                   <span
                     key={p.id}
-                    title={`${NAMES[p.id]}：${Math.round(p.wetness ?? 0)}%`}
+                    title={`${t(NAMES[p.id])}: ${Math.round(p.wetness ?? 0)}% · ${p.foldsLeft ?? MAX_FOLDS} ${t("折")}`}
                   >
                     <i style={{ background: COLORS[p.id] }} />
-                    {p.arrived ? "已到家" : `${Math.round(p.wetness ?? 0)}%`}
-                    {p.sheltering ? " · 挡雨" : ""}
+                    {p.arrived
+                      ? t("已到家")
+                      : `${Math.round(p.wetness ?? 0)}% / ${p.foldsLeft ?? MAX_FOLDS}${t("折")}`}
+                    {p.sheltering ? t(" · 挡雨") : ""}
                   </span>
                 ))}
               </div>
@@ -654,10 +742,10 @@ function App() {
           </section>
           <aside className="compass">
             <div>
-              <b>{hud.view === 0 ? "正面 · 左右" : "侧面 · 前后"}</b>
+              <b>{t(hud.view === 0 ? "正面 · 左右" : "侧面 · 前后")}</b>
               <kbd>Q</kbd>
             </div>
-            <svg viewBox="-4 -12 39 17" aria-label="俯视路线图">
+            <svg viewBox="-4 -12 39 17" aria-label={t("俯视路线图")}>
               {l.platforms
                 .filter((p) => p.kind !== "wall")
                 .map((p, i) => (
@@ -668,7 +756,7 @@ function App() {
                     width={p.w}
                     height={p.d}
                     rx=".2"
-                    fill="#d8dbcd"
+                    fill="#61758a"
                   />
                 ))}
               <circle cx={l.exit.x} cy={l.exit.z} r=".8" fill="#d9b66b" />
@@ -685,14 +773,26 @@ function App() {
               ))}
             </svg>
             <small>
-              你是 <i style={{ background: COLORS[local.id] }} />
-              {NAMES[local.id]} ·{" "}
-              {local.checkpoint >= 0 ? "已记录存档旗" : "起点"}
+              {t("你是")} <i style={{ background: COLORS[local.id] }} />
+              {t(NAMES[local.id])} ·{" "}
+              {t(local.checkpoint >= 0 ? "已记录许愿架" : "起点")}
             </small>
           </aside>
           <div className="bottom-hint">
-            <kbd>← →</kbd> 移动 <kbd>空格</kbd> 跳 / 按住滑翔 <kbd>Q</kbd> 转动{" "}
-            <kbd>S / ↓</kbd> 挡雨 <kbd>Shift</kbd> 折桥 <kbd>R</kbd> 回存档旗
+            <kbd>← →</kbd>
+            {t("移动")}
+            <kbd>{t("空格")}</kbd>
+            {t("跳 / 按住滑翔")}
+            <kbd>Q</kbd>
+            {t("转动")}
+            <kbd>S / ↓</kbd>
+            {t("展纸挡雨")}
+            <kbd>Shift</kbd>
+            {t("纸桥")}
+            <kbd>F</kbd>
+            {t("修补")}
+            <kbd>R</kbd>
+            {t("回存档")}
           </div>
           <div className="touch-controls">
             <div>
@@ -700,30 +800,31 @@ function App() {
               {touch("axis", 1, "→")}
             </div>
             <div>
-              {touch("turn", true, "Q 转面")}
-              {touch("fold", true, "折桥")}
-              {touch("shelter", true, "挡雨")}
-              {touch("jump", true, "跳 / 滑翔")}
+              {touch("turn", true, t("Q 转面"))}
+              {touch("fold", true, t("纸桥"))}
+              {touch("shelter", true, t("挡雨"))}
+              {touch("repair", true, t("修补"))}
+              {touch("jump", true, t("跳 / 滑翔"))}
             </div>
           </div>
           {local.arrived && !won && (
             <div className="waiting">
-              你已抵达，等同伴一起到家 ·{" "}
+              {t("你已抵达，等同伴一起到家")} ·{" "}
               {hud.players.filter((p) => p.arrived).length}/{hud.mode}
             </div>
           )}
           {session && room?.players.some((p) => !p.online) && (
-            <div className="waiting">等待同伴重连，关卡已暂停</div>
+            <div className="waiting">{t("等待同伴重连，关卡已暂停")}</div>
           )}
           {room && room.votes.length > 0 && (
             <div className="vote">
-              {room.voteNext ? "下一关" : "重新开始"} · {room.votes.length}/
-              {room.capacity} 人同意{" "}
+              {t(room.voteNext ? "下一关" : "重新开始")} · {room.votes.length}/
+              {room.capacity} {t("人同意")}{" "}
               <button
                 onClick={() => restart(room.voteNext ?? false)}
                 disabled={room.votes.includes(session?.slot ?? -1)}
               >
-                我也同意
+                {t("我也同意")}
               </button>
             </div>
           )}
@@ -732,31 +833,32 @@ function App() {
       {won && (
         <div className="scrim">
           <section className="panel win">
-            <span className="eyebrow">每一只纸鹤，都到家了</span>
+            <span className="eyebrow">{t("所有愿望，都到家了")}</span>
             <div className="big-star">✦</div>
-            <h2>这一面，也一起走过。</h2>
+            <h2>{t("这一程，我们一起走过。")}</h2>
             <p>
-              {l.name} · {Math.floor(hud.time)} 秒 · {hud.flips} 次转面
+              {t(l.name)} · {Math.floor(hud.time)} {t("秒")} · {hud.flips}{" "}
+              {t("次转面")}
             </p>
             <div className="score">
               {"✦".repeat(hud.stars.length)}
               <span>{"✧".repeat(3 - hud.stars.length)}</span>
             </div>
             <p className="fine">
-              {hud.players.reduce((sum, p) => sum + p.deaths, 0)} 次重新起飞 ·{" "}
-              {hud.mode} 只纸鹤平安抵达
+              {hud.players.reduce((sum, p) => sum + p.deaths, 0)}{" "}
+              {t("次重新起飞")} · {hud.mode} {t("只纸鹤平安抵达")}
             </p>
             <button className="primary" onClick={() => restart(true)}>
-              {hud.level === 3 ? "再来一趟" : "下一阵风 · 下一关"}
+              {t(hud.level === 3 ? "再来一趟" : "下一阵风 · 下一关")}
               <span>→</span>
             </button>
             {session && (
               <p className="fine">
-                全员同意后出发 · {room?.votes.length ?? 0}/{hud.mode}
+                {t("全员同意后出发")} · {room?.votes.length ?? 0}/{hud.mode}
               </p>
             )}
             <button className="text-button" onClick={leave}>
-              返回大厅
+              {t("返回大厅")}
             </button>
           </section>
         </div>
@@ -764,39 +866,56 @@ function App() {
       {help && (
         <div className="scrim">
           <section className="panel help">
-            <button className="close" onClick={() => setHelp(false)}>
+            <button
+              className="close"
+              aria-label={t("关闭说明")}
+              onClick={() => setHelp(false)}
+            >
               ×
             </button>
-            <span className="eyebrow">让纸鹤飞起来</span>
-            <h2>先跳起来，再换个角度。</h2>
+            <span className="eyebrow">{t("纸会记住每一次折叠")}</span>
+            <h2>{t("借出一张纸，留住一个愿望。")}</h2>
             <dl>
               <dt>← → / A D</dt>
-              <dd>沿当前画面的左右方向行走</dd>
-              <dt>空格 / ↑ / W</dt>
-              <dd>跳跃；在下落时按住，展开翅膀滑翔</dd>
+              <dd>{t("沿当前画面的左右方向行走")}</dd>
+              <dt>{t("空格")} / ↑ / W</dt>
+              <dd>{t("跳跃；下落时按住可以滑翔。扇翅不消耗耐折。")}</dd>
               <dt>Q / E</dt>
-              <dd>世界旋转 90°，左右键转而控制另一条轴。联机时全队共享视角</dd>
+              <dd>
+                {t("世界旋转 90°，左右键控制另一条轴；联机时全队共享视角。")}
+              </dd>
               <dt>S / ↓</dt>
               <dd>
-                在地面按住展翼，原地为附近同伴挡雨。自己仍缓慢淋湿；两只纸鹤可以互相遮雨晾干。
+                {t(
+                  "地面按住：整只纸鹤摊成方纸，原地遮住附近同伴。松开折回纸鹤；两张纸能互相挡雨。",
+                )}
               </dd>
               <dt>Shift</dt>
-              <dd>落地后按住折成桥，让同伴从翅膀上走过；也能跳到同伴头上</dd>
+              <dd>{t("按住折成低矮纸桥，供同伴跨过；松开还原。")}</dd>
+              <dt>F</dt>
+              <dd>
+                {t("在起点或存档许愿架旁站稳，按住 2 秒修补；移动会中断。")}
+              </dd>
               <dt>R</dt>
-              <dd>回到你最近点亮的存档旗</dd>
+              <dd>{t("返回最近存档许愿架。湿度清零，耐折不会重置。")}</dd>
             </dl>
             <p>
-              雨幕会打湿纸鹤，湿度满时回到最近存档旗。檐下和晴处能快速晾干；画面中的檐亭就是避雨处。找齐钥匙，所有纸鹤抵达金色灯门才过关。机关要踩住
-              4
-              秒：多人同时站上两块圆垫，单人只需一块；可以边踩边挡雨。星星是额外挑战。
+              {t(
+                "每张纸有 6 格耐折，每次变成方纸或纸桥消耗 1 格，湿度达到 60% 时消耗 2 格。保持形态不额外消耗；用完后仍可走、跳、滑翔。首次点亮新许愿架会修复纸张，也可在架旁按 F 修补。",
+              )}
+            </p>
+            <p>
+              {t(
+                "淋湿到 100% 会回存档，檐下可以晾干。找齐钥匙后，全员到灯门过关。机关需要连续踩住 4 秒：单人一块，多人两块。星星是额外挑战。",
+              )}
             </p>
             {isPlaying && (
               <button className="primary" onClick={() => restart(false)}>
-                {session ? "发起重开投票" : "重新开始本关"}
+                {t(session ? "发起重开投票" : "重新开始本关")}
               </button>
             )}
             <button className="text-button" onClick={() => setHelp(false)}>
-              知道了，继续冒险
+              {t("继续冒险")}
             </button>
           </section>
         </div>

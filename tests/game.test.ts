@@ -219,3 +219,105 @@ test("pressure pads need continuous shelter time; stepping away cancels charge",
   tick(g, { shelter: true }, 245);
   assert.equal(g.gateOpen, true);
 });
+
+test("unfolding spends durability once; holding, wingbeats and release spend none", () => {
+  const g = newGame(1);
+  tick(g, { shelter: true }, 240);
+  assert.equal(g.players[0].foldsLeft, 5);
+  tick(g, {}, 5);
+  assert.equal(g.players[0].foldsLeft, 5);
+  tick(g, { fold: true }, 60);
+  assert.equal(g.players[0].foldsLeft, 4);
+  tick(g, { shelter: true });
+  assert.equal(g.players[0].foldsLeft, 3);
+  tick(g, {}, 5);
+  tick(g, { jump: true }, 90);
+  assert.equal(g.players[0].foldsLeft, 3);
+});
+test("wet paper costs two folds and an unaffordable change is rejected", () => {
+  const g = newGame(1),
+    p = g.players[0];
+  p.wetness = 65;
+  tick(g, { shelter: true });
+  assert.equal(p.foldsLeft, 4);
+  tick(g);
+  Object.assign(p, { wetness: 65, foldsLeft: 1 });
+  tick(g, { shelter: true });
+  assert.equal(p.sheltering, false);
+  assert.equal(p.foldBlocked, true);
+  assert.equal(p.foldsLeft, 1);
+  p.wetness = 0;
+  tick(g, { shelter: true });
+  assert.equal(p.sheltering, true);
+  assert.equal(p.foldsLeft, 0);
+  tick(g, { shelter: true }, 60);
+  assert.equal(p.sheltering, true);
+});
+test("worn paper cannot unfold again but can still move and jump", () => {
+  const g = newGame(1),
+    p = g.players[0];
+  for (let n = 0; n < 6; n++) {
+    tick(g, { shelter: true });
+    tick(g);
+  }
+  tick(g, { fold: true });
+  assert.equal(p.folded, false);
+  assert.equal(p.foldBlocked, true);
+  tick(g, { axis: 1, jump: true }, 20);
+  assert.ok(p.x > -0.5);
+  assert.ok(p.y > 1);
+  assert.equal(p.foldsLeft, 0);
+});
+test("returns preserve wear; a new wishing checkpoint repairs only once", () => {
+  const g = newGame(1),
+    p = g.players[0];
+  p.foldsLeft = 1;
+  tick(g, { reset: true });
+  assert.equal(p.foldsLeft, 1);
+  Object.assign(p, { x: 10, y: 0, z: 0, grounded: true });
+  tick(g);
+  assert.equal(p.checkpoint, 0);
+  assert.equal(p.foldsLeft, 6);
+  tick(g, { shelter: true });
+  tick(g, {}, 120);
+  assert.equal(p.foldsLeft, 5);
+  Object.assign(p, { y: -8 });
+  tick(g);
+  assert.equal(p.foldsLeft, 5);
+});
+test("repair needs two uninterrupted seconds at a rack and cannot be done remotely", () => {
+  const g = newGame(1),
+    p = g.players[0];
+  p.foldsLeft = 0;
+  p.wetness = 50;
+  tick(g, { repair: true }, 90);
+  assert.equal(p.foldsLeft, 0);
+  assert.ok(p.repairProgress > 1.4);
+  tick(g, { repair: true, axis: 1 });
+  assert.equal(p.repairProgress, 0);
+  tick(g, { repair: true }, 125);
+  assert.equal(p.foldsLeft, 6);
+  assert.equal(p.wetness, 0);
+  Object.assign(p, { x: 3.8, foldsLeft: 0 });
+  tick(g, { repair: true }, 180);
+  assert.equal(p.foldsLeft, 0);
+  assert.equal(p.repairProgress, 0);
+  Object.assign(p, { x: -1, grounded: true });
+  tick(g, { repair: true, shelter: true }, 130);
+  assert.equal(p.foldsLeft, 0);
+  assert.equal(p.repairProgress, 0);
+});
+test("old saves get durability and old clients can omit repair", () => {
+  const g = newGame(1),
+    p = g.players[0] as any;
+  delete p.foldsLeft;
+  delete p.repairProgress;
+  delete p.foldBlocked;
+  tick(g);
+  assert.equal(p.foldsLeft, 6);
+  assert.equal(p.repairProgress, 0);
+  const old: any = idleInput();
+  delete old.repair;
+  assert.equal(cleanInput(old)?.repair, false);
+  assert.equal(cleanInput({ ...idleInput(), repair: 1 }), null);
+});

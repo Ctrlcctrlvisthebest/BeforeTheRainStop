@@ -1,4 +1,6 @@
 import { rainfall, underAwning, SHIELD_RADIUS } from "./weather";
+export const MAX_FOLDS = 6;
+export const REPAIR_SECONDS = 2;
 export const MODES = [1, 2, 3, 6] as const;
 export type Mode = (typeof MODES)[number];
 export const COLORS = [
@@ -64,8 +66,8 @@ export const LEVELS: Level[] = [
     name: "纸的另一面",
     sub: "跑起来，世界还有另一面。",
     hint: "← → / A D 移动 · 空格跳跃，按住滑翔 · Q 转动世界",
-    color: "#91b9a2",
-    sky: "#dfe2d9",
+    color: "#526577",
+    sky: "#2c3b4b",
     spawn: { x: -1, y: 0, z: 0 },
     exit: { x: 29, y: 0, z: -7 },
     platforms: [...base(), { ...p(12.3, 0, 0.55, 3, 4.2, 4.2), kind: "wall" }],
@@ -92,9 +94,9 @@ export const LEVELS: Level[] = [
   {
     name: "借你一片翅膀",
     sub: "有人搭桥，有人先走。",
-    hint: "Shift 展开成桥 · 可以跳到同伴头上 · 合作踩亮圆形机关",
-    color: "#c4ac83",
-    sky: "#e7dfd0",
+    hint: "Shift 折成纸桥 · 可以跳到同伴头上 · 合作踩亮圆形机关",
+    color: "#596775",
+    sky: "#303d4c",
     spawn: { x: -1, y: 0, z: 0 },
     exit: { x: 29, y: 0, z: -7 },
     platforms: [
@@ -117,7 +119,7 @@ export const LEVELS: Level[] = [
       { x: 2, y: 0, z: 0, text: "S 挡雨 · Shift 折桥" },
       { x: 8, y: 0.2, z: 0, text: "踩台阶 / 叠高拿钥匙" },
       { x: 11, y: 0.4, z: -6.5, text: "Q 回到正面" },
-      { x: 18, y: 0.5, z: -7, text: "踩住 4 秒 · S 展翼挡雨" },
+      { x: 18, y: 0.5, z: -7, text: "踩住 4 秒 · S 展纸挡雨" },
     ],
     pads: [
       { x: 16, y: 0, z: -7 },
@@ -131,8 +133,8 @@ export const LEVELS: Level[] = [
     name: "乘同一阵风",
     sub: "风会带你去高一点的地方。",
     hint: "进入风柱会上升 · 跳上移动纸台 · 侧面藏着下一条路",
-    color: "#a7a1c9",
-    sky: "#dddde4",
+    color: "#59647d",
+    sky: "#313d51",
     spawn: { x: -1, y: 0, z: 0 },
     exit: { x: 29, y: 1.2, z: -7 },
     platforms: [
@@ -175,8 +177,8 @@ export const LEVELS: Level[] = [
     name: "一只也不能少",
     sub: "窗内的灯，为所有人亮着。",
     hint: "雨刃会周期出现 · 观察节奏再跳 · 找齐钥匙后一起抵达灯门",
-    color: "#7ca8b5",
-    sky: "#d0dadd",
+    color: "#465b70",
+    sky: "#253446",
     spawn: { x: -1, y: 0, z: 0 },
     exit: { x: 31, y: 0, z: -8 },
     platforms: [
@@ -228,6 +230,7 @@ export interface Input {
   turn: boolean;
   reset: boolean;
   shelter: boolean;
+  repair: boolean;
 }
 export const idleInput = (): Input => ({
   axis: 0,
@@ -236,6 +239,7 @@ export const idleInput = (): Input => ({
   turn: false,
   reset: false,
   shelter: false,
+  repair: false,
 });
 export interface Bird extends Point {
   id: number;
@@ -246,6 +250,9 @@ export interface Bird extends Point {
   folded: boolean;
   sheltering: boolean;
   wetness: number;
+  foldsLeft: number;
+  repairProgress: number;
+  foldBlocked: boolean;
   rainCover: "dry" | "rain" | "roof" | "ally" | "self";
   facing: number;
   checkpoint: number;
@@ -308,6 +315,9 @@ export function newGame(mode: Mode, level = 0, id = "solo"): Game {
       folded: false,
       sheltering: false,
       wetness: 0,
+      foldsLeft: MAX_FOLDS,
+      repairProgress: 0,
+      foldBlocked: false,
       rainCover: "dry",
       facing: 1,
       checkpoint: -1,
@@ -355,6 +365,16 @@ function overlap(p: Bird, b: Platform, view: 0 | 1): boolean {
     Math.abs(p.z - b.z) < b.d / 2 + width(p, view, "z") / 2 - 0.001
   );
 }
+export function atRepairRack(g: Game, p: Bird): boolean {
+  const l = LEVELS[g.level];
+  return (
+    p.grounded &&
+    [l.spawn, ...l.checkpoints].some(
+      (c) =>
+        Math.hypot(c.x - p.x, c.z - p.z) < 1.4 && Math.abs(c.y - p.y) < 0.4,
+    )
+  );
+}
 export function activeHazard(period: number | undefined, t: number): boolean {
   return !period || t % period < period * 0.48;
 }
@@ -373,6 +393,8 @@ function respawn(g: Game, p: Bird): void {
     sheltering: false,
     wetness: 0,
     rainCover: "dry",
+    repairProgress: 0,
+    foldBlocked: false,
     support: -1,
     coyote: 0,
     invulnerable: 1.2,
@@ -386,6 +408,9 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
   g.time += dt;
   for (const p of g.players) {
     p.wetness ??= 0;
+    p.foldsLeft ??= MAX_FOLDS;
+    p.repairProgress ??= 0;
+    p.foldBlocked ??= false;
     p.sheltering ??= false;
     p.rainCover ??= "dry";
     const i = inputs[p.id] ?? idleInput();
@@ -421,8 +446,35 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
       p.x += after.x - before.x;
       p.z += after.z - before.z;
     }
-    p.sheltering = input.shelter === true && p.grounded;
-    p.folded = input.fold && p.grounded && !p.sheltering;
+    const repairing =
+      input.repair === true &&
+      atRepairRack(g, p) &&
+      !input.axis &&
+      !input.jump &&
+      !input.shelter &&
+      !input.fold;
+    p.repairProgress = repairing
+      ? Math.min(REPAIR_SECONDS, p.repairProgress + dt)
+      : 0;
+    if (p.repairProgress >= REPAIR_SECONDS) {
+      p.foldsLeft = MAX_FOLDS;
+      p.wetness = 0;
+    }
+    const desired =
+      p.grounded && !repairing
+        ? input.shelter
+          ? "sheet"
+          : input.fold
+            ? "bridge"
+            : "crane"
+        : "crane";
+    const previous = p.sheltering ? "sheet" : p.folded ? "bridge" : "crane";
+    const cost = p.wetness >= 60 ? 2 : 1;
+    const changing = desired !== "crane" && desired !== previous;
+    p.foldBlocked = changing && p.foldsLeft < cost;
+    if (changing && !p.foldBlocked) p.foldsLeft -= cost;
+    p.sheltering = desired === "sheet" && !p.foldBlocked;
+    p.folded = desired === "bridge" && !p.foldBlocked;
     if (p.jumpBuffer > 0 && p.coyote > 0 && !p.folded && !p.sheltering) {
       p.vy = 9.3;
       p.grounded = false;
@@ -545,8 +597,11 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
         index > p.checkpoint &&
         Math.hypot(c.x - p.x, c.z - p.z) < 1.1 &&
         Math.abs(c.y - p.y) < 1
-      )
+      ) {
         p.checkpoint = index;
+        p.foldsLeft = MAX_FOLDS;
+        p.repairProgress = 0;
+      }
     });
     l.keys.forEach((k, index) => {
       if (
@@ -618,7 +673,8 @@ export function rainCover(g: Game, p: Bird): Bird["rainCover"] {
         !q.arrived &&
         q.sheltering &&
         q.grounded &&
-        Math.hypot(q.x - p.x, q.z - p.z) < SHIELD_RADIUS &&
+        Math.abs(q.x - p.x) < SHIELD_RADIUS &&
+        Math.abs(q.z - p.z) < SHIELD_RADIUS &&
         p.y + 0.88 <= q.y + 1.5 &&
         p.y >= q.y - 2.5,
     )
@@ -652,7 +708,9 @@ export function cleanInput(value: unknown): Input | null {
   if (
     ![-1, 0, 1].includes(i.axis as number) ||
     ["jump", "fold", "turn", "reset"].some((k) => typeof i[k] !== "boolean") ||
-    (i.shelter !== undefined && typeof i.shelter !== "boolean")
+    ["shelter", "repair"].some(
+      (k) => i[k] !== undefined && typeof i[k] !== "boolean",
+    )
   )
     return null;
   return {
@@ -662,5 +720,6 @@ export function cleanInput(value: unknown): Input | null {
     turn: i.turn as boolean,
     reset: i.reset as boolean,
     shelter: i.shelter === true,
+    repair: i.repair === true,
   };
 }

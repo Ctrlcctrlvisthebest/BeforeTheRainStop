@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { idleInput } from "../src/game";
+import { idleInput, MAX_FOLDS } from "../src/game";
 import type { PublicRoom } from "../src/room";
 const base = process.env.TEST_SERVER ?? "http://127.0.0.1:8788";
 async function post(path: string, body: unknown) {
@@ -112,6 +112,11 @@ for (const n of [2, 3, 6])
         "shelter stance",
       );
       assert.ok(peers.every((p) => p.room!.game!.players[0].wetness === 0));
+      assert.ok(
+        peers.every(
+          (p) => p.room!.game!.players[0].foldsLeft === MAX_FOLDS - 1,
+        ),
+      );
       peers[0].ws.send(
         JSON.stringify({
           type: "input",
@@ -124,6 +129,34 @@ for (const n of [2, 3, 6])
         () => peers.every((p) => !p.room!.game!.players[0].sheltering),
         "release shelter",
       );
+      const sendGuest = (input: ReturnType<typeof idleInput>) =>
+        peers[1].ws.send(
+          JSON.stringify({
+            type: "input",
+            gameId: id,
+            seq: ++peers[1].seq,
+            input,
+          }),
+        );
+      sendGuest({ ...idleInput(), fold: true });
+      await until(
+        () =>
+          peers.every(
+            (p) => p.room!.game!.players[1].foldsLeft === MAX_FOLDS - 1,
+          ),
+        "fold durability",
+      );
+      sendGuest({ ...idleInput(), repair: true });
+      await until(
+        () => peers.every((p) => p.room!.game!.players[1].repairProgress > 0),
+        "repair begins",
+      );
+      await until(
+        () =>
+          peers.every((p) => p.room!.game!.players[1].foldsLeft === MAX_FOLDS),
+        "repair synchronized",
+      );
+      sendGuest(idleInput());
       peers[1].ws.send(
         JSON.stringify({
           type: "input",
