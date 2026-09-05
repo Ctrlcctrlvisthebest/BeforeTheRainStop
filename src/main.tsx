@@ -20,6 +20,7 @@ import { api, Connection, save, stored, type Session } from "./api";
 import type { PublicRoom } from "./room";
 import { PaperScene } from "./scene";
 import "./style.css";
+import { useGameAudio, MusicControls } from "./audio";
 import { translate, type Language } from "./i18n";
 const KEY = "rain-action-session-v2";
 const initialCode = new URLSearchParams(location.search).get("room") ?? "";
@@ -57,30 +58,10 @@ function App() {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [hud, setHud] = useState<Game>(newGame(1)),
-    [help, setHelp] = useState(false),
-    [muted, setMuted] = useState(true);
-  const audio = useRef<AudioContext | null>(null),
-    mutedRef = useRef(true);
+    [help, setHelp] = useState(false);
+  const audio = useGameAudio(phase === "game");
   function sound(freq: number) {
-    if (mutedRef.current) return;
-    try {
-      const c = audio.current ?? (audio.current = new AudioContext());
-      void c.resume();
-      const o = c.createOscillator(),
-        v = c.createGain();
-      o.type = "sine";
-      o.frequency.setValueAtTime(freq, c.currentTime);
-      o.frequency.exponentialRampToValueAtTime(
-        freq * 1.5,
-        c.currentTime + 0.12,
-      );
-      v.gain.setValueAtTime(0.045, c.currentTime);
-      v.gain.exponentialRampToValueAtTime(0.001, c.currentTime + 0.2);
-      o.connect(v);
-      v.connect(c.destination);
-      o.start();
-      o.stop(c.currentTime + 0.2);
-    } catch {}
+    audio.effect(freq);
   }
   function changePhase(p: string) {
     phaseRef.current = p;
@@ -282,6 +263,7 @@ function App() {
     };
   }, []);
   async function create() {
+    void audio.start();
     setError("");
     save(localStorage, "rain-name", name);
     if (mode === 1) {
@@ -305,6 +287,7 @@ function App() {
     }
   }
   async function join() {
+    void audio.start();
     setBusy(true);
     setError("");
     save(localStorage, "rain-name", name);
@@ -419,16 +402,7 @@ function App() {
         >
           中文 / EN
         </button>
-        <button
-          aria-label={t(muted ? "开启音效" : "关闭音效")}
-          onClick={() => {
-            mutedRef.current = !muted;
-            setMuted(!muted);
-            if (muted) sound(440);
-          }}
-        >
-          {t(muted ? "♪ 关" : "♪ 开")}
-        </button>
+        <MusicControls audio={audio} language={language} />
         <button onClick={() => setHelp((v) => !v)}>{t("操作说明")}</button>
         {isPlaying && <button onClick={leave}>{t("返回大厅")}</button>}
       </nav>

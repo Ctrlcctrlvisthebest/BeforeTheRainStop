@@ -1309,3 +1309,120 @@ footer span {
     margin-top: 11px;
   }
 }
+.music-control {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+}
+.music-control audio {
+  display: none;
+}
+.tools .music-active {
+  color: #eed3a8;
+  border-color: #c6a77766;
+  background: #71523944;
+}
+.tools .music-options {
+  border-left: 0;
+  padding-left: 7px;
+  padding-right: 7px;
+}
+.music-panel {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  width: 278px;
+  padding: 18px;
+  background: #e6d7bb;
+  color: #574333;
+  border: 4px solid #685143;
+  box-shadow: 0 12px 36px #10203870;
+  font-size: 11px;
+  z-index: 20;
+}
+.music-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.music-heading > span {
+  font-size: 27px;
+  color: #a35b41;
+}
+.music-heading strong {
+  display: block;
+  font-family: var(--serif);
+  font-size: 14px;
+  font-weight: 600;
+}
+.music-heading small {
+  display: block;
+  font-size: 9px;
+  color: #90795e;
+  margin-top: 4px;
+}
+.music-panel p {
+  font-size: 10px;
+  line-height: 1.7;
+  color: #816950;
+  margin: 13px 0;
+}
+.music-time {
+  display: flex;
+  gap: 9px;
+  justify-content: space-between;
+  font-size: 9px;
+  color: #8a6f53;
+  line-height: 1.6;
+}
+.music-time output {
+  white-space: nowrap;
+}
+.music-panel label {
+  margin-top: 15px;
+  font-size: 10px;
+}
+.music-panel label > span {
+  float: right;
+}
+.music-panel input[type="range"] {
+  padding: 0;
+  margin-top: 12px;
+  accent-color: #aa5d45;
+  background: transparent;
+  border: 0;
+  height: 16px;
+  cursor: pointer;
+}
+.music-note {
+  display: block;
+  margin-top: 12px;
+  font-size: 8px;
+  line-height: 1.7;
+  color: #8d785f;
+}
+.playing .music-panel {
+  pointer-events: auto;
+}
+@media (max-width: 650px) {
+  .music-panel {
+    width: 246px;
+    padding: 14px;
+    right: -55px;
+  }
+  .tools .music-options {
+    padding-left: 5px;
+    padding-right: 5px;
+  }
+  .playing .tools {
+    gap: 4px;
+  }
+  .playing .tools button {
+    padding-left: 6px;
+    padding-right: 6px;
+  }
+  .music-heading strong {
+    font-size: 13px;
+  }
+}

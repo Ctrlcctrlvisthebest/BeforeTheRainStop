@@ -1,5 +1,25 @@
 export type Language = "zh" | "en";
 const english: Record<string, string> = {
+  "背景音乐：檐下的愿望": "Background music: Wishes Beneath the Eaves",
+  暂停背景音乐: "Pause background music",
+  播放背景音乐: "Play background music",
+  "♪ 加载中…": "♪ Loading…",
+  "♪ 音乐开": "♪ Music on",
+  "♪ 重试音乐": "♪ Retry music",
+  "♪ 播放音乐": "♪ Play music",
+  音乐设置: "Music settings",
+  檐下的愿望: "Wishes Beneath the Eaves",
+  "原创器乐 · 循环播放": "Original instrumental · Loop",
+  "拨弦、笛音与远处的钟声": "Plucked strings, flute and distant bells",
+  正在播放: "Now playing",
+  "加载失败，点击音乐按钮重试": "Load failed. Click music to retry",
+  点击音乐按钮开始播放: "Click music to begin",
+  音乐播放进度: "Music progress",
+  音量: "Volume",
+  音乐音量: "Music volume",
+  "关卡中自动轻放，离开页面时暂停":
+    "Softer during play. Pauses in the background.",
+
   连接中断: "Connection interrupted",
   连接数过多: "Too many connections",
   房间已过期: "Room expired",
