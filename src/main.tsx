@@ -166,6 +166,8 @@ function App() {
   }, []);
   useEffect(() => {
     const held = new Set<string>();
+    const pressedAt = new Map<string, number>();
+    const releases = new Map<string, ReturnType<typeof setTimeout>>();
     const refresh = () => {
       input.current = {
         axis:
@@ -176,6 +178,8 @@ function App() {
         turn: held.has("KeyQ") || held.has("KeyE"),
         reset: held.has("KeyR"),
       };
+      if (phaseRef.current === "game" && currentSession.current)
+        connection.current?.input(game.current.id, input.current);
     };
     const keys = [
       "ArrowLeft",
@@ -205,18 +209,39 @@ function App() {
       }
       if (keys.includes(e.code)) {
         e.preventDefault();
+        if (e.repeat) return;
+        if (releases.has(e.code)) clearTimeout(releases.get(e.code));
+        pressedAt.set(e.code, performance.now());
         if (!held.has(e.code) && e.code === "Space") sound(280);
         held.add(e.code);
         refresh();
       }
     };
     const up = (e: KeyboardEvent) => {
-      held.delete(e.code);
-      refresh();
+      if (!held.has(e.code)) return;
+      const minimum = ["ArrowLeft", "ArrowRight", "KeyA", "KeyD"].includes(
+        e.code,
+      )
+        ? 40
+        : 120;
+      const delay = Math.max(
+        0,
+        minimum - (performance.now() - (pressedAt.get(e.code) ?? 0)),
+      );
+      const release = () => {
+        held.delete(e.code);
+        releases.delete(e.code);
+        refresh();
+      };
+      if (delay) releases.set(e.code, setTimeout(release, delay));
+      else release();
     };
     const clear = () => {
+      releases.forEach(clearTimeout);
+      releases.clear();
+      pressedAt.clear();
       held.clear();
-      input.current = idleInput();
+      refresh();
     };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
