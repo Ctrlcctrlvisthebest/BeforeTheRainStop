@@ -119,7 +119,7 @@ test("network input validation rejects invalid motion and strips seat spoofing",
   assert.deepEqual(cleanInput({ ...idleInput(), slot: 5 }), idleInput());
 });
 
-test("rain accumulates wetness, roofs and dry areas restore paper", () => {
+test("rain accumulates wetness, a nearby campfire dries it; distant roofs do not", () => {
   const g = newGame(1);
   Object.assign(g.players[0], { x: 19, y: 0, z: -7 });
   tick(g, {}, 90);
@@ -128,9 +128,10 @@ test("rain accumulates wetness, roofs and dry areas restore paper", () => {
   tick(g, {}, 90);
   assert.equal(g.players[0].rainCover, "roof");
   assert.ok(g.players[0].wetness < 40);
+  const before = g.players[0].wetness;
   Object.assign(g.players[0], { x: 1, y: 0, z: 0 });
   tick(g, {}, 120);
-  assert.equal(g.players[0].wetness, 0);
+  assert.equal(g.players[0].wetness, before);
 });
 test("S holds position and reduces own rain while protecting a nearby teammate", () => {
   const g = newGame(2);
@@ -146,7 +147,7 @@ test("S holds position and reduces own rain while protecting a nearby teammate",
   assert.ok(g.players[0].wetness > 0);
   assert.ok(g.players[0].wetness < exposed.players[0].wetness * 0.35);
   assert.equal(g.players[1].rainCover, "ally");
-  assert.ok(g.players[1].wetness < 30);
+  assert.equal(g.players[1].wetness, 40);
 });
 test("two cranes can mutually shelter, in either camera view and independent of slot order", () => {
   for (const view of [0, 1] as const) {
@@ -159,7 +160,9 @@ test("two cranes can mutually shelter, in either camera view and independent of 
         0: { ...idleInput(), shelter: true },
         1: { ...idleInput(), shelter: true },
       });
-    assert.ok(g.players.every((p) => p.rainCover === "ally" && p.wetness < 36));
+    assert.ok(
+      g.players.every((p) => p.rainCover === "ally" && p.wetness === 50),
+    );
     assert.equal(g.players[0].wetness, g.players[1].wetness);
   }
 });
@@ -299,7 +302,7 @@ test("repair needs two uninterrupted seconds at a rack and cannot be done remote
   assert.equal(p.repairProgress, 0);
   tick(g, { repair: true }, 125);
   assert.equal(p.foldsLeft, 6);
-  assert.equal(p.wetness, 0);
+  assert.equal(p.wetness, 50); // Repair alone cannot dry paper away from a fire.
   Object.assign(p, { x: 3.8, foldsLeft: 0 });
   tick(g, { repair: true }, 180);
   assert.equal(p.foldsLeft, 0);

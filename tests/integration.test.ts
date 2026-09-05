@@ -280,3 +280,87 @@ for (const capacity of [2, 3, 6])
       peers.forEach((p) => p.ws.close());
     }
   });
+
+for (const capacity of [2, 3, 6])
+  test(`${capacity} real WebSockets: heat warning, disconnect pause and brittle failure synchronize`, async () => {
+    const created = await post("/rooms", {
+      capacity,
+      level: 0,
+      name: "fire test",
+    });
+    const sessions = [created];
+    for (let i = 1; i < capacity; i++)
+      sessions.push(
+        await post(`/rooms/${created.room.code}/join`, {
+          name: `fire observer ${i}`,
+        }),
+      );
+    const peers = sessions.map((s) => peer(created.room.code, s.token));
+    try {
+      await until(
+        () => peers.every((p) => p.room?.players.every((q) => q.online)),
+        "fire party ready",
+      );
+      peers[0].ws.send(
+        JSON.stringify({ type: "command", command: { type: "start" } }),
+      );
+      await until(() => peers.every((p) => !!p.room?.game), "fire scene ready");
+      const send = (input: ReturnType<typeof idleInput>) =>
+        peers[0].ws.send(
+          JSON.stringify({
+            type: "input",
+            gameId: peers[0].room!.game!.id,
+            seq: ++peers[0].seq,
+            input,
+          }),
+        );
+      send({ ...idleInput(), axis: -1 });
+      await until(
+        () => peers[0].room!.game!.players[0].x < -1.35,
+        "approach starting fire",
+      );
+      send(idleInput());
+      await until(
+        () => peers.every((p) => p.room!.game!.players[0].heat >= 66),
+        "heat warning synchronized",
+      );
+      peers[capacity - 1].ws.close();
+      await until(
+        () => peers[0].room!.players[capacity - 1].online === false,
+        "fire simulation paused",
+      );
+      const heat = peers[0].room!.game!.players[0].heat;
+      await new Promise((r) => setTimeout(r, 200));
+      assert.equal(peers[0].room!.game!.players[0].heat, heat);
+      peers[capacity - 1] = peer(
+        created.room.code,
+        sessions[capacity - 1].token,
+      );
+      await until(
+        () => peers.every((p) => p.room?.players.every((q) => q.online)),
+        "fire observer reconnects",
+      );
+      await until(
+        () =>
+          peers.every(
+            (p) => p.room!.game!.players[0].lastFailure === "brittle",
+          ),
+        "brittle failure synchronized",
+      );
+      assert.ok(
+        peers.every(
+          (p) =>
+            p.room!.game!.players[0].deaths === 1 &&
+            p.room!.game!.players[0].heat === 0,
+        ),
+      );
+      assert.ok(
+        peers.every((p) =>
+          p.room!.game!.players.slice(1).every((q) => q.deaths === 0),
+        ),
+      );
+      assert.ok(peers.every((p) => p.errors.length === 0));
+    } finally {
+      peers.forEach((p) => p.ws.close());
+    }
+  });

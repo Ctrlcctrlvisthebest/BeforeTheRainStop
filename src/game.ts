@@ -1,5 +1,14 @@
 import { CROSSINGS, bankPoint, bridgePlank, dockBank } from "./bridges";
-import { rainfall, underAwning, SHIELD_RADIUS } from "./weather";
+import {
+  rainfall,
+  underAwning,
+  SHIELD_RADIUS,
+  besideCampfire,
+  FIRE_DRY_RATE,
+  FIRE_HEAT_RATE,
+  FIRE_COOL_RATE,
+  BLAZE_HEIGHT,
+} from "./weather";
 export const MAX_FOLDS = 6;
 export const REPAIR_SECONDS = 2;
 export const MODES = [1, 2, 3, 6] as const;
@@ -182,7 +191,7 @@ export const LEVELS: Level[] = [
   {
     name: "一只也不能少",
     sub: "窗内的灯，为所有人亮着。",
-    hint: "Q 转到侧面搭桥 · 躲避雨刃 · 接通木桥后一起踩机关",
+    hint: "Q 转到侧面搭桥 · 跳过旺火 · 接通木桥后一起踩机关",
     color: "#465b70",
     sky: "#253446",
     spawn: { x: -1, y: 0, z: 0 },
@@ -216,7 +225,7 @@ export const LEVELS: Level[] = [
       { x: 27, y: 0, z: -8 },
     ],
     signs: [
-      { x: 2, y: 0, z: 0, text: "这次，也要一起到家" },
+      { x: 2, y: 0, z: 0, text: "小火烤干 · 旺火必须跳过" },
       { x: 10, y: 0.6, z: 0, text: "Q · 换一条轴前进" },
       { x: 11, y: -0.8, z: -2.6, text: "侧面对齐桥钉 · Shift 搭桥" },
       { x: 27, y: 0.4, z: -8, text: "踩住 4 秒 · 一起挡雨开门" },
@@ -228,8 +237,8 @@ export const LEVELS: Level[] = [
     gate: { ...p(29.3, -8, 0.4, 3, 3.8, 3.8), kind: "wall" },
     winds: [],
     hazards: [
-      { x: 8.8, y: 0, z: 0, w: 1.1, d: 2.8, period: 3.5 },
-      { x: 30, y: 0, z: -8, w: 0.7, d: 2.7, period: 4 },
+      { x: 8.8, y: 0, z: 0, w: 1.1, d: 2.8 },
+      { x: 30, y: 0, z: -8, w: 0.7, d: 2.7 },
     ],
   },
 ];
@@ -260,6 +269,10 @@ export interface Bird extends Point {
   folded: boolean;
   sheltering: boolean;
   wetness: number;
+  heat: number;
+  nearFire: boolean;
+  lastFailure: "fall" | "soaked" | "scorched" | "brittle" | null;
+  failureUntil: number;
   foldsLeft: number;
   repairProgress: number;
   foldBlocked: boolean;
@@ -334,6 +347,10 @@ export function newGame(mode: Mode, level = 0, id = "solo"): Game {
       folded: false,
       sheltering: false,
       wetness: 0,
+      heat: 0,
+      nearFire: false,
+      lastFailure: null,
+      failureUntil: 0,
       foldsLeft: MAX_FOLDS,
       repairProgress: 0,
       foldBlocked: false,
@@ -401,11 +418,15 @@ export function atRepairRack(g: Game, p: Bird): boolean {
 export function activeHazard(period: number | undefined, t: number): boolean {
   return !period || t % period < period * 0.48;
 }
-function respawn(g: Game, p: Bird): void {
+function respawn(g: Game, p: Bird, reason: Bird["lastFailure"] = "fall"): void {
   const l = LEVELS[g.level];
   const s = l.checkpoints[p.checkpoint] ?? l.spawn;
+  const offset = (p.id % 3) * 0.4;
+  const fireBesideRack = l.hazards.some(
+    (h) => Math.abs(h.x - s.x) < 1.8 && Math.abs(h.z - s.z) < 1 && h.x > s.x,
+  );
   Object.assign(p, {
-    x: s.x + (p.id % 3) * 0.4,
+    x: s.x + (fireBesideRack ? -offset : offset),
     y: s.y + 0.1,
     z: s.z,
     vx: 0,
@@ -415,6 +436,10 @@ function respawn(g: Game, p: Bird): void {
     folded: false,
     sheltering: false,
     wetness: 0,
+    heat: 0,
+    nearFire: false,
+    lastFailure: reason,
+    failureUntil: g.time + 4,
     rainCover: "dry",
     repairProgress: 0,
     foldBlocked: false,
@@ -436,6 +461,10 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
   g.time += dt;
   for (const p of g.players) {
     p.wetness ??= 0;
+    p.heat ??= 0;
+    p.nearFire ??= false;
+    p.lastFailure ??= null;
+    p.failureUntil ??= 0;
     p.foldsLeft ??= MAX_FOLDS;
     p.repairProgress ??= 0;
     p.foldBlocked ??= false;
@@ -461,7 +490,7 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
     if (p.arrived) continue;
     const input = inputs[p.id] ?? idleInput();
     p.invulnerable = Math.max(0, p.invulnerable - dt);
-    if (input.reset && !p.wasReset) respawn(g, p);
+    if (input.reset && !p.wasReset) respawn(g, p, null);
     p.wasReset = input.reset;
     if (input.jump && !p.wasJump) p.jumpBuffer = 0.12;
     p.wasJump = input.jump;
@@ -504,7 +533,6 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
       : 0;
     if (p.repairProgress >= REPAIR_SECONDS) {
       p.foldsLeft = MAX_FOLDS;
-      p.wetness = 0;
     }
     const desired =
       p.grounded && !repairing
@@ -657,21 +685,22 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
     if (p.folded && !p.grounded) p.folded = false;
     if (!p.grounded) p.sheltering = false;
     const l = LEVELS[g.level];
-    if (
-      p.y < -7 ||
-      Math.abs(p.x) > 80 ||
-      Math.abs(p.z) > 50 ||
-      (!p.invulnerable &&
-        l.hazards.some(
-          (h) =>
-            activeHazard(h.period, g.time) &&
-            Math.abs(p.x - h.x) < h.w / 2 + 0.22 &&
-            Math.abs(p.z - h.z) < h.d / 2 + 0.22 &&
-            p.y < h.y + 0.6 &&
-            p.y > h.y - 0.5,
-        ))
-    ) {
+    if (p.y < -7 || Math.abs(p.x) > 80 || Math.abs(p.z) > 50) {
       respawn(g, p);
+      continue;
+    }
+    if (
+      !p.invulnerable &&
+      l.hazards.some(
+        (h) =>
+          activeHazard(h.period, g.time) &&
+          Math.abs(p.x - h.x) < h.w / 2 + 0.22 &&
+          Math.abs(p.z - h.z) < h.d / 2 + 0.22 &&
+          p.y < h.y + BLAZE_HEIGHT &&
+          p.y > h.y - 0.5,
+      )
+    ) {
+      respawn(g, p, "scorched");
       continue;
     }
     l.checkpoints.forEach((c, index) => {
@@ -791,18 +820,27 @@ export function applyRain(g: Game, dt: number): void {
   g.players.forEach((p, index) => {
     if (p.arrived) return;
     p.rainCover = states[index];
+    p.nearFire = besideCampfire(g.level, p);
     if (p.invulnerable > 0) return;
     const rate = rainfall(g.level, p, g.motionTime);
     const change =
-      p.rainCover === "roof" || p.rainCover === "dry"
-        ? -25
-        : p.rainCover === "ally"
-          ? -10
-          : p.rainCover === "self"
-            ? rate * 0.28
-            : rate;
-    p.wetness = Math.max(0, Math.min(100, (p.wetness ?? 0) + change * dt));
-    if (p.wetness >= 100) respawn(g, p);
+      p.rainCover === "rain" ? rate : p.rainCover === "self" ? rate * 0.28 : 0;
+    p.wetness = Math.max(
+      0,
+      Math.min(
+        100,
+        (p.wetness ?? 0) + (change - (p.nearFire ? FIRE_DRY_RATE : 0)) * dt,
+      ),
+    );
+    p.heat = Math.max(
+      0,
+      Math.min(
+        100,
+        (p.heat ?? 0) + (p.nearFire ? FIRE_HEAT_RATE : -FIRE_COOL_RATE) * dt,
+      ),
+    );
+    if (p.heat >= 100) respawn(g, p, "brittle");
+    else if (p.wetness >= 100) respawn(g, p, "soaked");
   });
 }
 export function cleanInput(value: unknown): Input | null {

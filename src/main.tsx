@@ -23,6 +23,7 @@ import "./style.css";
 import { useGameAudio, MusicControls } from "./audio";
 import { translate, type Language } from "./i18n";
 import { CROSSINGS } from "./bridges";
+import { FIRE_WARNING } from "./weather";
 const KEY = "rain-action-session-v2";
 const initialCode = new URLSearchParams(location.search).get("room") ?? "";
 function App() {
@@ -670,17 +671,50 @@ function App() {
             </div>
             <p>
               {t(
-                local.rainCover === "roof"
-                  ? "檐下 · 正在晾干"
-                  : local.rainCover === "ally"
-                    ? "同伴庇护 · 正在晾干"
-                    : local.sheltering
-                      ? "展成方纸 · 自己仍会缓慢淋湿"
-                      : local.rainCover === "rain"
-                        ? "正在淋雨 · S 展纸 / 寻找屋檐"
-                        : "避雨处 · 纸翼轻盈",
+                local.nearFire
+                  ? "小火旁 · 正在烤干"
+                  : local.rainCover === "roof"
+                    ? "檐下只挡雨 · 靠近小火才能烤干"
+                    : local.rainCover === "ally"
+                      ? "同伴挡雨 · 湿度保持不变"
+                      : local.sheltering
+                        ? "展成方纸 · 自己仍会缓慢淋湿"
+                        : local.rainCover === "rain"
+                          ? "正在淋雨 · S 展纸 / 寻找屋檐"
+                          : "无雨处 · 湿度保持不变",
               )}
             </p>
+            <div
+              className={`heat-condition ${(local.heat ?? 0) >= FIRE_WARNING ? "too-hot" : ""}`}
+            >
+              <div className="meter-heading">
+                <span>{t("烘烤程度")}</span>
+                <b>{Math.round(local.heat ?? 0)} / 100</b>
+              </div>
+              <div
+                className="heat-track"
+                role="progressbar"
+                aria-label={t("烘烤程度")}
+                aria-valuenow={Math.round(local.heat ?? 0)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
+                <i style={{ width: `${local.heat ?? 0}%` }} />
+              </div>
+              <p>
+                {t(
+                  (local.heat ?? 0) >= FIRE_WARNING
+                    ? "纸边正在变脆！快离开火堆"
+                    : local.nearFire
+                      ? (local.wetness ?? 0) < 1
+                        ? "纸已经烤干，离开火边"
+                        : "烤干就走 · 烘烤到 100 会碎裂"
+                      : (local.heat ?? 0) > 0
+                        ? "远离火堆 · 正在降温"
+                        : "火光圈内可烤干 · 旺火不可接近",
+                )}
+              </p>
+            </div>
             <div
               className={`fold-condition ${(local.foldsLeft ?? MAX_FOLDS) <= 2 ? "fragile" : ""}`}
             >
@@ -752,12 +786,28 @@ function App() {
                     {p.arrived
                       ? t("已到家")
                       : `${Math.round(p.wetness ?? 0)}% / ${p.foldsLeft ?? MAX_FOLDS}${t("折")}`}
+                    {(p.heat ?? 0) >= FIRE_WARNING
+                      ? ` · ♨ ${Math.round(p.heat)}`
+                      : ""}
                     {p.sheltering ? t(" · 挡雨") : ""}
                   </span>
                 ))}
               </div>
             )}
           </section>
+          {local.lastFailure &&
+            local.failureUntil > hud.time &&
+            local.lastFailure !== "fall" && (
+              <div className="failure-notice" role="alert">
+                {t(
+                  local.lastFailure === "scorched"
+                    ? "碰到旺火，纸鹤烧毁了 · 已返回许愿架"
+                    : local.lastFailure === "brittle"
+                      ? "烤得太久，纸鹤脆裂了 · 已返回许愿架"
+                      : "纸鹤湿透了 · 已返回许愿架",
+                )}
+              </div>
+            )}
           <aside className="compass">
             <div>
               <b>{t(hud.view === 0 ? "正面 · 左右" : "侧面 · 前后")}</b>
@@ -951,7 +1001,12 @@ function App() {
             </p>
             <p>
               {t(
-                "淋湿到 100% 会回存档，檐下可以晾干。找齐钥匙后，全员到灯门过关。机关需要连续踩住 4 秒：单人一块，多人两块。星星是额外挑战。",
+                "屋檐和同伴只能挡雨，靠近小火堆才能烤干；F 只修补耐折。烘烤程度到 65 时尽快离开，到 100 会脆裂失败。旺火碰到就烧毁，必须跳过；湿透或烧毁后回到许愿架。",
+              )}
+            </p>
+            <p>
+              {t(
+                "找齐钥匙，全员到灯门过关。机关连续踩住 4 秒：单人一块，多人两块。先接通木桥，再踩开门机关。",
               )}
             </p>
             {isPlaying && (

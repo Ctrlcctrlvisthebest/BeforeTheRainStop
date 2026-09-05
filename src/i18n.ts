@@ -1,5 +1,32 @@
 export type Language = "zh" | "en";
 const english: Record<string, string> = {
+  "小火烤干 · 勿久留": "Dry by the fire · don't linger",
+  "旺火 · 碰到即烧毁": "Blazing fire · deadly on contact",
+  "小火烤干 · 旺火必须跳过": "Small fires dry paper · jump over blazes",
+  "Q 转到侧面搭桥 · 跳过旺火 · 接通木桥后一起踩机关":
+    "Q for the side bridge · jump over blazes · repair the bridge, then hold the pads",
+  烘烤程度: "Heat exposure",
+  "小火旁 · 正在烤干": "By a small fire · drying",
+  "檐下只挡雨 · 靠近小火才能烤干":
+    "Roof blocks rain · find a small fire to dry",
+  "同伴挡雨 · 湿度保持不变": "Sheltered by a friend · wetness stays steady",
+  "无雨处 · 湿度保持不变": "No rain · wetness stays steady",
+  "纸边正在变脆！快离开火堆": "Paper is becoming brittle! Leave the fire",
+  "纸已经烤干，离开火边": "Paper is dry. Step away from the fire",
+  "烤干就走 · 烘烤到 100 会碎裂": "Leave when dry · 100 heat shatters paper",
+  "远离火堆 · 正在降温": "Away from the fire · cooling down",
+  "火光圈内可烤干 · 旺火不可接近":
+    "Dry inside the warm ring · avoid blazing fires",
+  "碰到旺火，纸鹤烧毁了 · 已返回许愿架":
+    "Burned by a blazing fire · back at the wishing rack",
+  "烤得太久，纸鹤脆裂了 · 已返回许愿架":
+    "Too long by the fire: paper shattered · back at the rack",
+  "纸鹤湿透了 · 已返回许愿架":
+    "Paper soaked through · back at the wishing rack",
+  "屋檐和同伴只能挡雨，靠近小火堆才能烤干；F 只修补耐折。烘烤程度到 65 时尽快离开，到 100 会脆裂失败。旺火碰到就烧毁，必须跳过；湿透或烧毁后回到许愿架。":
+    "Roofs and friends only block rain. Small fires dry paper; F only mends folds. Leave when heat reaches 65; at 100 the crane becomes brittle and shatters. Blazing fires burn on contact: jump over them. Soaking or burning returns you to your wishing rack.",
+  "找齐钥匙，全员到灯门过关。机关连续踩住 4 秒：单人一块，多人两块。先接通木桥，再踩开门机关。":
+    "Collect all keys and bring everyone to the lantern gate. Hold pads for 4 seconds: one in solo, two in multiplayer. Repair a broken bridge before powering the gate pads.",
   断桥机关: "Bridge mechanism",
   接桥进度: "Bridge progress",
   先接通木桥: "Repair bridge first",

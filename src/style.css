@@ -1490,3 +1490,55 @@ footer span {
     margin: 3px 0;
   }
 }
+
+.heat-condition {
+  margin: 10px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid #dab77c26;
+  color: #dbb98c;
+}
+.heat-track {
+  margin-top: 7px;
+  height: 5px;
+  background: #e4b57a1c;
+}
+.heat-track i {
+  display: block;
+  height: 100%;
+  background: #d79c56;
+  transition: width 0.1s linear;
+}
+.heat-condition.too-hot {
+  color: #ffa28a;
+}
+.heat-condition.too-hot p {
+  color: #ffa28a;
+}
+.heat-condition.too-hot .heat-track i {
+  background: #f58055;
+}
+.failure-notice {
+  position: absolute;
+  bottom: 110px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 13px 20px;
+  background: #382b25ee;
+  color: #f3c49c;
+  border: 1px solid #d08d5c66;
+  font-size: 13px;
+  text-align: center;
+  max-width: calc(100vw - 32px);
+  width: max-content;
+  pointer-events: none;
+}
+@media (max-width: 650px) {
+  .failure-notice {
+    bottom: 210px;
+    font-size: 11px;
+  }
+  .heat-condition {
+    margin-top: 7px;
+    padding-top: 7px;
+  }
+}

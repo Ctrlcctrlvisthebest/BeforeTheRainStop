@@ -9,6 +9,7 @@ export interface RainZone {
 export interface Awning extends Point {
   w: number;
   d: number;
+  floor?: number;
 }
 export interface Weather {
   zones: RainZone[];
@@ -54,8 +55,8 @@ export const WEATHER: Weather[] = [
     ],
     awnings: [
       start,
-      { x: 17, y: 4.6, z: -7, w: 3.6, d: 3.6 },
-      { x: 28.5, y: 4.6, z: -7, w: 3.4, d: 3.6 },
+      { x: 17, y: 4.6, z: -7, w: 3.6, d: 3.6, floor: 1.2 },
+      { x: 28.5, y: 4.6, z: -7, w: 3.4, d: 3.6, floor: 1.2 },
     ],
   },
   {
@@ -67,13 +68,35 @@ export const WEATHER: Weather[] = [
     ],
     awnings: [
       start,
-      { x: 8, y: 3.5, z: 0, w: 2.3, d: 3.6 },
+      { x: 8, y: 3.5, z: 0, w: 2.8, d: 3.6 },
       { x: 15, y: 3.5, z: -8, w: 2.8, d: 3.6 },
       { x: 27, y: 3.4, z: -8, w: 1.3, d: 3.6 },
-      { x: 31, y: 3.4, z: -8, w: 2.6, d: 3.6 },
+      { x: 31, y: 3.4, z: -8, w: 2.9, d: 3.6 },
     ],
   },
 ];
+export const FIRE_DRY_RATE = 26;
+export const FIRE_HEAT_RATE = 12.5;
+export const FIRE_COOL_RATE = 22;
+export const FIRE_WARNING = 65;
+export const BLAZE_HEIGHT = 0.85;
+export const CAMPFIRES = WEATHER.map((weather) =>
+  weather.awnings.map((a, i) => ({
+    // Keep the starting fire behind the spawn, so waiting for friends is safe.
+    x: i === 0 ? a.x - a.w / 2 + 0.95 : a.x,
+    y: a.floor ?? 0,
+    z: a.z - (i === 0 ? 1.1 : 0.95),
+    radius: 1.45,
+  })),
+);
+export function besideCampfire(level: number, p: Point): boolean {
+  return CAMPFIRES[level].some(
+    (f) =>
+      Math.hypot(p.x - f.x, p.z - f.z) < f.radius &&
+      p.y >= f.y - 0.3 &&
+      p.y < f.y + 0.9,
+  );
+}
 export function rainStrength(level: number, t: number): number {
   return t % WEATHER[level].period < WEATHER[level].period * 0.38 ? 1.45 : 0.75;
 }

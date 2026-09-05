@@ -1,13 +1,13 @@
 import { translate, type Language } from "./i18n";
 import { CROSSINGS, bankPoint, bridgePlank } from "./bridges";
-import { WEATHER, rainStrength, SHIELD_RADIUS } from "./weather";
+import { WEATHER, rainStrength, SHIELD_RADIUS, CAMPFIRES } from "./weather";
+import { campfire, animateFire } from "./fire-scene";
 import * as THREE from "three";
 import {
   COLORS,
   MAX_FOLDS,
   LEVELS,
   platformAt,
-  activeHazard,
   type Game,
   type Platform,
   type Point,
@@ -324,6 +324,7 @@ function shapePaper(
   wetness: number,
   time: number,
   bridge: boolean,
+  heat = 0,
 ) {
   const mesh = sheet.getObjectByName("paper-surface") as THREE.Mesh;
   const pos = mesh.geometry.getAttribute("position") as THREE.BufferAttribute;
@@ -364,7 +365,8 @@ function shapePaper(
   mesh.geometry.computeVertexNormals();
   (mesh.material as THREE.MeshStandardMaterial).color
     .set("#ffffff")
-    .lerp(new THREE.Color("#8596a5"), wetness / 150);
+    .lerp(new THREE.Color("#8596a5"), wetness / 150)
+    .lerp(new THREE.Color("#62402d"), Math.max(0, heat - 25) / 90);
   const lines = sheet.getObjectByName("paper-creases") as THREE.LineSegments;
   const lp = lines.geometry.getAttribute("position") as THREE.BufferAttribute;
   vertices.forEach((v, i) => {
@@ -393,6 +395,8 @@ export class PaperScene {
   private crossingLabel: THREE.Sprite | null = null;
   private checkpoints: THREE.Group[] = [];
   private hazards: THREE.Group[] = [];
+  private fires: THREE.Group[] = [];
+  private fireLight = new THREE.PointLight("#ffad5b", 0, 6, 2);
   private gate: THREE.Group | null = null;
   private portal = new THREE.Group();
   private signs: THREE.Sprite[] = [];
@@ -423,6 +427,7 @@ export class PaperScene {
     this.renderer.toneMappingExposure = 0.95;
     this.scene.add(
       this.root,
+      this.fireLight,
       new THREE.HemisphereLight("#a7bfda", "#202c3c", 2.3),
     );
     const sun = new THREE.DirectionalLight("#c4d6eb", 2.2);
@@ -477,6 +482,7 @@ export class PaperScene {
     this.pads = [];
     this.checkpoints = [];
     this.hazards = [];
+    this.fires = [];
     this.windLines = [];
     const l = LEVELS[g.level];
     this.scene.background = new THREE.Color(l.sky);
@@ -636,18 +642,18 @@ export class PaperScene {
       this.checkpoints.push(group);
     });
     l.hazards.forEach((k) => {
-      const group = new THREE.Group();
-      for (let x = -k.w / 2 + 0.1; x < k.w / 2; x += 0.3) {
-        const spike = new THREE.Mesh(
-          new THREE.ConeGeometry(0.18, 0.65, 4),
-          material("#527780"),
-        );
-        spike.position.set(x, 0.3, 0);
-        group.add(spike);
-      }
+      const group = campfire(k.w, k.d, true);
       group.position.set(k.x, k.y, k.z);
       this.hazards.push(group);
       this.root.add(group);
+      const label = textSprite(
+        translate(this.language, "旺火 · 碰到即烧毁"),
+        "#ffb08b",
+        0.58,
+      );
+      label.position.set(k.x, k.y + 1.7, k.z);
+      label.name = "awning-label";
+      this.root.add(label);
     });
     l.winds.forEach((w) => {
       for (let i = 0; i < 16; i++) {
@@ -748,7 +754,7 @@ export class PaperScene {
       this.root.add(group);
       this.birds.push(group);
     }
-    // Roofed wishing racks, cords and wooden plaques frame the dry stops.
+    // Roofs stop rain; the small campfires below them provide drying heat.
     WEATHER[g.level].awnings.forEach((a, index) => {
       const rack = wishingRack(a.w, 3.4, index);
       rack.position.set(a.x, a.y - 3.4, a.z - a.d / 2 + 0.12);
@@ -776,13 +782,19 @@ export class PaperScene {
       (lantern.material as THREE.MeshStandardMaterial).emissiveIntensity = 1.2;
       this.root.add(lantern);
       const title = textSprite(
-        translate(this.language, "檐下晾干"),
+        translate(this.language, "小火烤干 · 勿久留"),
         "#bcc9d7",
         0.5,
       );
       title.name = "awning-label";
       title.position.set(a.x, a.y + 0.5, a.z);
       this.root.add(title);
+    });
+    CAMPFIRES[g.level].forEach((f) => {
+      const fire = campfire();
+      fire.position.set(f.x, f.y, f.z);
+      this.fires.push(fire);
+      this.root.add(fire);
     });
     // A distant shrine courtyard remains behind the playable route in both views.
     for (let i = 0; i < 5; i++) {
@@ -980,6 +992,7 @@ export class PaperScene {
         p.wetness ?? 0,
         this.clock,
         false,
+        p.heat ?? 0,
       );
       shapePaper(
         bridge,
@@ -988,6 +1001,7 @@ export class PaperScene {
         p.wetness ?? 0,
         this.clock,
         true,
+        p.heat ?? 0,
       );
       bird.rotation.y = (g.view * Math.PI) / 2 + (p.facing < 0 ? Math.PI : 0);
       bridge.rotation.y =
@@ -1011,7 +1025,11 @@ export class PaperScene {
         )
           o.material.color
             .set(COLORS[p.id])
-            .lerp(new THREE.Color("#586f82"), (p.wetness ?? 0) / 160);
+            .lerp(new THREE.Color("#586f82"), (p.wetness ?? 0) / 160)
+            .lerp(
+              new THREE.Color("#553725"),
+              Math.max(0, (p.heat ?? 0) - 25) / 90,
+            );
       });
       const meter = node.getObjectByName("wet-meter")!;
       meter.visible = (p.wetness ?? 0) > 1;
@@ -1078,9 +1096,31 @@ export class PaperScene {
       m.scale.y = on ? 0.35 : 1;
     });
     if (this.gate) this.gate.visible = !g.gateOpen;
-    this.hazards.forEach((o, i) => {
-      o.scale.y = activeHazard(l.hazards[i].period, g.time) ? 1 : 0.1;
+    this.hazards.forEach((o) => {
+      animateFire(o, this.clock);
     });
+    this.fires.forEach((o) => animateFire(o, this.clock));
+    const fireViewer = new THREE.Vector3(player.x, player.y, player.z);
+    const nearestFire = [
+      ...this.fires,
+      ...this.hazards,
+    ].reduce<THREE.Group | null>(
+      (best, fire) =>
+        !best ||
+        fire.position.distanceToSquared(fireViewer) <
+          best.position.distanceToSquared(fireViewer)
+          ? fire
+          : best,
+      null,
+    );
+    if (nearestFire) {
+      this.fireLight.position
+        .copy(nearestFire.position)
+        .add(new THREE.Vector3(0, 0.7, 0));
+      this.fireLight.intensity =
+        (nearestFire.userData.blazing ? 6 : 3) *
+        (1 + Math.sin(this.clock * 12) * 0.1);
+    } else this.fireLight.intensity = 0;
     this.signs.forEach((o, i) => {
       const sign = l.signs[i];
       o.visible =
