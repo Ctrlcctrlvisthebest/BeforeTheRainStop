@@ -22,6 +22,7 @@ import { PaperScene } from "./scene";
 import "./style.css";
 import { useGameAudio, MusicControls } from "./audio";
 import { translate, type Language } from "./i18n";
+import { CROSSINGS } from "./bridges";
 const KEY = "rain-action-session-v2";
 const initialCode = new URLSearchParams(location.search).get("room") ?? "";
 function App() {
@@ -587,9 +588,11 @@ function App() {
               <span>✦ {hud.stars.length}/3</span>
               {l.gate && (
                 <span className="gate-progress">
-                  {hud.gateOpen
-                    ? t("机关已开")
-                    : `${t("机关")} ${Math.round(((hud.gateCharge ?? 0) / 4) * 100)}%`}
+                  {CROSSINGS[hud.level] && !hud.bridgeLatched
+                    ? t("先接通木桥")
+                    : hud.gateOpen
+                      ? t("机关已开")
+                      : `${t("机关")} ${Math.round(((hud.gateCharge ?? 0) / 4) * 100)}%`}
                 </span>
               )}
               <span>
@@ -603,6 +606,47 @@ function App() {
               )}
             </div>
           </section>
+          {CROSSINGS[hud.level] && (
+            <section
+              className={`bridge-hud ${hud.bridgeLatched ? "complete" : ""}`}
+              aria-label={t("断桥机关")}
+            >
+              <b>
+                {t(
+                  hud.bridgeLatched
+                    ? "木桥已接通 · 所有人都能过了"
+                    : "低檐断桥 · 需要一张纸",
+                )}
+              </b>
+              {!hud.bridgeLatched && (
+                <>
+                  <p>
+                    {t(
+                      hud.bridgeCharge > 0
+                        ? "保持住！正在放下木桥…"
+                        : hud.players.some((p) => p.bridgeDock)
+                          ? hud.mode === 1
+                            ? "保持纸桥 2 秒，木桥会自动接通"
+                            : "同伴从纸桥上走到对岸，踩住金色踏板 2 秒"
+                          : hud.level === 3 && hud.view === 0
+                            ? "先按 Q 转到侧面，再靠近金色桥钉"
+                            : "走到断口前的金色桥钉，按住 Shift 搭桥",
+                    )}
+                  </p>
+                  <div
+                    className="bridge-track"
+                    role="progressbar"
+                    aria-label={t("接桥进度")}
+                    aria-valuenow={Math.round((hud.bridgeCharge ?? 0) * 50)}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                  >
+                    <i style={{ width: `${(hud.bridgeCharge ?? 0) * 50}%` }} />
+                  </div>
+                </>
+              )}
+            </section>
+          )}
           <section
             className={`rain-hud ${(local.wetness ?? 0) > 70 ? "soaked" : ""}`}
             aria-label={t("纸鹤状态")}
@@ -721,7 +765,12 @@ function App() {
             </div>
             <svg viewBox="-4 -12 39 17" aria-label={t("俯视路线图")}>
               {l.platforms
-                .filter((p) => p.kind !== "wall")
+                .filter(
+                  (p) =>
+                    p.kind !== "wall" &&
+                    p.kind !== "low-roof" &&
+                    p.kind !== "railing",
+                )
                 .map((p, i) => (
                   <rect
                     key={i}
@@ -733,6 +782,24 @@ function App() {
                     fill="#61758a"
                   />
                 ))}
+              {CROSSINGS[hud.level] && (
+                <rect
+                  x={
+                    CROSSINGS[hud.level].x -
+                    (CROSSINGS[hud.level].axis === "x" ? 1.3 : 0.5)
+                  }
+                  y={
+                    CROSSINGS[hud.level].z -
+                    (CROSSINGS[hud.level].axis === "z" ? 1.3 : 0.5)
+                  }
+                  width={CROSSINGS[hud.level].axis === "x" ? 2.6 : 1}
+                  height={CROSSINGS[hud.level].axis === "z" ? 2.6 : 1}
+                  fill={hud.bridgeLatched ? "#d9b66b" : "none"}
+                  stroke="#d9b66b"
+                  strokeWidth=".25"
+                  strokeDasharray={hud.bridgeLatched ? undefined : ".4 .3"}
+                />
+              )}
               <circle cx={l.exit.x} cy={l.exit.z} r=".8" fill="#d9b66b" />
               {hud.players.map((p) => (
                 <circle
@@ -865,7 +932,11 @@ function App() {
                 )}
               </dd>
               <dt>Shift</dt>
-              <dd>{t("按住折成低矮纸桥，供同伴跨过；松开还原。")}</dd>
+              <dd>
+                {t(
+                  "桥钉旁按住搭桥，同伴过桥后踩住对岸金色踏板 2 秒，放下木桥接应你。单人按住 2 秒自动接桥；未接通前松开会退回原岸。",
+                )}
+              </dd>
               <dt>F</dt>
               <dd>
                 {t("在起点或存档许愿架旁站稳，按住 2 秒修补；移动会中断。")}

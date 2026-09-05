@@ -195,3 +195,88 @@ for (const n of [2, 3, 6])
       peers.forEach((p) => p.ws.close());
     }
   });
+
+for (const capacity of [2, 3, 6])
+  test(`${capacity} real WebSockets: cross paper, latch deck, recover the holder`, async () => {
+    const created = await post("/rooms", {
+      capacity,
+      level: 1,
+      name: "bridge host",
+    });
+    const sessions = [created];
+    for (let i = 1; i < capacity; i++)
+      sessions.push(
+        await post(`/rooms/${created.room.code}/join`, {
+          name: `crossing ${i}`,
+        }),
+      );
+    const peers = sessions.map((s) => peer(created.room.code, s.token));
+    try {
+      await until(
+        () => peers.every((p) => p.room?.players.every((q) => q.online)),
+        "bridge party ready",
+      );
+      peers[0].ws.send(
+        JSON.stringify({ type: "command", command: { type: "start" } }),
+      );
+      await until(
+        () => peers.every((p) => !!p.room?.game),
+        "bridge chapter started",
+      );
+      const send = (id: number, input: ReturnType<typeof idleInput>) =>
+        peers[id].ws.send(
+          JSON.stringify({
+            type: "input",
+            gameId: peers[id].room!.game!.id,
+            seq: ++peers[id].seq,
+            input,
+          }),
+        );
+      send(0, { ...idleInput(), axis: 1 });
+      await until(
+        () => peers[0].room!.game!.players[0].x >= 3.1,
+        "holder reaches socket",
+      );
+      send(0, { ...idleInput(), fold: true });
+      await until(
+        () => peers.every((p) => p.room!.game!.players[0].bridgeDock),
+        "paper bridge deployed",
+      );
+      send(1, { ...idleInput(), axis: 1 });
+      await until(
+        () => peers[1].room!.game!.players[1].x >= 6.65,
+        "receiver crosses",
+      );
+      send(1, idleInput());
+      await until(
+        () => peers.every((p) => p.room!.game!.bridgeLatched),
+        "wooden deck synchronized",
+      );
+      assert.ok(peers.every((p) => p.room!.game!.bridgeCrossed.includes(1)));
+      for (let id = 0; id < capacity; id++)
+        if (id !== 1) send(id, { ...idleInput(), axis: 1 });
+      await until(
+        () => peers[0].room!.game!.players.every((p) => p.x > 6.5),
+        "everyone including holder crosses",
+      );
+      for (let id = 0; id < capacity; id++) send(id, idleInput());
+      assert.ok(
+        peers.every(
+          (p) =>
+            p.errors.length === 0 &&
+            p.room!.game!.players.every((b) => b.deaths === 0),
+        ),
+      );
+      const common = [...peers[0].states.keys()]
+        .filter((t) => peers.every((p) => p.states.has(t)))
+        .at(-1)!;
+      assert.ok(
+        peers.every(
+          (p) => p.states.get(common) === peers[0].states.get(common),
+        ),
+        "clients agree on the repaired deck",
+      );
+    } finally {
+      peers.forEach((p) => p.ws.close());
+    }
+  });

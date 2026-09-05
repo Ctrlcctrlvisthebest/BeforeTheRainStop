@@ -1,3 +1,4 @@
+import { CROSSINGS, bankPoint, bridgePlank, dockBank } from "./bridges";
 import { rainfall, underAwning, SHIELD_RADIUS } from "./weather";
 export const MAX_FOLDS = 6;
 export const REPAIR_SECONDS = 2;
@@ -21,7 +22,7 @@ export interface Platform extends Point {
   w: number;
   d: number;
   h: number;
-  kind?: "wall" | "step" | "moving";
+  kind?: "wall" | "step" | "moving" | "low-roof" | "railing";
   motion?: { axis: "x" | "z"; range: number; period: number };
 }
 export interface Marker extends Point {
@@ -94,20 +95,25 @@ export const LEVELS: Level[] = [
   {
     name: "借你一片翅膀",
     sub: "有人搭桥，有人先走。",
-    hint: "Shift 折成纸桥 · 可以跳到同伴头上 · 合作踩亮圆形机关",
+    hint: "低檐断口跳不过 · Shift 搭纸桥 · 同伴到对岸接通木桥",
     color: "#596775",
     sky: "#303d4c",
     spawn: { x: -1, y: 0, z: 0 },
     exit: { x: 29, y: 0, z: -7 },
     platforms: [
-      ...base(),
+      p(0.7, 0, 6.4),
+      ...base().slice(1),
       p(9, 0, 1.2, 2, 1.0, 1),
       p(11.3, 0, 1.6, 2, 2.4, 0.4),
       { ...p(12.5, 0, 0.5, 3, 4, 4), kind: "wall" },
+      // The closed eave corridor leaves 13 cm of headroom above a crane.
+      { ...p(1.9, 0, 11.8, 3.4, 12, 10.99), kind: "low-roof" },
+      { ...p(1.9, -1.7, 11.8, 0.2, 12, 12), kind: "railing" },
+      { ...p(1.9, 1.7, 11.8, 0.2, 12, 12), kind: "railing" },
     ],
     keys: [{ x: 11.3, y: 3, z: 0 }],
     stars: [
-      { x: 5.5, y: 1.8, z: 0 },
+      { x: 5.2, y: 0.55, z: 0 },
       { x: 11, y: 1, z: -4 },
       { x: 23, y: 2, z: -7 },
     ],
@@ -116,7 +122,7 @@ export const LEVELS: Level[] = [
       { x: 17, y: 0, z: -7 },
     ],
     signs: [
-      { x: 2, y: 0, z: 0, text: "S 挡雨 · Shift 折桥" },
+      { x: 3.4, y: -0.8, z: 0, text: "桥钉旁按住 Shift · 搭桥让同伴过" },
       { x: 8, y: 0.2, z: 0, text: "踩台阶 / 叠高拿钥匙" },
       { x: 11, y: 0.4, z: -6.5, text: "Q 回到正面" },
       { x: 18, y: 0.5, z: -7, text: "踩住 4 秒 · S 展纸挡雨" },
@@ -176,7 +182,7 @@ export const LEVELS: Level[] = [
   {
     name: "一只也不能少",
     sub: "窗内的灯，为所有人亮着。",
-    hint: "雨刃会周期出现 · 观察节奏再跳 · 找齐钥匙后一起抵达灯门",
+    hint: "Q 转到侧面搭桥 · 躲避雨刃 · 接通木桥后一起踩机关",
     color: "#465b70",
     sky: "#253446",
     spawn: { x: -1, y: 0, z: 0 },
@@ -184,20 +190,24 @@ export const LEVELS: Level[] = [
     platforms: [
       p(1, 0, 7),
       p(10, 0, 7),
-      p(11, -4.5, 3, 9),
+      p(11, -1.55, 3, 3.1),
+      p(11, -7.35, 3, 3.3),
       p(17, -8, 9),
       p(29, -8, 10),
       { ...p(12.5, 0, 0.5, 3, 4.2, 4.2), kind: "wall" },
       p(17, -8, 1.1, 2, 1),
       p(19, -8, 1.5, 2, 2.3, 0.4),
+      { ...p(11, -4.4, 3.4, 7.2, 12, 10.99), kind: "low-roof" },
+      { ...p(9.3, -4.05, 0.2, 6.5, 12, 12), kind: "railing" },
+      { ...p(12.7, -4.05, 0.2, 6.5, 12, 12), kind: "railing" },
     ],
     keys: [
       { x: 19, y: 2.9, z: -8 },
-      { x: 11, y: 1, z: -5 },
+      { x: 11, y: 0.6, z: -6.5 },
     ],
     stars: [
       { x: 5.5, y: 1.8, z: 0 },
-      { x: 11, y: 2, z: -2.5 },
+      { x: 11, y: 0.55, z: -4.4 },
       { x: 23, y: 2, z: -8 },
     ],
     checkpoints: [
@@ -208,7 +218,7 @@ export const LEVELS: Level[] = [
     signs: [
       { x: 2, y: 0, z: 0, text: "这次，也要一起到家" },
       { x: 10, y: 0.6, z: 0, text: "Q · 换一条轴前进" },
-      { x: 11, y: 0.5, z: -7.5, text: "Q · 回到正面" },
+      { x: 11, y: -0.8, z: -2.6, text: "侧面对齐桥钉 · Shift 搭桥" },
       { x: 27, y: 0.4, z: -8, text: "踩住 4 秒 · 一起挡雨开门" },
     ],
     pads: [
@@ -253,6 +263,9 @@ export interface Bird extends Point {
   foldsLeft: number;
   repairProgress: number;
   foldBlocked: boolean;
+  bridgeDock: boolean;
+  bridgeFrom: -1 | 1;
+  bridgeAxis: "x" | "z" | null;
   rainCover: "dry" | "rain" | "roof" | "ally" | "self";
   facing: number;
   checkpoint: number;
@@ -281,6 +294,9 @@ export interface Game {
   stars: number[];
   gateOpen: boolean;
   gateCharge: number;
+  bridgeLatched: boolean;
+  bridgeCharge: number;
+  bridgeCrossed: number[];
   status: "playing" | "won";
 }
 export type Inputs = Record<number, Input>;
@@ -303,6 +319,9 @@ export function newGame(mode: Mode, level = 0, id = "solo"): Game {
     stars: [],
     gateOpen: false,
     gateCharge: 0,
+    bridgeLatched: false,
+    bridgeCharge: 0,
+    bridgeCrossed: [],
     status: "playing",
     players: Array.from({ length: mode }, (_, i) => ({
       id: i,
@@ -318,6 +337,9 @@ export function newGame(mode: Mode, level = 0, id = "solo"): Game {
       foldsLeft: MAX_FOLDS,
       repairProgress: 0,
       foldBlocked: false,
+      bridgeDock: false,
+      bridgeFrom: -1,
+      bridgeAxis: null,
       rainCover: "dry",
       facing: 1,
       checkpoint: -1,
@@ -347,6 +369,7 @@ export function bodies(g: Game): Platform[] {
   return [
     ...l.platforms.map((p) => platformAt(p, g.motionTime)),
     ...(l.gate && !g.gateOpen ? [l.gate] : []),
+    ...(bridgePlank(g) ? [bridgePlank(g)!] : []),
   ];
 }
 export function height(p: Bird): number {
@@ -354,7 +377,7 @@ export function height(p: Bird): number {
 }
 export function width(p: Bird, view: 0 | 1, axis: "x" | "z"): number {
   return p.folded
-    ? (view === 0 && axis === "x") || (view === 1 && axis === "z")
+    ? (p.bridgeAxis ?? (view === 0 ? "x" : "z")) === axis
       ? 3.2
       : 0.9
     : 0.56;
@@ -395,6 +418,8 @@ function respawn(g: Game, p: Bird): void {
     rainCover: "dry",
     repairProgress: 0,
     foldBlocked: false,
+    bridgeDock: false,
+    bridgeAxis: null,
     support: -1,
     coyote: 0,
     invulnerable: 1.2,
@@ -404,6 +429,9 @@ function respawn(g: Game, p: Bird): void {
 export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
   if (g.status !== "playing") return;
   g.gateCharge ??= 0;
+  g.bridgeLatched ??= false;
+  g.bridgeCharge ??= 0;
+  g.bridgeCrossed ??= [];
   g.tick++;
   g.time += dt;
   for (const p of g.players) {
@@ -411,6 +439,9 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
     p.foldsLeft ??= MAX_FOLDS;
     p.repairProgress ??= 0;
     p.foldBlocked ??= false;
+    p.bridgeDock ??= false;
+    p.bridgeFrom ??= -1;
+    p.bridgeAxis ??= null;
     p.sheltering ??= false;
     p.rainCover ??= "dry";
     const i = inputs[p.id] ?? idleInput();
@@ -446,6 +477,21 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
       p.x += after.x - before.x;
       p.z += after.z - before.z;
     }
+    const crossing = CROSSINGS[g.level];
+    if (p.bridgeDock && (!input.fold || input.shelter || !crossing)) {
+      const restore =
+        crossing && !g.bridgeLatched
+          ? bankPoint(crossing, p.bridgeFrom)
+          : { ...p, y: crossing?.y ?? p.y };
+      Object.assign(p, {
+        x: restore.x,
+        y: restore.y,
+        z: restore.z,
+        bridgeDock: false,
+        bridgeAxis: null,
+        grounded: true,
+      });
+    }
     const repairing =
       input.repair === true &&
       atRepairRack(g, p) &&
@@ -475,6 +521,25 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
     if (changing && !p.foldBlocked) p.foldsLeft -= cost;
     p.sheltering = desired === "sheet" && !p.foldBlocked;
     p.folded = desired === "bridge" && !p.foldBlocked;
+    if (crossing && p.folded && !p.bridgeDock && !g.bridgeLatched) {
+      const side = dockBank(crossing, p, g.view);
+      if (side !== null) {
+        p.bridgeDock = true;
+        p.bridgeFrom = side;
+        p.bridgeAxis = crossing.axis;
+      }
+    }
+    if (p.bridgeDock && crossing) {
+      Object.assign(p, {
+        x: crossing.x,
+        z: crossing.z,
+        y: crossing.y - 0.28,
+        vx: 0,
+        vz: 0,
+        vy: 0,
+        grounded: true,
+      });
+    }
     if (p.jumpBuffer > 0 && p.coyote > 0 && !p.folded && !p.sheltering) {
       p.vy = 9.3;
       p.grounded = false;
@@ -536,7 +601,8 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
     p.grounded = false;
     p.support = -1;
     const land = (b: Platform, index: number) => {
-      if (!overlap(p, b, g.view)) return;
+      // A free paper bridge needs support under its centre, not just a wing tip.
+      if (!overlap(p.folded ? { ...p, folded: false } : p, b, g.view)) return;
       if (p.vy <= 0 && previousY >= b.y - 0.065 && p.y <= b.y) {
         p.y = b.y;
         p.vy = 0;
@@ -570,6 +636,22 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
         },
         -2 - otherBird.id,
       );
+    }
+    if (p.bridgeDock && crossing) {
+      p.y = crossing.y - 0.28;
+      p.vy = 0;
+      p.grounded = true;
+      p.support = -100;
+    }
+    if (crossing && p.support <= -2 && p.support > -100) {
+      const carrier = g.players[-p.support - 2];
+      if (
+        carrier?.bridgeDock &&
+        Math.abs(p[crossing.axis] - crossing[crossing.axis]) <
+          crossing.span / 2 - 0.25 &&
+        !g.bridgeCrossed.includes(p.id)
+      )
+        g.bridgeCrossed.push(p.id);
     }
     // Folded wings need support beneath the body, not only the tips; they cannot fly across gaps.
     if (p.folded && !p.grounded) p.folded = false;
@@ -635,6 +717,24 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
       respawn(g, p);
     }
   }
+  const crossing = CROSSINGS[g.level];
+  if (crossing && !g.bridgeLatched) {
+    const holder = g.players.find((p) => p.bridgeDock && p.folded);
+    const far = bankPoint(crossing, crossing.near === -1 ? 1 : -1);
+    const releasing =
+      g.mode === 1
+        ? !!holder
+        : g.players.some(
+            (p) =>
+              g.bridgeCrossed.includes(p.id) &&
+              !p.bridgeDock &&
+              p.grounded &&
+              Math.hypot(p.x - far.x, p.z - far.z) < 0.7 &&
+              Math.abs(p.y - far.y) < 0.35,
+          );
+    g.bridgeCharge = holder && releasing ? Math.min(2, g.bridgeCharge + dt) : 0;
+    if (g.bridgeCharge >= 2) g.bridgeLatched = true;
+  }
   applyRain(g, dt);
   const l = LEVELS[g.level];
   if (l.pads.length && !g.gateOpen) {
@@ -649,7 +749,10 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
             Math.abs(pad.y - p.y) < 0.4,
         ),
       );
-    g.gateCharge = lit.length === required ? Math.min(4, g.gateCharge + dt) : 0;
+    g.gateCharge =
+      (!CROSSINGS[g.level] || g.bridgeLatched) && lit.length === required
+        ? Math.min(4, g.gateCharge + dt)
+        : 0;
     if (g.gateCharge >= 4) g.gateOpen = true;
   }
   if (g.players.every((p) => p.arrived)) g.status = "won";

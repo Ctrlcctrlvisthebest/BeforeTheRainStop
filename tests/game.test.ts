@@ -85,6 +85,7 @@ test("falling restores individual checkpoint and preserves team collectibles", (
 for (const mode of [1, 2, 3, 6] as const)
   test(`${mode} players: pressure pad requirement and every bird must arrive`, () => {
     const g = newGame(mode, 1);
+    g.bridgeLatched = true; // Isolate the final pressure pads from the earlier crossing.
     g.keys = [0];
     Object.assign(g.players[0], { x: 16, y: 0, z: -7 });
     tick(g);
@@ -208,6 +209,7 @@ test("new rain fields and optional shelter input preserve existing room saves", 
 });
 test("pressure pads need continuous shelter time; stepping away cancels charge", () => {
   const g = newGame(1, 1);
+  g.bridgeLatched = true;
   Object.assign(g.players[0], { x: 16, y: 0, z: -7 });
   tick(g, { shelter: true }, 120);
   assert.ok(g.gateCharge > 1.9 && g.gateCharge < 2.1);

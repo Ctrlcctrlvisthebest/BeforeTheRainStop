@@ -34,8 +34,15 @@ export function completeLevel(level: number) {
     tick({}, 4);
     state("land");
   }
-  move(3.8);
-  move(7.5, true);
+  if (level === 1) {
+    move(3.4);
+    tick({ fold: true }, 130);
+    tick({}, 8);
+    move(8);
+  } else {
+    move(3.8);
+    move(7.5, true);
+  }
   waitGround();
   if (level === 1) {
     move(8);
@@ -63,7 +70,12 @@ export function completeLevel(level: number) {
     move(10.9, level === 3);
     waitGround();
     turn();
-    move(level === 3 ? -8 : -7);
+    if (level === 3) {
+      move(-2.6);
+      tick({ fold: true }, 130);
+      tick({}, 8);
+      move(-8);
+    } else move(-7);
     turn();
   }
   if (level === 3) {
@@ -82,6 +94,9 @@ export function completeLevel(level: number) {
   waitGround();
   if (level === 2) move(29);
   else if (level === 3) {
+    move(27);
+    tick({ repair: true }, 130);
+    move(26);
     tick({ shelter: true }, 250);
     move(27);
     tick({}, 180);

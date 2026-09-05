@@ -1,4 +1,5 @@
 import { translate, type Language } from "./i18n";
+import { CROSSINGS, bankPoint, bridgePlank } from "./bridges";
 import { WEATHER, rainStrength, SHIELD_RADIUS } from "./weather";
 import * as THREE from "three";
 import {
@@ -339,7 +340,7 @@ function shapePaper(
     [-1, 1],
     [-1, 0],
   ];
-  const center = 0.4 + (bridge ? -0.16 : 0.91) * progress;
+  const center = 0.4 + (bridge ? -0.12 : 0.91) * progress;
   const vertices = edges.map(([x, z], i) => {
     const nick = i % 2 ? wear * 0.28 : wear * 0.015;
     return new THREE.Vector3(
@@ -387,6 +388,9 @@ export class PaperScene {
   private keys: THREE.Group[] = [];
   private stars: THREE.Mesh[] = [];
   private pads: THREE.Mesh[] = [];
+  private crossingDeck: THREE.Group | null = null;
+  private crossingPad: THREE.Mesh | null = null;
+  private crossingLabel: THREE.Sprite | null = null;
   private checkpoints: THREE.Group[] = [];
   private hazards: THREE.Group[] = [];
   private gate: THREE.Group | null = null;
@@ -478,17 +482,100 @@ export class PaperScene {
     this.scene.background = new THREE.Color(l.sky);
     this.scene.fog = new THREE.Fog(l.sky, 32, 95);
     l.platforms.forEach((b) => {
+      // Show the corridor as a cutaway: its solid upper walls are out of play.
+      const corridor = b.kind === "low-roof" || b.kind === "railing";
       const node = slab(
-        b,
-        b.kind === "wall"
-          ? "#594d47"
-          : b.kind === "moving"
-            ? "#778098"
-            : l.color,
+        corridor
+          ? {
+              ...b,
+              y: b.kind === "low-roof" ? 1.19 : 1.1,
+              h: b.kind === "low-roof" ? 0.18 : 1.1,
+            }
+          : b,
+        corridor
+          ? "#766452"
+          : b.kind === "wall"
+            ? "#594d47"
+            : b.kind === "moving"
+              ? "#778098"
+              : l.color,
       );
+      if (b.kind === "low-roof") {
+        const alongX = b.w > b.d;
+        const length = alongX ? b.w : b.d;
+        for (
+          let offset = -length / 2 + 0.2;
+          offset < length / 2;
+          offset += 1.1
+        ) {
+          const beam = box(
+            alongX ? 0.12 : b.w,
+            0.18,
+            alongX ? b.d : 0.12,
+            "#b39979",
+            alongX ? offset : 0,
+            -0.09,
+            alongX ? 0 : offset,
+          );
+          beam.name = "eave-beam";
+          node.add(beam);
+        }
+      }
       this.tiles.push(node);
       this.root.add(node);
     });
+    this.crossingDeck = null;
+    this.crossingPad = null;
+    this.crossingLabel = null;
+    const crossing = CROSSINGS[g.level];
+    if (crossing) {
+      this.crossingDeck = slab(
+        bridgePlank({ ...g, bridgeLatched: true })!,
+        "#a27d54",
+      );
+      this.root.add(this.crossingDeck);
+      for (const side of [-1, 1] as const) {
+        const bank = bankPoint(crossing, side);
+        const socket = new THREE.Mesh(
+          new THREE.TorusGeometry(0.35, 0.065, 6, 24),
+          material("#e3b875"),
+        );
+        socket.rotation.x = -Math.PI / 2;
+        socket.position.set(bank.x, 0.07, bank.z);
+        this.root.add(socket);
+        for (const edge of [-1, 1]) {
+          const pin = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.09, 0.12, 0.35, 6),
+            material("#c5a075"),
+          );
+          pin.position.set(
+            crossing.axis === "x" ? bank.x : bank.x + edge * 0.65,
+            0.17,
+            crossing.axis === "z" ? bank.z : bank.z + edge * 0.65,
+          );
+          this.root.add(pin);
+        }
+      }
+      const far = bankPoint(crossing, crossing.near === -1 ? 1 : -1);
+      this.crossingPad = new THREE.Mesh(
+        new THREE.BoxGeometry(0.8, 0.1, 0.8),
+        material("#c08e52"),
+      );
+      this.crossingPad.position.set(far.x, 0.08, far.z);
+      this.root.add(this.crossingPad);
+      this.crossingLabel = textSprite(
+        translate(
+          this.language,
+          g.mode === 1
+            ? "按住 Shift 2 秒 · 自动接桥"
+            : "过桥后踩住 2 秒 · 接应搭桥的人",
+        ),
+        "#eac58e",
+        0.62,
+      );
+      this.crossingLabel.position.set(far.x, 2.9, far.z);
+      this.root.add(this.crossingLabel);
+    }
     if (l.gate) {
       this.gate = slab(l.gate, "#d49b57");
       this.root.add(this.gate);
@@ -832,17 +919,31 @@ export class PaperScene {
     this.camera.updateProjectionMatrix();
     this.tiles.forEach((node, i) => {
       const b = platformAt(l.platforms[i], g.motionTime);
-      node.position.set(b.x, b.y, b.z);
+      node.position.set(
+        b.x,
+        b.kind === "low-roof" ? 1.19 : b.kind === "railing" ? 1.1 : b.y,
+        b.z,
+      );
       const distance =
         g.view === 0 ? Math.abs(b.z - player.z) : Math.abs(b.x - player.x);
       const depth = g.view === 0 ? b.d : b.w;
-      const ghost = distance > depth / 2 + 0.45;
+      const corridor = b.kind === "low-roof" || b.kind === "railing";
+      const ghost = corridor || distance > depth / 2 + 0.45;
       node.traverse((o) => {
         if (o instanceof THREE.Mesh) {
           const mats = Array.isArray(o.material) ? o.material : [o.material];
           mats.forEach((m) => {
             m.transparent = ghost;
-            m.opacity = ghost ? 0.24 : 1;
+            m.opacity =
+              o.name === "eave-beam"
+                ? 0.7
+                : corridor
+                  ? b.kind === "low-roof"
+                    ? 0.32
+                    : 0.15
+                  : ghost
+                    ? 0.24
+                    : 1;
             m.depthWrite = !ghost;
           });
         }
@@ -889,7 +990,9 @@ export class PaperScene {
         true,
       );
       bird.rotation.y = (g.view * Math.PI) / 2 + (p.facing < 0 ? Math.PI : 0);
-      bridge.rotation.y = (g.view * Math.PI) / 2;
+      bridge.rotation.y =
+        ((p.bridgeAxis ? p.bridgeAxis === "z" : g.view === 1) ? Math.PI : 0) /
+        2;
       bird.position.y = p.grounded ? Math.sin(this.clock * 7 + i) * 0.025 : 0;
       for (const s of [-1, 1]) {
         const wing = bird.getObjectByName(`wing${s}`)!;
@@ -941,6 +1044,25 @@ export class PaperScene {
       o.rotation.y = this.clock;
       o.position.y = l.stars[i].y + Math.sin(this.clock * 2 + i) * 0.14;
     });
+    if (this.crossingDeck && this.crossingPad) {
+      this.crossingDeck.visible = g.bridgeLatched;
+      this.crossingDeck.position.y = THREE.MathUtils.damp(
+        this.crossingDeck.position.y,
+        g.bridgeLatched ? 0 : -0.8,
+        5,
+        dt,
+      );
+      (this.crossingPad.material as THREE.MeshStandardMaterial).color.set(
+        g.bridgeLatched
+          ? "#acc0ac"
+          : g.bridgeCharge > 0
+            ? "#f6cb7d"
+            : "#b68b55",
+      );
+      this.crossingPad.scale.y = g.bridgeCharge > 0 ? 0.4 : 1;
+      if (this.crossingLabel)
+        this.crossingLabel.visible = !preview && !g.bridgeLatched;
+    }
     this.pads.forEach((m, i) => {
       const pad = l.pads[i];
       const on =

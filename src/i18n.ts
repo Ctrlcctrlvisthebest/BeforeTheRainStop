@@ -1,5 +1,31 @@
 export type Language = "zh" | "en";
 const english: Record<string, string> = {
+  断桥机关: "Bridge mechanism",
+  接桥进度: "Bridge progress",
+  先接通木桥: "Repair bridge first",
+  "低檐断桥 · 需要一张纸": "Broken crossing · lend your paper",
+  "木桥已接通 · 所有人都能过了": "Wooden bridge ready · everyone can cross",
+  "保持住！正在放下木桥…": "Hold steady! Lowering the wooden bridge…",
+  "保持纸桥 2 秒，木桥会自动接通":
+    "Hold your paper bridge for 2s to lower the deck",
+  "同伴从纸桥上走到对岸，踩住金色踏板 2 秒":
+    "A friend must walk across your paper, then hold the gold pad for 2s",
+  "先按 Q 转到侧面，再靠近金色桥钉":
+    "Press Q for the side view, then approach the gold bridge pins",
+  "走到断口前的金色桥钉，按住 Shift 搭桥":
+    "Stand by the gold pins at the gap; hold Shift to make a bridge",
+  "按住 Shift 2 秒 · 自动接桥": "Hold Shift 2s · lower the deck",
+  "过桥后踩住 2 秒 · 接应搭桥的人":
+    "Cross, then hold 2s · bring your friend over",
+  "桥钉旁按住 Shift · 搭桥让同伴过":
+    "At the gold pins: hold Shift to bridge the gap",
+  "侧面对齐桥钉 · Shift 搭桥": "Side view · align with pins · hold Shift",
+  "低檐断口跳不过 · Shift 搭纸桥 · 同伴到对岸接通木桥":
+    "Low eaves block jumping · Shift to bridge · a friend lowers the wooden deck",
+  "Q 转到侧面搭桥 · 躲避雨刃 · 接通木桥后一起踩机关":
+    "Q for the side crossing · dodge rain blades · repair the bridge, then hold the pads",
+  "桥钉旁按住搭桥，同伴过桥后踩住对岸金色踏板 2 秒，放下木桥接应你。单人按住 2 秒自动接桥；未接通前松开会退回原岸。":
+    "Hold at the gold pins to make a bridge. A friend crosses your paper and holds the far gold pad for 2s, lowering a wooden deck so you can follow. Solo: hold for 2s to lower it automatically. Releasing early returns you to your starting bank.",
   "背景音乐：檐下的愿望": "Background music: Wishes Beneath the Eaves",
   暂停背景音乐: "Pause background music",
   播放背景音乐: "Play background music",
