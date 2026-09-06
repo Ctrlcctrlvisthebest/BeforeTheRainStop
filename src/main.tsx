@@ -23,7 +23,9 @@ import "./style.css";
 import { useGameAudio, MusicControls } from "./audio";
 import { translate, type Language } from "./i18n";
 import { CROSSINGS } from "./bridges";
-import { FIRE_WARNING } from "./weather";
+import { FIRE_WARNING, CAMPFIRES } from "./weather";
+import { guideFor, newGuideTracker, GUIDE_ROUTES, type Lesson } from "./guide";
+import { GuideCard, HowToPlay, GoalFlow } from "./guide-ui";
 const KEY = "rain-action-session-v2";
 const initialCode = new URLSearchParams(location.search).get("room") ?? "";
 function App() {
@@ -61,6 +63,29 @@ function App() {
     [error, setError] = useState(""),
     [hud, setHud] = useState<Game>(newGame(1)),
     [help, setHelp] = useState(false);
+  const [guideEnabled, setGuideEnabled] = useState(
+    () => stored<boolean>(localStorage, "rain-guide") !== false,
+  );
+  const [helpLesson, setHelpLesson] = useState<Lesson>("basics");
+  const helpRef = useRef(help),
+    guideEnabledRef = useRef(guideEnabled);
+  helpRef.current = help;
+  guideEnabledRef.current = guideEnabled;
+  const guideTracker = useRef(newGuideTracker());
+  const guide = useRef<ReturnType<typeof guideFor> | null>(null);
+  if (!guide.current)
+    guide.current = guideFor(game.current, 0, guideTracker.current);
+  useEffect(
+    () => save(localStorage, "rain-guide", guideEnabled),
+    [guideEnabled],
+  );
+  function learn(lesson: Lesson) {
+    input.current = idleInput();
+    if (currentSession.current && phaseRef.current === "game")
+      connection.current?.input(game.current.id, input.current);
+    setHelpLesson(lesson);
+    setHelp(true);
+  }
   const audio = useGameAudio(phase === "game");
   function sound(freq: number) {
     audio.effect(freq);
@@ -117,7 +142,9 @@ function App() {
       acc += dt;
       const playing = phaseRef.current === "game";
       if (playing) {
-        if (!currentSession.current) {
+        if (!currentSession.current && helpRef.current) {
+          acc = 0;
+        } else if (!currentSession.current) {
           while (acc >= 1 / 60) {
             const before = game.current.keys.length + game.current.stars.length;
             stepGame(game.current, { 0: input.current });
@@ -150,12 +177,18 @@ function App() {
             [currentSession.current.slot]: input.current,
           });
       }
+      guide.current = guideFor(
+        game.current,
+        currentSession.current?.slot ?? 0,
+        guideTracker.current,
+      );
       s.render(
         display,
         currentSession.current?.slot ?? 0,
         dt,
         phaseRef.current !== "game",
         languageRef.current,
+        guideEnabledRef.current && playing ? guide.current.target : undefined,
       );
       if (now - ui > 100) {
         setHud(structuredClone(game.current));
@@ -174,17 +207,19 @@ function App() {
     const pressedAt = new Map<string, number>();
     const releases = new Map<string, ReturnType<typeof setTimeout>>();
     const refresh = () => {
-      input.current = {
-        axis:
-          (held.has("ArrowRight") || held.has("KeyD") ? 1 : 0) -
-          (held.has("ArrowLeft") || held.has("KeyA") ? 1 : 0),
-        jump: held.has("Space") || held.has("ArrowUp") || held.has("KeyW"),
-        fold: held.has("ShiftLeft") || held.has("ShiftRight"),
-        turn: held.has("KeyQ") || held.has("KeyE"),
-        reset: held.has("KeyR"),
-        shelter: held.has("KeyS") || held.has("ArrowDown"),
-        repair: held.has("KeyF"),
-      };
+      input.current = helpRef.current
+        ? idleInput()
+        : {
+            axis:
+              (held.has("ArrowRight") || held.has("KeyD") ? 1 : 0) -
+              (held.has("ArrowLeft") || held.has("KeyA") ? 1 : 0),
+            jump: held.has("Space") || held.has("ArrowUp") || held.has("KeyW"),
+            fold: held.has("ShiftLeft") || held.has("ShiftRight"),
+            turn: held.has("KeyQ") || held.has("KeyE"),
+            reset: held.has("KeyR"),
+            shelter: held.has("KeyS") || held.has("ArrowDown"),
+            repair: held.has("KeyF"),
+          };
       if (phaseRef.current === "game" && currentSession.current)
         connection.current?.input(game.current.id, input.current);
     };
@@ -217,6 +252,7 @@ function App() {
         refresh();
         return;
       }
+      if (helpRef.current) return;
       if (keys.includes(e.code)) {
         e.preventDefault();
         if (e.repeat) return;
@@ -434,7 +470,16 @@ function App() {
           中文 / EN
         </button>
         <MusicControls audio={audio} language={language} />
-        <button onClick={() => setHelp((v) => !v)}>{t("操作说明")}</button>
+        <button
+          aria-label={t("切换玩法引导")}
+          aria-pressed={guideEnabled}
+          onClick={() => setGuideEnabled((v) => !v)}
+        >
+          {t(guideEnabled ? "引导开" : "引导关")}
+        </button>
+        <button onClick={() => (help ? setHelp(false) : learn("basics"))}>
+          {t("操作说明")}
+        </button>
         {isPlaying && <button onClick={leave}>{t("返回大厅")}</button>}
       </nav>
       {error && (
@@ -463,6 +508,7 @@ function App() {
               <i>✦</i>
               <i>◇</i>
             </div>
+            <GoalFlow language={language} />
             <div className="intro-controls">
               <kbd>{t("空格")}</kbd> {t("起飞")} <kbd>Q</kbd> {t("转面")}{" "}
               <kbd>S</kbd> {t("展纸挡雨")}
@@ -514,6 +560,13 @@ function App() {
                 ))}
               </select>
             </label>
+            <div className="chapter-brief">
+              <b>{t("本关练习")}</b>
+              <p>{t(LEVELS[level].hint)}</p>
+              <button onClick={() => learn("basics")}>
+                {t("第一次玩？先看图解")} ↗
+              </button>
+            </div>
             <button className="primary" disabled={busy} onClick={create}>
               {t(busy ? "正在连接…" : mode === 1 ? "开始冒险" : "创建好友房间")}
               <span>↗</span>
@@ -545,6 +598,15 @@ function App() {
         <section className="panel lobby">
           <span className="eyebrow">{t("等同伴系好愿望，一起出发")}</span>
           <h2>{t(LEVELS[room.level].name)}</h2>
+          <GoalFlow language={language} />
+          <p className="lobby-guide">
+            {t(LEVELS[room.level].hint)}{" "}
+            <button
+              onClick={() => learn(CROSSINGS[room.level] ? "bridge" : "turn")}
+            >
+              {t("出发前看图解")} ↗
+            </button>
+          </p>
           <div className="room-code">
             <div>
               <small>{t("房间码")}</small>
@@ -640,47 +702,13 @@ function App() {
               )}
             </div>
           </section>
-          {CROSSINGS[hud.level] && (
-            <section
-              className={`bridge-hud ${hud.bridgeLatched ? "complete" : ""}`}
-              aria-label={t("断桥机关")}
-            >
-              <b>
-                {t(
-                  hud.bridgeLatched
-                    ? "木桥已接通 · 所有人都能过了"
-                    : "低檐断桥 · 需要一张纸",
-                )}
-              </b>
-              {!hud.bridgeLatched && (
-                <>
-                  <p>
-                    {t(
-                      hud.bridgeCharge > 0
-                        ? "保持住！正在放下木桥…"
-                        : hud.players.some((p) => p.bridgeDock)
-                          ? hud.mode === 1
-                            ? "保持纸桥 2 秒，木桥会自动接通"
-                            : "同伴从纸桥上走到对岸，踩住金色踏板 2 秒"
-                          : (CROSSINGS[hud.level].axis === "x" ? 0 : 1) !==
-                              hud.view
-                            ? "先按 Q 转面对齐断桥，再靠近金色桥钉"
-                            : "走到断口前的金色桥钉，按住 Shift 搭桥",
-                    )}
-                  </p>
-                  <div
-                    className="bridge-track"
-                    role="progressbar"
-                    aria-label={t("接桥进度")}
-                    aria-valuenow={Math.round((hud.bridgeCharge ?? 0) * 50)}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                  >
-                    <i style={{ width: `${(hud.bridgeCharge ?? 0) * 50}%` }} />
-                  </div>
-                </>
-              )}
-            </section>
+          {guideEnabled && (
+            <GuideCard
+              g={hud}
+              guide={guide.current}
+              language={language}
+              onLearn={learn}
+            />
           )}
           <section
             className={`rain-hud ${(local.wetness ?? 0) > 70 ? "soaked" : ""}`}
@@ -919,6 +947,67 @@ function App() {
                   strokeDasharray={hud.bridgeLatched ? undefined : ".4 .3"}
                 />
               )}
+              {guideEnabled && (
+                <>
+                  <polyline
+                    points={GUIDE_ROUTES[hud.level]
+                      .map((s) => `${s.target.x},${s.target.z}`)
+                      .join(" ")}
+                    fill="none"
+                    stroke="#e8d0a1"
+                    strokeWidth=".12"
+                    strokeDasharray=".35 .35"
+                    opacity=".45"
+                  />
+                  {l.keys.map(
+                    (k, i) =>
+                      !hud.keys.includes(i) && (
+                        <text
+                          key={`key-${i}`}
+                          x={k.x}
+                          y={k.z + 0.35}
+                          textAnchor="middle"
+                          fontSize="1.7"
+                          fill="#ffe5a8"
+                        >
+                          ⚿
+                        </text>
+                      ),
+                  )}
+                  {l.checkpoints.map((c, i) => (
+                    <rect
+                      key={`rack-${i}`}
+                      x={c.x - 0.35}
+                      y={c.z - 0.35}
+                      width=".7"
+                      height=".7"
+                      fill={local.checkpoint >= i ? "#b3dbbc" : "none"}
+                      stroke="#b3dbbc"
+                      strokeWidth=".15"
+                    />
+                  ))}
+                  {CAMPFIRES[hud.level].map((c, i) => (
+                    <circle
+                      key={`fire-${i}`}
+                      cx={c.x}
+                      cy={c.z}
+                      r=".22"
+                      fill="#ef9a63"
+                    />
+                  ))}
+                  {guide.current.target && (
+                    <circle
+                      className="map-guide-target"
+                      cx={guide.current.target.x}
+                      cy={guide.current.target.z}
+                      r=".9"
+                      fill="none"
+                      stroke="#ffe5a8"
+                      strokeWidth=".2"
+                    />
+                  )}
+                </>
+              )}
               <circle cx={l.exit.x} cy={l.exit.z} r=".8" fill="#d9b66b" />
               {hud.players.map((p) => (
                 <circle
@@ -932,6 +1021,11 @@ function App() {
                 />
               ))}
             </svg>
+            {guideEnabled && (
+              <div className="map-legend">
+                {t("◎ 目标 · □ 存档 · 橙点小火")}
+              </div>
+            )}
             <small>
               {t("你是")} <i style={{ background: COLORS[local.id] }} />
               {t(NAMES[local.id])} ·{" "}
@@ -1039,58 +1133,12 @@ function App() {
             >
               ×
             </button>
-            <span className="eyebrow">{t("纸会记住每一次折叠")}</span>
-            <h2>{t("借出一张纸，留住一个愿望。")}</h2>
-            <dl>
-              <dt>← → / A D</dt>
-              <dd>{t("沿当前画面的左右方向行走")}</dd>
-              <dt>{t("空格")} / ↑ / W</dt>
-              <dd>{t("跳跃；下落时按住可以滑翔。扇翅不消耗耐折。")}</dd>
-              <dt>Q / E</dt>
-              <dd>
-                {t("世界旋转 90°，左右键控制另一条轴；联机时全队共享视角。")}
-              </dd>
-              <dt>S / ↓</dt>
-              <dd>
-                {t(
-                  "地面按住：整只纸鹤摊成方纸，原地遮住附近同伴。松开折回纸鹤；两张纸能互相挡雨。",
-                )}
-              </dd>
-              <dt>Shift</dt>
-              <dd>
-                {t(
-                  "桥钉旁按住搭桥，同伴过桥后踩住对岸金色踏板 2 秒，放下木桥接应你。单人按住 2 秒自动接桥；未接通前松开会退回原岸。",
-                )}
-              </dd>
-              <dt>F</dt>
-              <dd>
-                {t("在起点或存档许愿架旁站稳，按住 2 秒修补；移动会中断。")}
-              </dd>
-              <dt>R</dt>
-              <dd>
-                {t("返回最近许愿架，未存档物品复位。湿度清零，耐折不会重置。")}
-              </dd>
-            </dl>
-            <p>
-              {t(
-                "每张纸有 6 格耐折，每次变成方纸或纸桥消耗 1 格，湿度达到 60% 时消耗 2 格。保持形态不额外消耗；用完后仍可走、跳、滑翔。首次点亮新许愿架会修复纸张，也可在架旁按 F 修补。",
-              )}
-            </p>
-            <p>
-              {t(
-                "屋檐和同伴只能挡雨，靠近小火堆才能烤干；F 只修补耐折。烘烤程度到 65 时尽快离开，到 100 会脆裂失败。旺火碰到就烧毁，必须跳过；湿透或烧毁后回到许愿架。",
-              )}
-            </p>
-            <p className="save-rule">
-              {t(
-                "钥匙和星星先随身携带，到达下一个新许愿架才存档。死亡或按 R 返回会让自己未存档的物品回到原处；队友携带及已存档的物品保留。灯门会保存最后一段收集。",
-              )}
-            </p>
-            <p>
-              {t(
-                "找齐钥匙，全员到灯门过关。机关连续踩住 4 秒：单人一块，多人两块。先接通木桥，再踩开门机关。",
-              )}
-            </p>
+            <HowToPlay
+              language={language}
+              initialLesson={helpLesson}
+              playing={isPlaying}
+              multiplayer={!!session}
+            />
             {isPlaying && (
               <button className="primary" onClick={() => restart(false)}>
                 {t(session ? "发起重开投票" : "重新开始本关")}

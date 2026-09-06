@@ -399,6 +399,7 @@ export class PaperScene {
   private fireLight = new THREE.PointLight("#ffad5b", 0, 6, 2);
   private gate: THREE.Group | null = null;
   private portal = new THREE.Group();
+  private guideMarker = new THREE.Group();
   private signs: THREE.Sprite[] = [];
   private windLines: THREE.Mesh[] = [];
   private resize: ResizeObserver;
@@ -472,6 +473,38 @@ export class PaperScene {
       }
     });
     this.root.clear();
+    this.guideMarker = new THREE.Group();
+    const guideMaterial = new THREE.MeshBasicMaterial({
+      color: "#ffe6ab",
+      transparent: true,
+      opacity: 0.9,
+      depthTest: false,
+    });
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(0.43, 0.49, 40),
+      guideMaterial,
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.04;
+    ring.renderOrder = 20;
+    const pointer = new THREE.Mesh(
+      new THREE.ConeGeometry(0.17, 0.32, 3),
+      guideMaterial.clone(),
+    );
+    pointer.rotation.z = Math.PI;
+    pointer.position.y = 1.5;
+    pointer.renderOrder = 20;
+    const markerLabel = textSprite(
+      translate(this.language, "下一步"),
+      "#ffe6ab",
+      0.52,
+    );
+    markerLabel.position.y = 1.95;
+    markerLabel.material.depthTest = false;
+    markerLabel.renderOrder = 20;
+    this.guideMarker.add(ring, pointer, markerLabel);
+    this.guideMarker.visible = false;
+    this.root.add(this.guideMarker);
     this.level = g.level;
     this.count = g.mode;
     this.birds = [];
@@ -877,6 +910,7 @@ export class PaperScene {
     dt: number,
     preview = false,
     language: Language = "zh",
+    guideTarget?: Point,
   ) {
     if (
       g.level !== this.level ||
@@ -887,6 +921,20 @@ export class PaperScene {
       this.build(g);
     }
     this.clock += dt;
+    this.guideMarker.visible =
+      !preview && !!guideTarget && g.status === "playing";
+    if (guideTarget) {
+      this.guideMarker.position.set(
+        guideTarget.x,
+        guideTarget.y,
+        guideTarget.z,
+      );
+      this.guideMarker.children[1].position.y =
+        1.5 + Math.sin(this.clock * 3) * 0.12;
+      this.guideMarker.children[0].scale.setScalar(
+        1 + Math.sin(this.clock * 3) * 0.08,
+      );
+    }
     this.wishes.forEach((o) => {
       o.rotation.z = Math.sin(this.clock * 1.25 + o.userData.phase) * 0.055;
       o.rotation.x = Math.sin(this.clock * 0.9 + o.userData.phase) * 0.045;

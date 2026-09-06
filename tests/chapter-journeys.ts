@@ -4,8 +4,9 @@ import {
   idleInput,
   platformAt,
   type Input,
+  type Game,
 } from "../src/game";
-export function completeExtraLevel(level: number) {
+export function completeExtraLevel(level: number, observe?: (g: Game) => void) {
   const g = newGame(1, level),
     b = g.players[0];
   const state = () => ({
@@ -26,6 +27,7 @@ export function completeExtraLevel(level: number) {
   const tick = (input: Partial<Input> = {}, n = 1) => {
     for (let i = 0; i < n; i++) {
       stepGame(g, { 0: { ...idleInput(), ...input } });
+      observe?.(g);
       if (b.deaths)
         throw Error(
           `chapter ${level + 1}: ${b.lastFailure} ${JSON.stringify(state())}`,

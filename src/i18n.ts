@@ -1,5 +1,17 @@
 export type Language = "zh" | "en";
 const english: Record<string, string> = {
+  下一步: "Next step",
+  "← → / A D 移动 · 空格跳跃，按住滑翔 · Q 转动世界":
+    "Arrows / A D to move · Space to jump and glide · Q to turn the world",
+  "进入风柱会上升 · 跳上移动纸台 · 侧面藏着下一条路":
+    "Rise on the wind · jump onto moving platforms · turn to reveal the next path",
+  切换玩法引导: "Toggle gameplay guide",
+  引导开: "Guide on",
+  引导关: "Guide off",
+  本关练习: "In this chapter",
+  "第一次玩？先看图解": "First time? See how to play",
+  出发前看图解: "Learn before setting off",
+  "◎ 目标 · □ 存档 · 橙点小火": "◎ Target · □ Rack · Orange: fire",
   个关卡: "CHAPTERS",
   未存档: "Unsaved",
   "带到下一个许愿架 · 死亡后需重新拾取":

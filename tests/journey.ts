@@ -6,12 +6,15 @@ import {
   type Game,
   type Input,
 } from "../src/game";
-export function completeLevel(level: number) {
-  if (level >= 4) return completeExtraLevel(level);
+export function completeLevel(level: number, observe?: (g: Game) => void) {
+  if (level >= 4) return completeExtraLevel(level, observe);
   const g = newGame(1, level);
   const b = g.players[0];
   function tick(i: Partial<Input> = {}, n = 1) {
-    for (let j = 0; j < n; j++) stepGame(g, { 0: { ...idleInput(), ...i } });
+    for (let j = 0; j < n; j++) {
+      stepGame(g, { 0: { ...idleInput(), ...i } });
+      observe?.(g);
+    }
   }
   function state(_label: string) {}
   function move(target: number, jump = false, max = 400) {
