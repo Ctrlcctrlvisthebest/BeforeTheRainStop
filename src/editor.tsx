@@ -10,7 +10,7 @@ import React, {
 import { createRoot } from "react-dom/client";
 import { LEVELS, type Point } from "./game";
 import { WEATHER } from "./weather";
-import { CROSSINGS } from "./bridges";
+import { CROSSINGS, bankPoint } from "./bridges";
 import { GUIDE_ROUTES, type RouteStep } from "./guide";
 import { translate } from "./i18n";
 import {
@@ -30,13 +30,25 @@ import {
   pointOf,
   removeEntity,
   syncRoute,
+  platformStylePatch,
+  platformMotionPatch,
   type EntityKind,
   type Selection,
   type Tool,
 } from "./editor-model";
+import {
+  EditorHelp,
+  EditorWalkthrough,
+  MotionPreview,
+  PLATFORM_HELP,
+  TOOL_HELP,
+  type HelpTopic,
+  type WalkthroughAction,
+} from "./editor-help";
 import "./editor.css";
 const MapPreview = lazy(() => import("./editor-preview"));
 const DRAFT = "rain-map-editor-v1";
+const GUIDE_PREF = "rain-map-editor-guide-v1";
 const templates = LEVELS.map((level, i): MapFile => ({
   format: "before-the-rain-map",
   version: 1,
@@ -55,7 +67,11 @@ const templates = LEVELS.map((level, i): MapFile => ({
 }));
 const palette: [Tool, string, string][] = [
   ["platforms", "▰ 平台", "固定落脚平台"],
-  ["moving", "↔ 渡台", "移动平台，可调整轴、幅度与周期"],
+  [
+    "moving",
+    "↔ 渡台（移动平台）",
+    "已开启往返运动的平台，可调整方向、距离与周期",
+  ],
   ["wall", "▥ 墙体", "阻挡路线的实体墙"],
   ["keys", "⚿ 钥匙", "全部收齐才能通关"],
   ["stars", "✦ 星星", "可选的额外挑战"],
@@ -118,7 +134,14 @@ function App() {
     [saved, setSaved] = useState(true),
     [preview, setPreview] = useState<MapFile | null>(null),
     [dragMap, setDragMap] = useState<MapFile | null>(null),
-    [help, setHelp] = useState(false);
+    [help, setHelp] = useState<HelpTopic | null>(null),
+    [walkthrough, setWalkthrough] = useState(() => {
+      try {
+        return localStorage.getItem(GUIDE_PREF) !== "collapsed";
+      } catch {
+        return true;
+      }
+    });
   const svg = useRef<SVGSVGElement>(null),
     file = useRef<HTMLInputElement>(null),
     drag = useRef<any>(null),
@@ -305,6 +328,29 @@ function App() {
     setTool("select");
     fit(next);
     setNotice("已载入地图，可以撤销回到之前的草稿。");
+  }
+  function toggleWalkthrough() {
+    setWalkthrough((open) => {
+      try {
+        localStorage.setItem(GUIDE_PREF, open ? "collapsed" : "open");
+      } catch {}
+      return !open;
+    });
+  }
+  function walkthroughAction(action: WalkthroughAction) {
+    if (action === "front") {
+      setView("front");
+      return;
+    }
+    if (action === "bridge-help") {
+      setHelp("bridge");
+      return;
+    }
+    if (action === "preview") {
+      if (!report.errors.length) setPreview(parseMap(map));
+      return;
+    }
+    setTool(action);
   }
   const patch = (key: string, value: any) => {
     if (selection) commit(editEntity(map, selection, { [key]: value }));
@@ -541,7 +587,8 @@ function App() {
           <a href="./" target="_blank" rel="noreferrer">
             打开游戏 ↗
           </a>
-          <button onClick={() => setHelp(true)}>使用说明</button>
+          <button onClick={toggleWalkthrough}>制作引导</button>
+          <button onClick={() => setHelp("start")}>组件说明</button>
           <button onClick={() => file.current?.click()}>导入 JSON</button>
           <button onClick={download} disabled={!!report.errors.length}>
             导出地图 ↓
@@ -571,7 +618,18 @@ function App() {
             <span>01 / 搭建</span>
             <button onClick={() => load(starterMap())}>新建</button>
           </div>
-          <p className="muted">选组件，再点画布。选择模式可拖动对象。</p>
+          <p className="palette-instruction">
+            ① 选组件 → ② 点画布放置 → ③ 右侧调属性
+          </p>
+          {TOOL_HELP[tool] && (
+            <div className="component-tip" aria-live="polite">
+              <strong>{TOOL_HELP[tool]!.title}</strong>
+              <p>{TOOL_HELP[tool]!.body}</p>
+              <button onClick={() => setHelp(TOOL_HELP[tool]!.topic)}>
+                查看示意与说明 ↗
+              </button>
+            </div>
+          )}
           <div className="palette-grid">
             {palette.map(([kind, label, description]) => (
               <button
@@ -613,6 +671,12 @@ function App() {
           </div>
         </aside>
         <section className="canvas-panel">
+          <EditorWalkthrough
+            open={walkthrough}
+            onToggle={toggleWalkthrough}
+            onAction={walkthroughAction}
+            canPreview={!report.errors.length}
+          />
           <div className="canvas-toolbar">
             <div className="button-row">
               <button
@@ -777,6 +841,35 @@ function App() {
                 pointerEvents="none"
               />
               {all.filter((e) => e.kind === "route").map(shape)}
+              {display.crossing && view === "top" && (
+                <g pointerEvents="none" aria-label="自动生成的两岸桥钉位置">
+                  {([-1, 1] as const).map((side) => {
+                    const c = display.crossing!,
+                      p = bankPoint(c, side);
+                    return (
+                      <g key={side}>
+                        <circle
+                          cx={p.x}
+                          cy={p.z}
+                          r={0.35}
+                          fill="none"
+                          stroke="#f0ca81"
+                          strokeWidth={0.09}
+                        />
+                        <text
+                          x={p.x}
+                          y={p.z + (c.axis === "x" ? 1 : side * 0.8)}
+                          textAnchor="middle"
+                          fill="#f0ca81"
+                          fontSize={0.45}
+                        >
+                          {side === c.near ? "起始桥钉" : "接应踏板"}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </g>
+              )}
             </svg>
             <div className="canvas-caption">
               {view === "top"
@@ -893,7 +986,9 @@ function App() {
                   value={`${e.kind}:${e.index}`}
                 >
                   {entityNames[e.kind]} {e.index + 1}
-                  {e.data.kind ? ` · ${e.data.kind}` : ""}
+                  {e.data.kind
+                    ? ` · ${PLATFORM_HELP[e.data.kind]?.[0] ?? e.data.kind}`
+                    : ""}
                 </option>
               ))}
             </select>
@@ -903,6 +998,16 @@ function App() {
               <h3>
                 {entityNames[selection.kind]} {selection.index + 1}
               </h3>
+              {TOOL_HELP[selection.kind] && (
+                <div className="object-help">
+                  <p>{TOOL_HELP[selection.kind]!.body}</p>
+                  <button
+                    onClick={() => setHelp(TOOL_HELP[selection.kind]!.topic)}
+                  >
+                    这个组件怎么用？
+                  </button>
+                </div>
+              )}
               <div className="field-grid">
                 {field("X", "x")}
                 {selection.kind !== "zones" && field("高度 Y", "y")}
@@ -927,6 +1032,12 @@ function App() {
                     ),
                   )}
               </div>
+              {["platforms", "gate"].includes(selection.kind) && (
+                <p className="field-help">
+                  Y 是顶面；厚度 H 向下延伸，底面为 Y − H。W 沿 X，D 沿
+                  Z。改“种类”不会自动改变这些尺寸。
+                </p>
+              )}
               {selection.kind === "platforms" && (
                 <>
                   <label>
@@ -934,60 +1045,73 @@ function App() {
                     <select
                       value={item.kind ?? "normal"}
                       onChange={(e) =>
-                        patch(
-                          "kind",
-                          e.target.value === "normal"
-                            ? undefined
-                            : e.target.value,
+                        commit(
+                          editEntity(
+                            map,
+                            selection,
+                            platformStylePatch(item, e.target.value),
+                          ),
                         )
                       }
                     >
-                      {[
-                        "normal",
-                        "step",
-                        "wall",
-                        "moving",
-                        "low-roof",
-                        "railing",
-                      ].map((k) => (
-                        <option key={k} value={k}>
-                          {
-                            (
-                              {
-                                normal: "普通平台",
-                                step: "台阶",
-                                wall: "墙体",
-                                moving: "渡台",
-                                "low-roof": "低檐",
-                                railing: "侧栏",
-                              } as Record<string, string>
-                            )[k]
-                          }
-                        </option>
-                      ))}
+                      <optgroup label="常用平台">
+                        {["normal", "step", "wall", "moving"].map((k) => (
+                          <option key={k} value={k}>
+                            {PLATFORM_HELP[k][0]}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="纸桥专用 · 建议由组件生成">
+                        {["low-roof", "railing"].map((k) => (
+                          <option key={k} value={k}>
+                            {PLATFORM_HELP[k][0]}
+                          </option>
+                        ))}
+                      </optgroup>
                     </select>
                   </label>
+                  <p className="field-help">
+                    {PLATFORM_HELP[item.kind ?? "normal"]?.[1]}{" "}
+                    <button
+                      className="text-link"
+                      onClick={() => setHelp("platform")}
+                    >
+                      种类对照表 ↗
+                    </button>
+                  </p>
                   <label className="checkbox">
                     <input
                       type="checkbox"
                       checked={!!item.motion}
                       onChange={(e) =>
-                        patch(
-                          "motion",
-                          e.target.checked
-                            ? { axis: "x", range: 2, period: 6 }
-                            : undefined,
+                        commit(
+                          editEntity(
+                            map,
+                            selection,
+                            platformMotionPatch(item, e.target.checked),
+                          ),
                         )
                       }
                     />
-                    随时间移动
+                    开启往返移动（渡台）
                   </label>
+                  <p className="field-help">
+                    {item.motion
+                      ? "开局就自动往返，站稳的纸鹤会随平台移动。下方可以播放或拖动时间预览。"
+                      : "当前平台固定不动。勾选后，它与左侧“渡台”使用同一套运动规则。"}{" "}
+                    <button
+                      className="text-link"
+                      onClick={() => setHelp("motion")}
+                    >
+                      参数怎么填？
+                    </button>
+                  </p>
                 </>
               )}
               {item.motion && (
                 <>
                   <label>
-                    移动轴
+                    移动方向
                     <select
                       value={item.motion.axis}
                       onChange={(e) =>
@@ -997,18 +1121,22 @@ function App() {
                         })
                       }
                     >
-                      <option>x</option>
-                      <option>z</option>
+                      <option value="x">X · 左右往返</option>
+                      <option value="z">Z · 前后往返</option>
                     </select>
                   </label>
                   <div className="field-grid">
-                    {numberField("往返幅度", item.motion.range, (n) =>
+                    {numberField("单侧移动距离", item.motion.range, (n) =>
                       patch("motion", { ...item.motion, range: n }),
                     )}
-                    {numberField("往返周期 / 秒", item.motion.period, (n) =>
+                    {numberField("完整往返 / 秒", item.motion.period, (n) =>
                       patch("motion", { ...item.motion, period: n }),
                     )}
                   </div>
+                  <MotionPreview
+                    key={`${selection.kind}:${selection.index}`}
+                    platform={item}
+                  />
                 </>
               )}
               {selection.kind === "hazards" && (
@@ -1038,8 +1166,8 @@ function App() {
                       value={item.axis}
                       onChange={(e) => patch("axis", e.target.value)}
                     >
-                      <option>x</option>
-                      <option>z</option>
+                      <option value="x">X · 左右跨过（正面）</option>
+                      <option value="z">Z · 前后跨过（侧面）</option>
                     </select>
                   </label>
                   <label>
@@ -1048,10 +1176,24 @@ function App() {
                       value={item.near}
                       onChange={(e) => patch("near", +e.target.value)}
                     >
-                      <option value={-1}>负方向一岸</option>
-                      <option value={1}>正方向一岸</option>
+                      <option value={-1}>
+                        {item.axis === "x" ? "左岸 · X 较小" : "Z 较小的一岸"}
+                      </option>
+                      <option value={1}>
+                        {item.axis === "x" ? "右岸 · X 较大" : "Z 较大的一岸"}
+                      </option>
                     </select>
                   </label>
+                  <div className="help-note compact">
+                    <strong>桥钉不用另加，单人也一样</strong>
+                    <p>
+                      单人：岸边按住 Shift 2
+                      秒自动接桥。多人：队友走过纸面、在对岸木踏板站住 2 秒。
+                    </p>
+                    <button onClick={() => setHelp("bridge")}>
+                      看完整纸桥示意 ↗
+                    </button>
+                  </div>
                   <p className="muted">
                     组件已经生成两岸、低檐和侧栏。改变断口方向、位置或高度后，请一并调整这些平台。
                   </p>
@@ -1332,56 +1474,11 @@ function App() {
         </aside>
       </div>
       {help && (
-        <div
-          className="editor-scrim"
-          role="dialog"
-          aria-modal="true"
-          aria-label="编辑器使用说明"
-        >
-          <article className="help-card">
-            <button className="help-close" onClick={() => setHelp(false)}>
-              关闭 ×
-            </button>
-            <small>MAKE A PATH / 留下一段路</small>
-            <h2>从摆一块平台，到走完一张地图。</h2>
-            <ol>
-              <li>
-                选左侧组件，再点画布放置。用「选择」拖动；右侧输入精确坐标与大小。
-              </li>
-              <li>
-                俯视图规划转弯，正面和侧面图调整高度。Y 是平台顶面，H
-                是向下的厚度。
-              </li>
-              <li>
-                加入钥匙、许愿架与终点。钥匙和许愿架会自动加入引导；补充走路、跳跃与转面的引导点，并调整顺序。
-              </li>
-              <li>
-                用雨区设雨量，用篷子和小火提供补给。旺火可设置间歇熄火。纸桥组件带两岸和低檐，避免直接跳过。
-              </li>
-              <li>
-                点击「试玩地图」：使用正式游戏相同的物理、雨水、耐折和存档规则。Esc
-                返回编辑，试玩不会修改草稿。
-              </li>
-              <li>
-                结构无错误后导出
-                .rain-map.json；随时导入继续修改。新建、导入、删除都可以撤销。
-              </li>
-            </ol>
-            <p>
-              每张图支持 1 处纸桥断口、1 道机关门和最多 2
-              块开门踏板。试玩为单人；导出的地图可接入正式游戏的 1 / 2 / 3 / 6
-              人模式。
-            </p>
-            <p>
-              草稿存在当前浏览器，请用导出文件备份。想接入正式关卡时，把 JSON
-              放进 src/maps，并在 src/challenge-maps.ts 注册；详见仓库中的
-              MAP_FORMAT.md。
-            </p>
-            <button className="primary" onClick={() => setHelp(false)}>
-              开始搭建
-            </button>
-          </article>
-        </div>
+        <EditorHelp
+          topic={help}
+          onTopic={setHelp}
+          onClose={() => setHelp(null)}
+        />
       )}
       {preview && (
         <Suspense fallback={<div className="editor-scrim">正在准备试玩…</div>}>

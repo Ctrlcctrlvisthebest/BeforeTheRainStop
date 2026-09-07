@@ -6,6 +6,7 @@ import {
   stepGame,
   idleInput,
   activeHazard,
+  platformAt,
 } from "../src/game";
 import {
   WEATHER,
@@ -28,9 +29,81 @@ import {
   addEntity,
   editEntity,
   removeEntity,
+  platformStylePatch,
+  platformMotionPatch,
   duplicateEntity,
 } from "../src/editor-model";
 import { campfire, animateFire } from "../src/fire-scene";
+
+test("choosing the ferry style exports a platform that actually carries players", () => {
+  const map = starterMap();
+  const selection = { kind: "platforms" as const, index: 0 };
+  const edited = editEntity(
+    map,
+    selection,
+    platformStylePatch(map.level.platforms[0], "moving"),
+  );
+  const exported = parseMap(JSON.parse(serializeMap(edited)));
+  const platform = exported.level.platforms[0];
+  assert.ok(platform.motion);
+  assert.equal(
+    platformAt(platform, platform.motion.period / 4).x,
+    platform.x + platform.motion.range,
+  );
+  LEVELS.push(exported.level);
+  const g = newGame(1, LEVELS.length - 1),
+    p = g.players[0];
+  p.x = platform.x;
+  p.y = platform.y;
+  p.z = platform.z;
+  p.grounded = true;
+  p.support = 0;
+  const before = p.x;
+  try {
+    // The exported test map has no rain or fires.
+    WEATHER.push(exported.weather);
+    CAMPFIRES.push([]);
+    BLAZE_ROOFS.push([]);
+    for (let i = 0; i < 60; i++) stepGame(g, [idleInput()], 1 / 60);
+    assert.ok(
+      p.x > before + 1,
+      "standing crane rides the new motion instead of staying on a recolored slab",
+    );
+  } finally {
+    LEVELS.pop();
+    WEATHER.pop();
+    CAMPFIRES.pop();
+    BLAZE_ROOFS.pop();
+  }
+  assert.equal(
+    map.level.platforms[0].motion,
+    undefined,
+    "original draft remains unchanged",
+  );
+});
+
+test("motion toggle preserves custom settings and stops exported movement cleanly", () => {
+  const base = starterMap().level.platforms[0];
+  const moving = { ...base, ...platformMotionPatch(base, true) };
+  moving.motion = { axis: "z", range: 3, period: 8 };
+  const restyled = { ...moving, ...platformStylePatch(moving, "moving") };
+  assert.deepEqual(restyled.motion, moving.motion);
+  const stopped = { ...restyled, ...platformMotionPatch(restyled, false) };
+  assert.equal(stopped.kind, undefined);
+  assert.equal(stopped.motion, undefined);
+  assert.deepEqual(platformAt(stopped, 99), stopped);
+  assert.equal(
+    platformStylePatch(base, "step").motion,
+    undefined,
+    "step style does not secretly enable motion",
+  );
+  const oldDraft = starterMap();
+  oldDraft.level.platforms[0].kind = "moving";
+  assert.ok(
+    validateMap(oldDraft).warnings.some((w) => w.includes("未开启往返移动")),
+    "old stationary ferry drafts explain how to enable movement",
+  );
+});
 
 test("all campaign maps round trip through the exact editor export format", () => {
   LEVELS.forEach((level, i) => {

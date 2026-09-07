@@ -1,5 +1,31 @@
 import { type MapFile } from "./map-format";
-import type { Point } from "./game";
+import type { Platform, Point } from "./game";
+
+export function platformStylePatch(
+  platform: Platform,
+  kind: string,
+): Partial<Platform> {
+  return {
+    kind: kind === "normal" ? undefined : (kind as Platform["kind"]),
+    ...(kind === "moving" && !platform.motion
+      ? { motion: { axis: "x" as const, range: 2.2, period: 6 } }
+      : {}),
+  };
+}
+export function platformMotionPatch(
+  platform: Platform,
+  moving: boolean,
+): Partial<Platform> {
+  return moving
+    ? {
+        motion: platform.motion ?? { axis: "x", range: 2.2, period: 6 },
+        ...(platform.kind ? {} : { kind: "moving" }),
+      }
+    : {
+        motion: undefined,
+        ...(platform.kind === "moving" ? { kind: undefined } : {}),
+      };
+}
 
 export type EntityKind =
   | "platforms"

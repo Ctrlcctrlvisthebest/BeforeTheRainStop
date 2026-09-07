@@ -238,8 +238,371 @@ li {
   min-height: 42px;
 }
 .palette-grid button:nth-child(7),
+.palette-grid button:nth-child(2),
 .palette-grid button:nth-child(11) {
   grid-column: span 2;
+}
+
+.palette-instruction {
+  font-size: 11px;
+  line-height: 1.9;
+  color: #665f52;
+}
+.component-tip,
+.object-help {
+  background: #f5eddf;
+  border-left: 3px solid #ae7359;
+  padding: 11px;
+  margin-top: 12px;
+  font-size: 12px;
+  line-height: 1.85;
+}
+.component-tip strong {
+  font-weight: 600;
+}
+.component-tip p {
+  margin-top: 5px;
+}
+.component-tip button,
+.object-help button {
+  border: 0;
+  background: transparent;
+  color: #976047;
+  text-align: left;
+  padding: 5px 0;
+  font-size: 11px;
+  min-height: 32px;
+}
+.field-help {
+  font-size: 11px;
+  line-height: 1.9;
+  color: #6c665c;
+  margin: 5px 0 14px;
+}
+.text-link {
+  border: 0;
+  background: transparent;
+  color: #955c43;
+  padding: 2px 0;
+  min-height: 28px;
+  text-decoration: underline;
+  font-size: inherit;
+}
+.editor-walkthrough {
+  flex-shrink: 0;
+  padding: 13px 16px;
+  background: #eee3cf;
+  color: #344b57;
+  border-bottom: 1px solid #b8a484;
+}
+.walkthrough-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.walkthrough-title strong {
+  font:
+    500 15px "Noto Serif SC",
+    serif;
+}
+.walkthrough-title span {
+  color: #81715c;
+  font-size: 10px;
+}
+.walkthrough-title > button {
+  margin-left: auto;
+  font-size: 10px;
+  min-height: 30px;
+  padding: 4px 8px;
+  background: transparent;
+}
+.editor-walkthrough nav {
+  display: flex;
+  gap: 5px;
+  margin: 10px 0;
+}
+.editor-walkthrough nav button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 5px;
+  font-size: 11px;
+  background: #e0d4bd;
+  border: 0;
+}
+.editor-walkthrough nav button[aria-current="step"] {
+  background: #3d5563;
+  color: #fff2d7;
+}
+.editor-walkthrough nav b {
+  font-weight: 500;
+  opacity: 0.65;
+}
+.walkthrough-body {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.walkthrough-body p {
+  flex: 1;
+  font-size: 12px;
+  line-height: 1.85;
+}
+.walkthrough-body > button {
+  flex-shrink: 0;
+  max-width: 175px;
+  font-size: 11px;
+  background: #f9f1e2;
+}
+.editor-walkthrough.collapsed {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+.motion-preview {
+  margin: 12px 0;
+  padding: 11px;
+  border: 1px solid #b2a58d66;
+  background: #f5eddf;
+}
+.motion-preview .section-title {
+  margin: 0;
+  gap: 5px;
+  letter-spacing: 0;
+}
+.motion-preview svg {
+  display: block;
+  width: 100%;
+}
+.motion-preview svg text {
+  fill: #596d77;
+  font-size: 11px;
+}
+.motion-preview p {
+  font-size: 11px;
+  line-height: 1.8;
+  color: #6c665c;
+}
+.motion-preview input[type="range"] {
+  min-height: 30px;
+  padding: 0;
+  accent-color: #ad7359;
+}
+.editor-help-dialog {
+  width: min(820px, calc(100% - 32px));
+  max-height: min(850px, calc(100dvh - 40px));
+  padding: 0;
+  border: 1px solid #cbb596;
+  background: #eee4d2;
+  color: #354651;
+  box-shadow: 0 24px 70px #07172077;
+}
+.editor-help-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.editor-help-dialog::backdrop {
+  background: #102330b8;
+  backdrop-filter: blur(5px);
+}
+.editor-help-dialog > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  padding: 24px 28px 18px;
+  flex-shrink: 0;
+}
+.editor-help-dialog h2 {
+  font:
+    500 23px "Noto Serif SC",
+    serif;
+  margin-top: 8px;
+}
+.editor-help-dialog > header button {
+  flex-shrink: 0;
+}
+.editor-help-dialog > nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 28px 18px;
+  flex-shrink: 0;
+  border-bottom: 1px solid #bba88755;
+}
+.editor-help-dialog > nav button {
+  font-size: 12px;
+  flex: 1;
+  white-space: nowrap;
+}
+.help-content {
+  padding: 24px 28px;
+  overflow: auto;
+  min-height: 0;
+  line-height: 1.9;
+  font-size: 13px;
+}
+.help-content h3 {
+  font:
+    500 19px "Noto Serif SC",
+    serif;
+  margin: 24px 0 12px;
+}
+.help-content > h3:first-child {
+  margin-top: 0;
+}
+.help-content p {
+  margin: 10px 0;
+}
+.help-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 18px 0 24px;
+  font-size: 12px;
+}
+.help-content th,
+.help-content td {
+  border: 1px solid #b9a98a66;
+  padding: 11px 13px;
+  vertical-align: top;
+  text-align: left;
+}
+.help-content th {
+  background: #e2d5bd;
+  font-weight: 500;
+}
+.help-content td:first-child {
+  width: 24%;
+  font-weight: 500;
+}
+.help-content ol {
+  padding-left: 22px;
+}
+.help-content .motion-preview {
+  max-width: 420px;
+  margin: 20px auto;
+}
+.help-diagram {
+  display: block;
+  width: 100%;
+  border-radius: 3px;
+  background: #283e4c;
+  margin: 18px 0;
+}
+.help-diagram text {
+  font-size: 12px;
+  fill: #e9dfca;
+}
+.help-note {
+  background: #e1d3b9;
+  padding: 16px 18px;
+  margin: 20px 0;
+  border-left: 3px solid #ab7657;
+  font-size: 12px;
+  line-height: 1.9;
+}
+.help-note p {
+  margin: 7px 0 0;
+}
+.help-note.compact {
+  padding: 12px;
+}
+.help-note.compact button {
+  font-size: 11px;
+  margin-top: 10px;
+}
+.dimension-example {
+  width: min(320px, 100%);
+  background: #f7efdf;
+  padding: 16px 20px;
+  margin: 20px auto;
+  text-align: center;
+  font-size: 12px;
+}
+.dimension-example div {
+  background: #758d9c;
+  color: #fff1d4;
+  padding: 18px;
+  margin: 8px 0;
+  border-top: 4px solid #b99068;
+}
+.editor-help-dialog > footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  border-top: 1px solid #bba88755;
+  padding: 14px 28px;
+  font-size: 11px;
+}
+@media (max-width: 1100px) {
+  .header-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .walkthrough-body {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .walkthrough-body > button {
+    max-width: none;
+  }
+}
+@media (max-width: 760px) {
+  .editor-help-dialog {
+    width: calc(100% - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+  .editor-help-dialog > header,
+  .help-content {
+    padding: 18px;
+  }
+  .editor-help-dialog h2 {
+    font-size: 19px;
+  }
+  .editor-help-dialog > nav {
+    padding: 0 18px 14px;
+  }
+  .editor-help-dialog > nav button {
+    min-height: 42px;
+  }
+  .editor-help-dialog > footer {
+    padding: 12px 18px;
+  }
+  .editor-help-dialog > footer span {
+    max-width: 55%;
+  }
+  .help-content th,
+  .help-content td {
+    padding: 9px;
+  }
+  .help-content td:first-child {
+    width: 28%;
+  }
+  .editor-walkthrough {
+    padding: 10px 12px;
+  }
+  .walkthrough-title {
+    gap: 7px;
+  }
+  .walkthrough-title strong {
+    font-size: 14px;
+  }
+  .editor-walkthrough nav button {
+    font-size: 10px;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .editor-walkthrough nav {
+    gap: 4px;
+  }
+  .editor-workspace .canvas-panel {
+    min-height: 690px;
+  }
 }
 .template-area {
   border-top: 1px solid #b7a58555;
@@ -458,31 +821,6 @@ li {
   place-items: center;
   padding: 20px;
   color: #eedfc6;
-}
-.help-card {
-  position: relative;
-  background: #efe5d2;
-  color: #354651;
-  padding: 36px;
-  max-width: 650px;
-  max-height: 90dvh;
-  overflow: auto;
-  border: 1px solid #f9efd7;
-}
-.help-card h2 {
-  font-family: "Noto Serif SC", serif;
-  font-weight: 500;
-  font-size: 24px;
-  margin: 15px 0 20px;
-}
-.help-card p {
-  font-size: 12px;
-  line-height: 1.9;
-  margin: 18px 0;
-}
-.help-close {
-  float: right;
-  font-size: 11px;
 }
 .preview-screen {
   position: fixed;
@@ -775,12 +1113,6 @@ li {
   .preview-screen canvas {
     bottom: 162px;
     height: calc(100% - 260px);
-  }
-  .help-card {
-    padding: 20px;
-  }
-  .help-card h2 {
-    font-size: 20px;
   }
 }
 @media (max-height: 500px) and (orientation: landscape) {

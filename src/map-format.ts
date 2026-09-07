@@ -225,6 +225,12 @@ export function validateMap(value: unknown): MapReport {
     if (!supported(q))
       warnings.push(`${name} 下方没有同高的固定平台，请试玩检查落点。`);
   if (!m.level.platforms.length) warnings.push("地图还没有平台。");
+  m.level.platforms.forEach((p, i) => {
+    if (p.kind === "moving" && !p.motion)
+      warnings.push(
+        `平台 ${i + 1} 标为渡台，但未开启往返移动。选中它并勾选「开启往返移动（渡台）」。`,
+      );
+  });
   m.level.keys.forEach((_, i) => {
     if (
       !m.route.some(
