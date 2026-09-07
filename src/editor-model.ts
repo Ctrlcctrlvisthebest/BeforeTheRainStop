@@ -28,7 +28,7 @@ export const entityNames: Record<EntityKind, string> = {
   stars: "星星",
   checkpoints: "许愿架",
   signs: "路牌",
-  pads: "圆垫",
+  pads: "开门踏板",
   winds: "风柱",
   hazards: "旺火",
   awnings: "篷子与小火",

@@ -9,6 +9,7 @@ import {
   BLAZE_ROOFS,
 } from "./weather";
 import { campfire, animateFire } from "./fire-scene";
+import { gatePad, gateMark, animateGatePad } from "./gate-scene";
 import * as THREE from "three";
 import {
   COLORS,
@@ -397,7 +398,7 @@ export class PaperScene {
   private tiles: THREE.Group[] = [];
   private keys: THREE.Group[] = [];
   private stars: THREE.Mesh[] = [];
-  private pads: THREE.Mesh[] = [];
+  private pads: THREE.Group[] = [];
   private crossingDeck: THREE.Group | null = null;
   private crossingPad: THREE.Mesh | null = null;
   private crossingLabel: THREE.Sprite | null = null;
@@ -632,6 +633,15 @@ export class PaperScene {
     }
     if (l.gate) {
       this.gate = slab(l.gate, "#d49b57");
+      for (const side of [-1, 1]) {
+        const mark = gateMark();
+        mark.position.set(0, -l.gate.h + 1.1, side * (l.gate.d / 2 + 0.02));
+        this.gate.add(mark);
+        const endMark = gateMark();
+        endMark.rotation.y = Math.PI / 2;
+        endMark.position.set(side * (l.gate.w / 2 + 0.02), -l.gate.h + 1.1, 0);
+        this.gate.add(endMark);
+      }
       this.root.add(this.gate);
     } else this.gate = null;
     l.keys.forEach((k) => {
@@ -668,11 +678,8 @@ export class PaperScene {
       this.root.add(sprite);
     });
     l.pads.slice(0, Math.min(g.mode, l.pads.length)).forEach((k) => {
-      const m = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.58, 0.62, 0.12, 24),
-        material("#d69b65"),
-      );
-      m.position.set(k.x, k.y + 0.065, k.z);
+      const m = gatePad();
+      m.position.set(k.x, k.y, k.z);
       this.pads.push(m);
       this.root.add(m);
     });
@@ -990,11 +997,16 @@ export class PaperScene {
       o.rotation.z = Math.sin(this.clock * 1.25 + o.userData.phase) * 0.055;
       o.rotation.x = Math.sin(this.clock * 0.9 + o.userData.phase) * 0.045;
     });
-    this.root.children.forEach((o) => {
-      if (o.name === "awning-label") o.visible = !preview;
-    });
     const l = LEVELS[g.level];
     const player = g.players[local] ?? g.players[0];
+    const nearbyLabel = (p: Point) =>
+      !preview &&
+      Math.hypot(p.x - player.x, p.z - player.z) < 8 &&
+      (g.view === 0 ? Math.abs(p.z - player.z) : Math.abs(p.x - player.x)) <
+        2.2;
+    this.root.children.forEach((o) => {
+      if (o.name === "awning-label") o.visible = nearbyLabel(o.position);
+    });
     const yawTarget = (g.view * Math.PI) / 2;
     this.yaw += (yawTarget - this.yaw) * Math.min(1, dt * 12);
     const goal = new THREE.Vector3(
@@ -1181,7 +1193,8 @@ export class PaperScene {
       );
       this.crossingPad.scale.y = g.bridgeCharge > 0 ? 0.4 : 1;
       if (this.crossingLabel)
-        this.crossingLabel.visible = !preview && !g.bridgeLatched;
+        this.crossingLabel.visible =
+          nearbyLabel(this.crossingLabel.position) && !g.bridgeLatched;
     }
     this.pads.forEach((m, i) => {
       const pad = l.pads[i];
@@ -1192,12 +1205,29 @@ export class PaperScene {
             Math.hypot(p.x - pad.x, p.z - pad.z) < 0.75 &&
             Math.abs(p.y - pad.y) < 0.4,
         );
-      (m.material as THREE.MeshStandardMaterial).color.set(
-        on ? "#f1d69a" : "#8b7564",
-      );
-      m.scale.y = on ? 0.35 : 1;
+      const depth =
+        g.view === 0 ? Math.abs(pad.z - player.z) : Math.abs(pad.x - player.x);
+      animateGatePad(m, on, g.gateCharge, g.gateOpen, !preview && depth > 0.9);
     });
-    if (this.gate) this.gate.visible = !g.gateOpen;
+    if (this.gate && l.gate) {
+      this.gate.visible = !g.gateOpen;
+      const gate = l.gate;
+      const distance =
+        g.view === 0
+          ? Math.abs(gate.z - player.z)
+          : Math.abs(gate.x - player.x);
+      const depth = g.view === 0 ? gate.d : gate.w;
+      const ghost = !preview && distance > depth / 2 + 0.45;
+      this.gate.traverse((o) => {
+        if (!(o instanceof THREE.Mesh)) return;
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        mats.forEach((m) => {
+          m.transparent = ghost;
+          m.opacity = ghost ? 0.12 : 1;
+          m.depthWrite = !ghost;
+        });
+      });
+    }
     this.hazards.forEach((o, i) => {
       animateFire(o, this.clock, activeHazard(l.hazards[i].period, g.time));
     });
@@ -1226,7 +1256,7 @@ export class PaperScene {
     this.signs.forEach((o, i) => {
       const sign = l.signs[i];
       o.visible =
-        !preview &&
+        nearbyLabel(sign) &&
         (sign.view === undefined || sign.view === g.view) &&
         Math.hypot(sign.x - player.x, sign.z - player.z) < 8;
     });

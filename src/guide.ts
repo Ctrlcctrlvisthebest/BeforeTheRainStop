@@ -487,17 +487,17 @@ export function guideFor(
         ) ?? l.pads[p.id % required];
     title =
       g.mode === 1
-        ? ["踩住圆垫，连续保持 4 秒", "Hold the round pad for 4 seconds"]
-        : ["两人各踩一块圆垫", "Put one friend on each round pad"];
+        ? ["踩住开门踏板，保持 4 秒", "Hold the gate plate for 4 seconds"]
+        : ["两人各踩一块开门踏板", "Put one friend on each gate plate"];
     body =
       g.mode === 1
         ? [
-            "站在发光圆垫中央，保持 4 秒；淋雨时可以同时按住 S。",
-            "Stand in the glowing circle for 4 seconds. You can hold S to reduce rain.",
+            "站到带门形标记的石踏板上，等四格灯亮满，门就会打开；淋雨时可按住 S 挡雨。",
+            "Stand on the stone plate with a doorway mark until all four lights fill and the gate opens. Hold S to shelter from rain.",
           ]
         : [
-            "多人需要两块圆垫同时亮起 4 秒；其余队友可以在旁边按 S 挡雨。",
-            "Both circles must stay lit together for 4 seconds. Other friends can hold S nearby to shelter them.",
+            "两块带门形标记的石踏板需同时踩住 4 秒；其余队友可在旁边按 S 挡雨，中途离开会重新计时。",
+            "Hold both doorway-marked stone plates together for 4 seconds. Other friends can hold S nearby to shelter them. Stepping away resets the timer.",
           ];
     keys =
       distance(p, target) < 0.65 && Math.abs(p.y - target.y) < 0.4 ? ["S"] : [];

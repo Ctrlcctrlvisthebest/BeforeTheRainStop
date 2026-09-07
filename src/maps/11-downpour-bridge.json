@@ -197,7 +197,7 @@
         "x": 12,
         "y": 2.1,
         "z": 14,
-        "text": "带齐钥匙 · 两块圆垫等同伴"
+        "text": "门形踏板 · 站稳 4 秒开门"
       }
     ],
     "pads": [
@@ -528,7 +528,7 @@
     "暴雨前烤干 · 久烤会脆裂": "Dry before the downpour · do not overheat",
     "低檐桥钉 · Shift 借出纸面": "Low eaves · hold Shift at the bridge pins",
     "Q · 等火停或提前起跳": "Q · wait for the flame or jump early",
-    "带齐钥匙 · 两块圆垫等同伴": "Bring every key · wait together on the pads"
+    "门形踏板 · 站稳 4 秒开门": "Doorway plates · hold 4s to open the gate"
   },
   "crossing": {
     "x": 13.6,

@@ -104,7 +104,7 @@ export function validateMap(value: unknown): MapReport {
     });
   if (l.gate !== undefined) {
     platform(l.gate, "gate");
-    if (!l.pads?.length) fail("pads", "门需要至少一个圆垫");
+    if (!l.pads?.length) fail("pads", "门需要至少一个开门踏板");
   }
   list(l.winds, "winds", 24, (v, path) => {
     point(v, path);
@@ -182,7 +182,7 @@ export function validateMap(value: unknown): MapReport {
       fail(path, "渡台引导必须引用移动平台");
     if (v.kind === "wind") point(v.from, path + ".from");
     if (v.kind === "bridge" && !value.crossing) fail(path, "没有纸桥断口");
-    if (v.kind === "pads" && !l.pads?.length) fail(path, "没有圆垫");
+    if (v.kind === "pads" && !l.pads?.length) fail(path, "没有开门踏板");
     if (
       v.requiredKey !== undefined &&
       (!Number.isInteger(v.requiredKey) || !l.keys?.[v.requiredKey])

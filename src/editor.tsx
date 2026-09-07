@@ -65,8 +65,8 @@ const palette: [Tool, string, string][] = [
   ["winds", "↑ 风柱", "把纸鹤托向高台"],
   ["zones", "☂ 雨区", "调整覆盖范围与雨量"],
   ["crossing", "⇥ 纸桥组件", "自动放置两岸、低檐、侧栏与断口，每图一处"],
-  ["pads", "◎ 圆垫", "持续站住四秒开门，每图最多两块"],
-  ["gate", "▥ 机关门", "添加机关门；无圆垫时一并添加"],
+  ["pads", "▣ 开门踏板", "带门形标记的石踏板，站住四秒开门，每图最多两块"],
+  ["gate", "▥ 机关门", "添加机关门；无开门踏板时一并添加"],
   ["signs", "▧ 路牌", "写下玩家能看懂的提示"],
   ["route", "◇ 引导点", "按顺序引导走、跳、转面"],
   ["spawn", "● 起点", "六人会向右依次站开"],
@@ -420,7 +420,7 @@ function App() {
                   : e.kind === "checkpoints"
                     ? "架"
                     : e.kind === "pads"
-                      ? "◎"
+                      ? "门"
                       : e.kind === "signs"
                         ? "文"
                         : e.kind === "hazards"
@@ -464,7 +464,19 @@ function App() {
             strokeDasharray=".3 .2"
           />
         )}
-        {point ? (
+        {e.kind === "pads" ? (
+          <rect
+            x={p.u - 0.65}
+            y={p.v - 0.65}
+            width={1.3}
+            height={1.3}
+            rx={0.05}
+            fill="#697786"
+            stroke={sel ? "#fff7dd" : colors.pads}
+            vectorEffect="non-scaling-stroke"
+            strokeWidth={sel ? 3 : 1}
+          />
+        ) : point ? (
           <circle
             cx={p.u}
             cy={p.v}
@@ -1132,7 +1144,7 @@ function App() {
                                 bridge: "搭桥过岸",
                                 wind: "乘风上升",
                                 ferry: "乘坐渡台",
-                                pads: "圆垫开门",
+                                pads: "踏板开门",
                                 exit: "抵达终点",
                               } as Record<string, string>
                             )[k]
@@ -1357,7 +1369,7 @@ function App() {
             </ol>
             <p>
               每张图支持 1 处纸桥断口、1 道机关门和最多 2
-              块圆垫。试玩为单人；导出的地图可接入正式游戏的 1 / 2 / 3 / 6
+              块开门踏板。试玩为单人；导出的地图可接入正式游戏的 1 / 2 / 3 / 6
               人模式。
             </p>
             <p>

@@ -177,17 +177,17 @@ export const LESSONS: Record<Lesson, LessonData> = {
         "Collect all keys. The guide points you back if one is missing. Stars do not affect completion.",
       ],
       [
-        "有机关的关卡：单人踩一块圆垫，多人同时踩两块，连续保持 4 秒。中途离开会重新计时。",
-        "For a locked gate, hold one round pad in solo or two together in multiplayer for 4 seconds. Stepping away resets the timer.",
+        "找到带门形标记的石踏板：单人踩一块，多人同时踩两块，等四格灯亮满（4 秒）开门。中途离开会重新计时。",
+        "Find the stone plates with doorway marks: hold one in solo or two together in multiplayer until all four lights fill (4 seconds). Stepping away resets the timer.",
       ],
       [
-        "先完成断桥接应，开门圆垫才会供能。门开后每只纸鹤都走进金色灯门，才算通关。",
+        "先完成断桥接应，开门踏板才会供能。门开后每只纸鹤都走进金色灯门，才算通关。",
         "Repair any broken crossing before powering the gate pads. Once open, every crane must enter the golden lantern gate.",
       ],
     ],
     note: [
-      "圆垫是开门机关；断桥对岸的方板是接桥机关。它们不是同一个东西。",
-      "Round pads open the gate. The square plate across a gap lowers a bridge. They serve different purposes.",
+      "门形石踏板负责开门；断桥对岸的金色木踏板负责接桥。小火周围的细光圈标示烘干范围。",
+      "Doorway-marked stone plates open the gate. The gold wooden plate across a gap lowers the bridge. The thin ring around a small fire marks its drying range.",
     ],
   },
 };

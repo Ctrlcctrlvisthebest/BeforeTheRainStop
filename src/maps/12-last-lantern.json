@@ -196,7 +196,7 @@
         "x": 28,
         "y": 4.7,
         "z": -16,
-        "text": "站住圆垫 · S 挡雨等同伴"
+        "text": "门形踏板 · S 挡雨等同伴"
       }
     ],
     "pads": [
@@ -552,6 +552,6 @@
     "提前起跳 · 别贴近火堆": "Jump early · keep away from the flame",
     "窄渡台取钥匙 · 站稳再等靠岸": "Ride the narrow ferry through its key",
     "Q · 最后一段火廊": "Q · one last fire passage",
-    "站住圆垫 · S 挡雨等同伴": "Hold the pads · S to shelter friends"
+    "门形踏板 · S 挡雨等同伴": "Doorway plates · S to shelter friends"
   }
 }
