@@ -1,4 +1,4 @@
-import type { Level, Point, Platform } from "./game";
+import type { Level, Point } from "./game";
 import type { Weather } from "./weather";
 import type { BridgeCrossing } from "./bridges";
 import type { RouteStep } from "./guide";
@@ -17,6 +17,19 @@ export interface MapReport {
   errors: string[];
   warnings: string[];
 }
+export const MAP_LIMITS = {
+  platforms: 180,
+  keys: 80,
+  stars: 80,
+  pads: 2,
+  checkpoints: 80,
+  signs: 80,
+  winds: 24,
+  hazards: 60,
+  zones: 24,
+  awnings: 30,
+  route: 180,
+} as const;
 const object = (v: unknown): v is Record<string, any> =>
   !!v && typeof v === "object" && !Array.isArray(v);
 export function validateMap(value: unknown): MapReport {
@@ -93,9 +106,9 @@ export function validateMap(value: unknown): MapReport {
       fail(`level.${k}`, "需要 #RRGGBB 颜色");
   point(l.spawn, "spawn");
   point(l.exit, "exit");
-  list(l.platforms, "platforms", 180, platform);
+  list(l.platforms, "platforms", MAP_LIMITS.platforms, platform);
   for (const key of ["keys", "stars", "pads", "checkpoints", "signs"])
-    list(l[key], key, key === "pads" ? 2 : 80, (v, path) => {
+    list(l[key], key, MAP_LIMITS[key as keyof typeof MAP_LIMITS], (v, path) => {
       point(v, path);
       if (!object(v)) return;
       if (v.text !== undefined) str(v.text, path + ".text", 100);
@@ -106,14 +119,14 @@ export function validateMap(value: unknown): MapReport {
     platform(l.gate, "gate");
     if (!l.pads?.length) fail("pads", "门需要至少一个开门踏板");
   }
-  list(l.winds, "winds", 24, (v, path) => {
+  list(l.winds, "winds", MAP_LIMITS.winds, (v, path) => {
     point(v, path);
     if (object(v)) {
       size(v, path);
       num(v.height, path + ".height", 0.5, 20);
     }
   });
-  list(l.hazards, "hazards", 60, (v, path) => {
+  list(l.hazards, "hazards", MAP_LIMITS.hazards, (v, path) => {
     point(v, path);
     if (object(v)) {
       size(v, path);
@@ -121,7 +134,7 @@ export function validateMap(value: unknown): MapReport {
     }
   });
   num(w.period, "weather.period", 2, 60);
-  list(w.zones, "weather.zones", 24, (v, path) => {
+  list(w.zones, "weather.zones", MAP_LIMITS.zones, (v, path) => {
     if (!object(v)) {
       fail(path, "需要雨区对象");
       return;
@@ -130,7 +143,7 @@ export function validateMap(value: unknown): MapReport {
     size(v, path);
     num(v.rate, path + ".rate", 0, 50);
   });
-  list(w.awnings, "weather.awnings", 30, (v, path) => {
+  list(w.awnings, "weather.awnings", MAP_LIMITS.awnings, (v, path) => {
     point(v, path);
     if (object(v)) {
       size(v, path);
@@ -147,7 +160,7 @@ export function validateMap(value: unknown): MapReport {
       num(c.depth, "crossing.depth", 1, 5);
     }
   }
-  list(value.route, "route", 180, (v, path) => {
+  list(value.route, "route", MAP_LIMITS.route, (v, path) => {
     if (!object(v)) {
       fail(path, "需要引导点");
       return;
@@ -178,7 +191,11 @@ export function validateMap(value: unknown): MapReport {
             : null;
     if (ref && (!Number.isInteger(v.id) || !ref[v.id]))
       fail(path + ".id", "引用对象不存在（编号从 0 开始）");
-    if (v.kind === "ferry" && !l.platforms?.[v.id]?.motion)
+    if (
+      v.kind === "ferry" &&
+      Number.isInteger(v.id) &&
+      !l.platforms?.[v.id]?.motion
+    )
       fail(path, "渡台引导必须引用移动平台");
     if (v.kind === "wind") point(v.from, path + ".from");
     if (v.kind === "bridge" && !value.crossing) fail(path, "没有纸桥断口");
@@ -195,6 +212,11 @@ export function validateMap(value: unknown): MapReport {
     value.route.at(-1)?.kind !== "exit"
   )
     fail("route", "最后一个引导点必须是终点 exit");
+  if (
+    Array.isArray(value.route) &&
+    value.route.slice(0, -1).some((r) => r?.kind === "exit")
+  )
+    fail("route", "终点引导只能出现一次，并且必须放在最后");
   if (value.translations !== undefined) {
     if (
       !object(value.translations) ||
@@ -250,7 +272,77 @@ export function validateMap(value: unknown): MapReport {
 export function parseMap(value: unknown): MapFile {
   const report = validateMap(value);
   if (report.errors.length) throw new Error(report.errors.join("\n"));
-  return JSON.parse(JSON.stringify(value)) as MapFile;
+  // Validation covers schema fields only. Never let unknown target/motion
+  // properties reach the editor's generic inspector or coordinate helpers.
+  const m = value as MapFile;
+  const pick = <T extends object, K extends keyof T>(
+    v: T,
+    keys: readonly K[],
+  ): Pick<T, K> =>
+    Object.fromEntries(
+      keys.filter((k) => v[k] !== undefined).map((k) => [k, v[k]]),
+    ) as Pick<T, K>;
+  const point = (v: Point) => pick(v, ["x", "y", "z"]);
+  const platform = (v: MapFile["level"]["platforms"][number]) => ({
+    ...point(v),
+    ...pick(v, ["w", "d", "h", "kind"]),
+    ...(v.motion
+      ? { motion: pick(v.motion, ["axis", "range", "period"]) }
+      : {}),
+  });
+  const marker = (v: MapFile["level"]["signs"][number]) => ({
+    ...point(v),
+    ...pick(v, ["text", "view"]),
+  });
+  return {
+    format: m.format,
+    version: m.version,
+    level: {
+      ...pick(m.level, ["name", "sub", "hint", "color", "sky"]),
+      spawn: point(m.level.spawn),
+      exit: point(m.level.exit),
+      platforms: m.level.platforms.map(platform),
+      keys: m.level.keys.map(point),
+      stars: m.level.stars.map(point),
+      pads: m.level.pads.map(point),
+      checkpoints: m.level.checkpoints.map(marker),
+      signs: m.level.signs.map(marker),
+      winds: m.level.winds.map((v) => ({
+        ...point(v),
+        ...pick(v, ["w", "d", "height"]),
+      })),
+      hazards: m.level.hazards.map((v) => ({
+        ...point(v),
+        ...pick(v, ["w", "d", "period"]),
+      })),
+      ...(m.level.gate ? { gate: platform(m.level.gate) } : {}),
+    },
+    weather: {
+      period: m.weather.period,
+      zones: m.weather.zones.map((v) => pick(v, ["x", "z", "w", "d", "rate"])),
+      awnings: m.weather.awnings.map((v) => ({
+        ...point(v),
+        ...pick(v, ["w", "d", "floor"]),
+      })),
+    },
+    ...(m.crossing
+      ? {
+          crossing: {
+            ...point(m.crossing),
+            ...pick(m.crossing, ["axis", "near", "span", "depth"]),
+          },
+        }
+      : {}),
+    route: m.route.map((v) => ({
+      kind: v.kind,
+      view: v.view,
+      target: point(v.target),
+      ...(["key", "rack", "ferry"].includes(v.kind) ? pick(v, ["id"]) : {}),
+      ...(v.kind === "ferry" ? pick(v, ["requiredKey"]) : {}),
+      ...(v.kind === "wind" && v.from ? { from: point(v.from) } : {}),
+    })),
+    ...(m.translations ? { translations: { ...m.translations } } : {}),
+  } as MapFile;
 }
 export function serializeMap(map: MapFile) {
   return JSON.stringify(parseMap(map), null, 2) + "\n";

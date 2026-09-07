@@ -1,14 +1,24 @@
-import { type MapFile } from "./map-format";
+import { MAP_LIMITS, type MapFile } from "./map-format";
 import type { Platform, Point } from "./game";
+import { bankPoint } from "./bridges";
+const defaultMotion = (): NonNullable<Platform["motion"]> => ({
+  axis: "x",
+  range: 2.2,
+  period: 6,
+});
 
 export function platformStylePatch(
   platform: Platform,
   kind: string,
 ): Partial<Platform> {
+  if (
+    !["normal", "wall", "step", "moving", "low-roof", "railing"].includes(kind)
+  )
+    return {};
   return {
     kind: kind === "normal" ? undefined : (kind as Platform["kind"]),
     ...(kind === "moving" && !platform.motion
-      ? { motion: { axis: "x" as const, range: 2.2, period: 6 } }
+      ? { motion: defaultMotion() }
       : {}),
   };
 }
@@ -18,7 +28,7 @@ export function platformMotionPatch(
 ): Partial<Platform> {
   return moving
     ? {
-        motion: platform.motion ?? { axis: "x", range: 2.2, period: 6 },
+        motion: platform.motion ?? defaultMotion(),
         ...(platform.kind ? {} : { kind: "moving" }),
       }
     : {
@@ -83,22 +93,43 @@ function container(map: MapFile, kind: EntityKind): any {
       : map.level;
 }
 export function entity(map: MapFile, s: Selection): any {
+  if (
+    !Object.hasOwn(entityNames, s.kind) ||
+    !Number.isInteger(s.index) ||
+    s.index < 0
+  )
+    return undefined;
   const v = container(map, s.kind)[s.kind];
-  return Array.isArray(v) ? v[s.index] : v;
+  return Array.isArray(v) ? v[s.index] : s.index === 0 ? v : undefined;
 }
 export function pointOf(data: any): Point {
   return data.target ?? { x: data.x, y: data.y ?? 0, z: data.z };
 }
 export function syncRoute(map: MapFile) {
+  const exit = map.route.find((r) => r.kind === "exit") ?? {
+    kind: "exit" as const,
+    target: { ...map.level.exit },
+    view: 0 as const,
+  };
+  map.route = map.route.filter((r) => r.kind !== "exit");
+  if (!map.level.gate || !map.level.pads.length)
+    map.route = map.route.filter((r) => r.kind !== "pads");
+  else if (!map.route.some((r) => r.kind === "pads"))
+    map.route.push({ kind: "pads", target: { ...map.level.pads[0] }, view: 0 });
+  map.route.push(exit);
   map.route.forEach((r) => {
     if (r.kind === "key" && map.level.keys[r.id!])
       r.target = { ...map.level.keys[r.id!], y: map.level.keys[r.id!].y - 0.7 };
     if (r.kind === "rack" && map.level.checkpoints[r.id!])
       r.target = { ...map.level.checkpoints[r.id!] };
     if (r.kind === "exit") r.target = { ...map.level.exit };
+    if (r.kind === "pads" && map.level.pads[0])
+      r.target = { ...map.level.pads[0] };
+    if (r.kind === "bridge" && map.crossing) {
+      r.target = bankPoint(map.crossing, map.crossing.near === -1 ? 1 : -1);
+      r.view = map.crossing.axis === "x" ? 0 : 1;
+    }
   });
-  if (map.route.at(-1)?.kind !== "exit")
-    map.route.push({ kind: "exit", target: { ...map.level.exit }, view: 0 });
 }
 export function editEntity(
   map: MapFile,
@@ -107,10 +138,15 @@ export function editEntity(
 ): MapFile {
   const next = structuredClone(map),
     item = entity(next, s);
-  if (!item) return next;
+  if (!item) return map;
   if (s.kind === "route") {
     const { x, y, z, ...rest } = patch;
+    // The terminal route step is structural; changing its kind would recreate it.
+    if (item.kind === "exit" && rest.kind && rest.kind !== "exit") return map;
     Object.assign(item, rest);
+    if (!["key", "rack", "ferry"].includes(item.kind)) delete item.id;
+    if (item.kind !== "ferry") delete item.requiredKey;
+    if (item.kind !== "wind") delete item.from;
     if (x !== undefined) item.target.x = x;
     if (y !== undefined) item.target.y = y;
     if (z !== undefined) item.target.z = z;
@@ -119,8 +155,14 @@ export function editEntity(
   return next;
 }
 export function removeEntity(map: MapFile, s: Selection): MapFile {
+  const item = entity(map, s);
+  if (
+    !item ||
+    ["spawn", "exit"].includes(s.kind) ||
+    (s.kind === "route" && item.kind === "exit")
+  )
+    return map;
   const next = structuredClone(map);
-  if (["spawn", "exit"].includes(s.kind)) return next;
   const c = container(next, s.kind),
     v = c[s.kind];
   if (Array.isArray(v)) v.splice(s.index, 1);
@@ -162,6 +204,14 @@ export function addEntity(
   tool: Tool,
   point: Point,
 ): { map: MapFile; selection: Selection } {
+  if (
+    tool === "select" ||
+    tool === "pan" ||
+    !(Object.hasOwn(entityNames, tool) || tool === "moving" || tool === "wall")
+  )
+    throw new Error("请先选择要添加的物件。");
+  if (tool === "crossing" && map.crossing)
+    throw new Error("每张地图只能放置一处纸桥断口。");
   const next = structuredClone(map),
     p = { ...point };
   const kind: EntityKind =
@@ -178,7 +228,7 @@ export function addEntity(
       Object.assign(data, {
         w: 2.4,
         kind: "moving",
-        motion: { axis: "x", range: 2.2, period: 6 },
+        motion: defaultMotion(),
       });
     if (tool === "wall") Object.assign(data, { y: p.y + 4, kind: "wall" });
   }
@@ -235,10 +285,14 @@ export function addEntity(
       id: index,
     });
   syncRoute(next);
+  checkCapacity(map, next);
   return { map: next, selection: { kind, index } };
 }
 export function duplicateEntity(map: MapFile, s: Selection) {
-  if (["spawn", "exit", "gate", "crossing", "route"].includes(s.kind))
+  if (
+    !entity(map, s) ||
+    ["spawn", "exit", "gate", "crossing", "route"].includes(s.kind)
+  )
     return { map, selection: s };
   const next = structuredClone(map),
     list = container(next, s.kind)[s.kind],
@@ -254,5 +308,17 @@ export function duplicateEntity(map: MapFile, s: Selection) {
       view: 0,
     });
   syncRoute(next);
+  checkCapacity(map, next);
   return { map: next, selection: { kind: s.kind, index } };
+}
+
+function checkCapacity(before: MapFile, after: MapFile) {
+  for (const [kind, limit] of Object.entries(MAP_LIMITS)) {
+    const key = kind as EntityKind;
+    const count = container(after, key)[key].length;
+    if (count > limit && count > container(before, key)[key].length)
+      throw new Error(
+        `${entityNames[key]}最多 ${limit} 个；本次操作未修改地图。`,
+      );
+  }
 }

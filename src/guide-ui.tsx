@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { LEVELS, type Game } from "./game";
 import { words, type Guidance, type Lesson, type Copy } from "./guide";
 import type { Language } from "./i18n";

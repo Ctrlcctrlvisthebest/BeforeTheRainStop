@@ -11,7 +11,7 @@ import { createRoot } from "react-dom/client";
 import { LEVELS, type Point } from "./game";
 import { WEATHER } from "./weather";
 import { CROSSINGS, bankPoint } from "./bridges";
-import { GUIDE_ROUTES, type RouteStep } from "./guide";
+import { GUIDE_ROUTES } from "./guide";
 import { translate } from "./i18n";
 import {
   parseMap,
@@ -270,10 +270,18 @@ function App() {
       setNotice("每图支持一处纸桥断口。先选中已有断口调整，或删除后重建。");
       return;
     }
-    const result = addEntity(map, tool, unproject(snapTo(uv.u), snapTo(uv.v)));
-    commit(result.map);
-    setSelection(result.selection);
-    setTool("select");
+    try {
+      const result = addEntity(
+        map,
+        tool,
+        unproject(snapTo(uv.u), snapTo(uv.v)),
+      );
+      commit(result.map);
+      setSelection(result.selection);
+      setTool("select");
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : "无法添加物件");
+    }
   }
   function move(e: React.PointerEvent) {
     const d = drag.current;
@@ -777,6 +785,9 @@ function App() {
               onPointerMove={move}
               onPointerUp={() => end()}
               onPointerCancel={() => end(true)}
+              onLostPointerCapture={() => {
+                if (drag.current) end(true);
+              }}
               onContextMenu={(e) => e.preventDefault()}
             >
               <defs>
@@ -1239,6 +1250,7 @@ function App() {
                     引导动作
                     <select
                       value={item.kind}
+                      disabled={item.kind === "exit"}
                       onChange={(e) => {
                         const kind = e.target.value;
                         const references =
@@ -1406,7 +1418,7 @@ function App() {
                     </button>
                   </div>
                   <p className="muted">
-                    钥匙、许愿架和终点引导会跟随原对象坐标。路线顺序请按实际行走顺序排列。
+                    钥匙、许愿架、纸桥、踏板和终点引导会跟随原对象坐标。路线顺序请按实际行走顺序排列。
                   </p>
                 </>
               )}
@@ -1420,9 +1432,15 @@ function App() {
                     "route",
                   ].includes(selection.kind)}
                   onClick={() => {
-                    const r = duplicateEntity(map, selection);
-                    commit(r.map);
-                    setSelection(r.selection);
+                    try {
+                      const r = duplicateEntity(map, selection);
+                      commit(r.map);
+                      setSelection(r.selection);
+                    } catch (e) {
+                      setNotice(
+                        e instanceof Error ? e.message : "无法复制物件",
+                      );
+                    }
                   }}
                 >
                   复制

@@ -70,7 +70,6 @@ const wind = (x: number, z: number, y: number, from: Point): RouteStep => ({
   from,
 });
 const ferry = (
-  level: number,
   id: number,
   x: number,
   z: number,
@@ -129,7 +128,7 @@ export const GUIDE_ROUTES: RouteStep[][] = [
     jump(16, -7, 1.2),
     rack(2, 1),
     walk(20, -7, 0, 1.2),
-    ferry(2, 5, 26, -7, 1.2),
+    ferry(5, 26, -7, 1.2),
     exit(2),
   ],
   [
@@ -173,14 +172,14 @@ export const GUIDE_ROUTES: RouteStep[][] = [
   ],
   [
     walk(3.5, 0),
-    ferry(5, 2, 14, 0, 0, 0),
+    ferry(2, 14, 0, 0, 0),
     rack(5, 0),
     wind(18, 0, 3.3, pt(16.5, 0)),
     key(5, 1, 1),
     walk(18, -7, 1, 3.3),
     rack(5, 1),
     walk(23.6, -7, 0, 3.3),
-    ferry(5, 7, 34.5, -7, 3.3, 2),
+    ferry(7, 34.5, -7, 3.3, 2),
     rack(5, 2),
     exit(5),
   ],
@@ -218,7 +217,7 @@ export const GUIDE_ROUTES: RouteStep[][] = [
     walk(0, -16, 1, 2.5),
     rack(7, 2),
     walk(10.2, -16, 0, 1.2),
-    ferry(7, 8, 18.2, -16, 1.2, 2),
+    ferry(8, 18.2, -16, 1.2, 2),
     rack(7, 3),
     pads(7),
     walk(19.3, -16, 0, 1.2),

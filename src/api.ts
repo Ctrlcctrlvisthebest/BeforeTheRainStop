@@ -10,7 +10,7 @@ export interface ApiResult {
   token?: string;
   slot?: number;
 }
-export const SERVICE = (import.meta.env.VITE_ROOM_SERVER_URL ?? "").replace(
+export const SERVICE = (import.meta.env?.VITE_ROOM_SERVER_URL ?? "").replace(
   /\/$/,
   "",
 );
@@ -32,19 +32,20 @@ export async function api(
   if (!r.ok) throw new Error(data.error ?? "暂时无法连接房间");
   return data;
 }
-export function stored<T>(storage: Storage, key: string): T | null {
-  try {
-    return JSON.parse(storage.getItem(key) ?? "null") as T | null;
-  } catch {
-    return null;
-  }
-}
-export function save(storage: Storage, key: string, value: unknown): void {
-  try {
-    storage.setItem(key, JSON.stringify(value));
-  } catch {
-    /*Play without persistence when storage is unavailable.*/
-  }
+export function validSession(value: unknown): value is Session {
+  if (!value || typeof value !== "object") return false;
+  const s = value as Session;
+  return (
+    typeof s.code === "string" &&
+    /^[A-HJ-NP-Z2-9]{8}$/.test(s.code) &&
+    typeof s.token === "string" &&
+    /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(
+      s.token,
+    ) &&
+    Number.isInteger(s.slot) &&
+    s.slot >= 0 &&
+    s.slot < 6
+  );
 }
 export class Connection {
   private ws: WebSocket | null = null;
@@ -62,16 +63,20 @@ export class Connection {
     this.connect();
   }
   private connect() {
+    if (this.disposed) return;
     const base = SERVICE || location.origin;
     const url = new URL(`/api/rooms/${this.session.code}/ws`, base);
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
     const ws = new WebSocket(url);
     this.ws = ws;
+    const active = () => !this.disposed && this.ws === ws;
     ws.onopen = () => {
+      if (!active()) return;
       this.seq = 0;
       ws.send(JSON.stringify({ type: "hello", token: this.session.token }));
     };
     ws.onmessage = (e) => {
+      if (!active()) return;
       try {
         const m = JSON.parse(e.data);
         if (m.type === "state") {
@@ -84,6 +89,8 @@ export class Connection {
       }
     };
     ws.onclose = (e) => {
+      if (!active()) return;
+      this.ws = null;
       this.status(false);
       if (this.pingTimer) clearInterval(this.pingTimer);
       if (e.code === 4001 || e.code === 1008) {
@@ -100,9 +107,11 @@ export class Connection {
           Math.min(5000, 500 * 2 ** this.retries++),
         );
     };
-    ws.onerror = () => this.status(false);
+    ws.onerror = () => {
+      if (active()) this.status(false);
+    };
     this.pingTimer = setInterval(() => {
-      if (ws.readyState === 1)
+      if (active() && ws.readyState === 1)
         ws.send(JSON.stringify({ type: "ping", t: Date.now() }));
     }, 5000);
   }
@@ -121,6 +130,11 @@ export class Connection {
     this.disposed = true;
     if (this.timer) clearTimeout(this.timer);
     if (this.pingTimer) clearInterval(this.pingTimer);
-    this.ws?.close(1000, "离开");
+    const ws = this.ws;
+    this.ws = null;
+    if (ws) {
+      ws.onopen = ws.onmessage = ws.onclose = ws.onerror = null;
+      ws.close(1000, "离开");
+    }
   }
 }

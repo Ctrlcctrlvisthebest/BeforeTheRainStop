@@ -1,3 +1,4 @@
+import { disposeObjectTree, platformVisual } from "./scene-resources";
 import { translate, type Language } from "./i18n";
 import { touchCopy } from "./mobile";
 import { CROSSINGS, bankPoint, bridgePlank } from "./bridges";
@@ -427,7 +428,7 @@ export class PaperScene {
     const translated = translate(this.language, text);
     return this.compact ? touchCopy(translated, this.language) : translated;
   }
-  constructor(private canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: true,
@@ -471,24 +472,7 @@ export class PaperScene {
     this.resize.observe(canvas);
   }
   private build(g: Game) {
-    this.root.traverse((o) => {
-      if (
-        o instanceof THREE.Mesh ||
-        o instanceof THREE.LineSegments ||
-        o instanceof THREE.Points
-      ) {
-        o.geometry.dispose();
-        const mats = Array.isArray(o.material) ? o.material : [o.material];
-        mats.forEach((m) => {
-          if (m instanceof THREE.MeshStandardMaterial) m.map?.dispose();
-          m.dispose();
-        });
-      }
-      if (o instanceof THREE.Sprite) {
-        o.material.map?.dispose();
-        o.material.dispose();
-      }
-    });
+    disposeObjectTree(this.root);
     this.root.clear();
     this.guideMarker = new THREE.Group();
     const guideMaterial = new THREE.MeshBasicMaterial({
@@ -541,13 +525,7 @@ export class PaperScene {
       // Show the corridor as a cutaway: its solid upper walls are out of play.
       const corridor = b.kind === "low-roof" || b.kind === "railing";
       const node = slab(
-        corridor
-          ? {
-              ...b,
-              y: b.kind === "low-roof" ? 1.19 : 1.1,
-              h: b.kind === "low-roof" ? 0.18 : 1.1,
-            }
-          : b,
+        platformVisual(b),
         corridor
           ? "#766452"
           : b.kind === "wall"
@@ -597,7 +575,7 @@ export class PaperScene {
           material("#e3b875"),
         );
         socket.rotation.x = -Math.PI / 2;
-        socket.position.set(bank.x, 0.07, bank.z);
+        socket.position.set(bank.x, bank.y + 0.07, bank.z);
         this.root.add(socket);
         for (const edge of [-1, 1]) {
           const pin = new THREE.Mesh(
@@ -606,7 +584,7 @@ export class PaperScene {
           );
           pin.position.set(
             crossing.axis === "x" ? bank.x : bank.x + edge * 0.65,
-            0.17,
+            bank.y + 0.17,
             crossing.axis === "z" ? bank.z : bank.z + edge * 0.65,
           );
           this.root.add(pin);
@@ -617,7 +595,7 @@ export class PaperScene {
         new THREE.BoxGeometry(0.8, 0.1, 0.8),
         material("#c08e52"),
       );
-      this.crossingPad.position.set(far.x, 0.08, far.z);
+      this.crossingPad.position.set(far.x, far.y + 0.08, far.z);
       this.root.add(this.crossingPad);
       this.crossingLabel = textSprite(
         this.text(
@@ -628,7 +606,7 @@ export class PaperScene {
         "#eac58e",
         0.62,
       );
-      this.crossingLabel.position.set(far.x, 2.9, far.z);
+      this.crossingLabel.position.set(far.x, far.y + 2.9, far.z);
       this.root.add(this.crossingLabel);
     }
     if (l.gate) {
@@ -1045,11 +1023,7 @@ export class PaperScene {
     this.camera.updateProjectionMatrix();
     this.tiles.forEach((node, i) => {
       const b = platformAt(l.platforms[i], g.motionTime);
-      node.position.set(
-        b.x,
-        b.kind === "low-roof" ? 1.19 : b.kind === "railing" ? 1.1 : b.y,
-        b.z,
-      );
+      node.position.set(b.x, platformVisual(b).y, b.z);
       const distance =
         g.view === 0 ? Math.abs(b.z - player.z) : Math.abs(b.x - player.x);
       const depth = g.view === 0 ? b.d : b.w;
@@ -1180,7 +1154,7 @@ export class PaperScene {
       this.crossingDeck.visible = g.bridgeLatched;
       this.crossingDeck.position.y = THREE.MathUtils.damp(
         this.crossingDeck.position.y,
-        g.bridgeLatched ? 0 : -0.8,
+        CROSSINGS[g.level].y + (g.bridgeLatched ? 0 : -0.8),
         5,
         dt,
       );
@@ -1327,24 +1301,7 @@ export class PaperScene {
   }
   dispose() {
     this.resize.disconnect();
-    this.root.traverse((o) => {
-      if (
-        o instanceof THREE.Mesh ||
-        o instanceof THREE.LineSegments ||
-        o instanceof THREE.Points
-      ) {
-        o.geometry.dispose();
-        const mats = Array.isArray(o.material) ? o.material : [o.material];
-        mats.forEach((m) => {
-          if (m instanceof THREE.MeshStandardMaterial) m.map?.dispose();
-          m.dispose();
-        });
-      }
-      if (o instanceof THREE.Sprite) {
-        o.material.map?.dispose();
-        o.material.dispose();
-      }
-    });
+    disposeObjectTree(this.root);
     this.renderer.dispose();
   }
 }

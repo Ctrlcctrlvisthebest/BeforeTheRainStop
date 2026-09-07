@@ -50,6 +50,104 @@ function peer(code: string, token: string) {
   };
   return p;
 }
+for (const transport of ["http", "websocket"] as const)
+  test(`${transport} leave revokes the open socket before a replacement takes that seat`, async () => {
+    const created = await post("/rooms", {
+      capacity: 2,
+      level: 0,
+      name: "host",
+    });
+    const joined = await post(`/rooms/${created.room.code}/join`, {
+      name: "departing",
+    });
+    const host = peer(created.room.code, created.token),
+      old = peer(created.room.code, joined.token);
+    let replacement: ReturnType<typeof peer> | undefined;
+    try {
+      await until(
+        () => !!host.room?.players.every((p) => p.online),
+        "both seats connected",
+      );
+      if (transport === "http") {
+        const response = await fetch(
+          `${base}/api/rooms/${created.room.code}/command`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${joined.token}`,
+            },
+            body: JSON.stringify({ type: "leave" }),
+          },
+        );
+        assert.equal(response.status, 200);
+      } else
+        old.ws.send(
+          JSON.stringify({ type: "command", command: { type: "leave" } }),
+        );
+      await until(
+        () =>
+          old.ws.readyState === WebSocket.CLOSED &&
+          host.room?.players.length === 1,
+        "departing socket revoked",
+      );
+      const next = await post(`/rooms/${created.room.code}/join`, {
+        name: "replacement",
+      });
+      assert.equal(next.slot, joined.slot);
+      replacement = peer(created.room.code, next.token);
+      await until(
+        () => !!host.room?.players.every((p) => p.online),
+        "replacement connected",
+      );
+      const rejected = await fetch(
+        `${base}/api/rooms/${created.room.code}/command`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${joined.token}`,
+          },
+          body: JSON.stringify({ type: "leave" }),
+        },
+      );
+      assert.equal(rejected.status, 401);
+      replacement.ws.send("[]");
+      await until(
+        () => replacement!.errors.includes("消息格式无效"),
+        "array message rejected",
+      );
+      host.ws.send(
+        JSON.stringify({ type: "command", command: { type: "start" } }),
+      );
+      await until(
+        () => !!replacement!.room?.game,
+        "replacement can start normally",
+      );
+      assert.equal(
+        replacement.room!.players.find((p) => p.slot === next.slot)!.online,
+        true,
+      );
+      const x = replacement.room!.game!.players[next.slot].x;
+      replacement.ws.send(
+        JSON.stringify({
+          type: "input",
+          gameId: replacement.room!.game!.id,
+          seq: 1,
+          input: { ...idleInput(), axis: 1 },
+        }),
+      );
+      await until(
+        () => replacement!.room!.game!.players[next.slot].x > x + 0.3,
+        "replacement owns movement",
+      );
+      assert.deepEqual(host.errors, []);
+    } finally {
+      host.ws.close();
+      old.ws.close();
+      replacement?.ws.close();
+    }
+  });
 for (const [n, level] of [
   [2, 0],
   [3, 0],

@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { save, stored } from "./api";
+import { save, stored } from "./storage";
 import { translate, type Language } from "./i18n";
 
 type Playback = "ready" | "loading" | "playing" | "paused" | "error";
 export function useGameAudio(inGame: boolean) {
   const player = useRef<HTMLAudioElement>(null);
   const enabled = useRef(
-    stored<boolean>(localStorage, "rain-music-enabled") !== false,
+    stored<boolean>("local", "rain-music-enabled") !== false,
   );
   const [state, setState] = useState<Playback>("ready");
   const [volume, setVolumeState] = useState(() => {
-    const saved = stored<number>(localStorage, "rain-music-volume");
+    const saved = stored<number>("local", "rain-music-volume");
     return typeof saved === "number" && Number.isFinite(saved)
       ? Math.max(0, Math.min(100, saved))
       : 60;
@@ -24,7 +24,7 @@ export function useGameAudio(inGame: boolean) {
 
   function setEnabled(value: boolean) {
     enabled.current = value;
-    save(localStorage, "rain-music-enabled", value);
+    save("local", "rain-music-enabled", value);
   }
   function unlockEffects() {
     try {
@@ -74,7 +74,7 @@ export function useGameAudio(inGame: boolean) {
   function setVolume(value: number) {
     const next = Math.max(0, Math.min(100, value));
     setVolumeState(next);
-    save(localStorage, "rain-music-volume", next);
+    save("local", "rain-music-volume", next);
   }
   function effect(freq: number) {
     const context = fx.current;

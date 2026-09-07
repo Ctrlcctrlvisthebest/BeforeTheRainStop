@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   LEVELS,
@@ -16,7 +16,9 @@ import {
   type Inputs,
   type Mode,
 } from "./game";
-import { api, Connection, save, stored, type Session } from "./api";
+import { api, Connection, validSession, type Session } from "./api";
+import { save, stored, forget } from "./storage";
+import { KeyboardInput, bindGameKeyboard } from "./keyboard-input";
 import type { PublicRoom } from "./room";
 import { PaperScene } from "./scene";
 import "./style.css";
@@ -38,13 +40,13 @@ function App() {
   const [toolsOpen, setToolsOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [language, setLanguage] = useState<Language>(() =>
-    stored<string>(localStorage, "rain-language") === "en" ? "en" : "zh",
+    stored<string>("local", "rain-language") === "en" ? "en" : "zh",
   );
   const languageRef = useRef(language);
   languageRef.current = language;
   const t = (text: string) => translate(language, text);
   useEffect(() => {
-    save(localStorage, "rain-language", language);
+    save("local", "rain-language", language);
     document.documentElement.lang = language === "zh" ? "zh-CN" : "en";
     document.title =
       translate(language, "雨停之前") + " · " + translate(language, "纸上祈愿");
@@ -53,18 +55,22 @@ function App() {
     scene = useRef<PaperScene | null>(null),
     game = useRef<Game>(newGame(1)),
     input = useRef<Input>(idleInput()),
-    keyboardInput = useRef<Input>(idleInput()),
+    keyboardInput = useRef(new KeyboardInput()),
     touchInput = useRef(new TouchInput()),
     others = useRef<Inputs>({}),
     connection = useRef<Connection | null>(null),
     currentRoom = useRef<PublicRoom | null>(null),
     currentSession = useRef<Session | null>(null),
     phaseRef = useRef("menu"),
-    authTime = useRef(0);
+    authTime = useRef(0),
+    sessionAttempt = useRef(0);
   const [phase, setPhase] = useState("menu"),
     [mode, setMode] = useState<Mode>(1),
     [level, setLevel] = useState(0),
-    [name, setName] = useState(stored<string>(localStorage, "rain-name") ?? ""),
+    [name, setName] = useState(() => {
+      const saved = stored<unknown>("local", "rain-name");
+      return typeof saved === "string" ? saved.slice(0, 20) : "";
+    }),
     [code, setCode] = useState(initialCode),
     [room, setRoom] = useState<PublicRoom | null>(null),
     [session, setSession] = useState<Session | null>(null),
@@ -74,7 +80,7 @@ function App() {
     [hud, setHud] = useState<Game>(newGame(1)),
     [help, setHelp] = useState(false);
   const [guideEnabled, setGuideEnabled] = useState(
-    () => stored<boolean>(localStorage, "rain-guide") !== false,
+    () => stored<boolean>("local", "rain-guide") !== false,
   );
   const [helpLesson, setHelpLesson] = useState<Lesson>("basics");
   const helpRef = useRef(help),
@@ -85,15 +91,12 @@ function App() {
   const guide = useRef<ReturnType<typeof guideFor> | null>(null);
   if (!guide.current)
     guide.current = guideFor(game.current, 0, guideTracker.current);
-  useEffect(
-    () => save(localStorage, "rain-guide", guideEnabled),
-    [guideEnabled],
-  );
+  useEffect(() => save("local", "rain-guide", guideEnabled), [guideEnabled]);
   function learn(lesson: Lesson) {
     setToolsOpen(false);
     setMapOpen(false);
     touchInput.current.clear();
-    keyboardInput.current = idleInput();
+    keyboardInput.current.clear();
     input.current = idleInput();
     if (currentSession.current && phaseRef.current === "game")
       connection.current?.input(game.current.id, input.current);
@@ -108,14 +111,14 @@ function App() {
     phaseRef.current = p;
     setPhase(p);
     input.current = idleInput();
-    keyboardInput.current = idleInput();
+    keyboardInput.current.clear();
     touchInput.current.clear();
     setToolsOpen(false);
     setMapOpen(false);
   }
   function toggleMobilePanel(panel: "tools" | "map") {
     touchInput.current.clear();
-    keyboardInput.current = idleInput();
+    keyboardInput.current.clear();
     input.current = idleInput();
     if (currentSession.current)
       connection.current?.input(game.current.id, input.current);
@@ -156,21 +159,33 @@ function App() {
     if (r.phase !== phaseRef.current) changePhase(r.phase);
   }
   function enter(s: Session) {
+    sessionAttempt.current++;
     connection.current?.close();
+    setConnected(false);
     currentSession.current = s;
     setSession(s);
-    save(sessionStorage, KEY, s);
+    save("session", KEY, s);
     changePhase("lobby");
     connection.current = new Connection(s, receive, setConnected, setError);
   }
   useEffect(() => {
-    const s = stored<Session>(sessionStorage, KEY);
-    if (s && s.code && s.token && (!initialCode || initialCode === s.code)) {
+    const attempt = sessionAttempt.current;
+    let cancelled = false;
+    const s = stored<unknown>("session", KEY);
+    if (validSession(s) && (!initialCode || initialCode === s.code)) {
       void api(`/rooms/${s.code}`, undefined, s.token)
-        .then(() => enter(s))
-        .catch(() => sessionStorage.removeItem(KEY));
+        .then(() => {
+          if (!cancelled && attempt === sessionAttempt.current) enter(s);
+        })
+        .catch(() => {
+          if (!cancelled && attempt === sessionAttempt.current)
+            forget("session", KEY);
+        });
     }
-    return () => connection.current?.close();
+    return () => {
+      cancelled = true;
+      connection.current?.close();
+    };
   }, []);
   useEffect(() => {
     const s = new PaperScene(canvas.current!);
@@ -187,7 +202,10 @@ function App() {
       const playing = phaseRef.current === "game";
       input.current = helpRef.current
         ? idleInput()
-        : mergeInput(keyboardInput.current, touchInput.current.read(now));
+        : mergeInput(
+            keyboardInput.current.read(now),
+            touchInput.current.read(now),
+          );
       if (playing) {
         if (!currentSession.current && helpRef.current) {
           acc = 0;
@@ -250,113 +268,33 @@ function App() {
       s.dispose();
     };
   }, []);
-  useEffect(() => {
-    const held = new Set<string>();
-    const pressedAt = new Map<string, number>();
-    const releases = new Map<string, ReturnType<typeof setTimeout>>();
-    const refresh = () => {
-      keyboardInput.current = helpRef.current
-        ? idleInput()
-        : {
-            axis:
-              (held.has("ArrowRight") || held.has("KeyD") ? 1 : 0) -
-              (held.has("ArrowLeft") || held.has("KeyA") ? 1 : 0),
-            jump: held.has("Space") || held.has("ArrowUp") || held.has("KeyW"),
-            fold: held.has("ShiftLeft") || held.has("ShiftRight"),
-            turn: held.has("KeyQ") || held.has("KeyE"),
-            reset: held.has("KeyR"),
-            shelter: held.has("KeyS") || held.has("ArrowDown"),
-            repair: held.has("KeyF"),
-          };
-      input.current = mergeInput(
-        keyboardInput.current,
-        touchInput.current.read(performance.now()),
-      );
-      if (phaseRef.current === "game" && currentSession.current)
-        connection.current?.input(game.current.id, input.current);
-    };
-    const keys = [
-      "ArrowLeft",
-      "ArrowRight",
-      "ArrowUp",
-      "KeyA",
-      "KeyD",
-      "KeyW",
-      "Space",
-      "ShiftLeft",
-      "ShiftRight",
-      "KeyQ",
-      "KeyE",
-      "KeyR",
-      "KeyS",
-      "KeyF",
-      "ArrowDown",
-    ];
-    const down = (e: KeyboardEvent) => {
-      if (
-        (e.target as HTMLElement)?.matches("input,select,textarea") ||
-        phaseRef.current !== "game"
-      )
-        return;
-      if (e.code === "Escape") {
-        setHelp((v) => !v);
-        held.clear();
-        refresh();
-        return;
-      }
-      if (helpRef.current) return;
-      if (keys.includes(e.code)) {
-        e.preventDefault();
-        if (e.repeat) return;
-        if (releases.has(e.code)) clearTimeout(releases.get(e.code));
-        pressedAt.set(e.code, performance.now());
-        if (!held.has(e.code) && e.code === "Space") sound(280);
-        held.add(e.code);
-        refresh();
-      }
-    };
-    const up = (e: KeyboardEvent) => {
-      if (!held.has(e.code)) return;
-      const minimum = ["ArrowLeft", "ArrowRight", "KeyA", "KeyD"].includes(
-        e.code,
-      )
-        ? 40
-        : 120;
-      const delay = Math.max(
-        0,
-        minimum - (performance.now() - (pressedAt.get(e.code) ?? 0)),
-      );
-      const release = () => {
-        held.delete(e.code);
-        releases.delete(e.code);
-        refresh();
-      };
-      if (delay) releases.set(e.code, setTimeout(release, delay));
-      else release();
-    };
-    const clear = () => {
-      releases.forEach(clearTimeout);
-      releases.clear();
-      pressedAt.clear();
-      held.clear();
-      touchInput.current.clear();
-      refresh();
-    };
-    window.addEventListener("keydown", down);
-    window.addEventListener("keyup", up);
-    window.addEventListener("blur", clear);
-    document.addEventListener("visibilitychange", clear);
-    return () => {
-      window.removeEventListener("keydown", down);
-      window.removeEventListener("keyup", up);
-      window.removeEventListener("blur", clear);
-      document.removeEventListener("visibilitychange", clear);
-    };
-  }, []);
+  useEffect(
+    () =>
+      bindGameKeyboard(keyboardInput.current, {
+        enabled: () => phaseRef.current === "game" && !helpRef.current,
+        escape: () => {
+          if (phaseRef.current === "game") setHelp((v) => !v);
+        },
+        clear: () => touchInput.current.clear(),
+        jump: () => sound(280),
+        change: () => {
+          input.current = helpRef.current
+            ? idleInput()
+            : mergeInput(
+                keyboardInput.current.read(performance.now()),
+                touchInput.current.read(performance.now()),
+              );
+          if (phaseRef.current === "game" && currentSession.current)
+            connection.current?.input(game.current.id, input.current);
+        },
+      }),
+    [],
+  );
   async function create() {
+    sessionAttempt.current++;
     void audio.start();
     setError("");
-    save(localStorage, "rain-name", name);
+    save("local", "rain-name", name);
     if (mode === 1) {
       connection.current?.close();
       currentSession.current = null;
@@ -378,10 +316,11 @@ function App() {
     }
   }
   async function join() {
+    sessionAttempt.current++;
     void audio.start();
     setBusy(true);
     setError("");
-    save(localStorage, "rain-name", name);
+    save("local", "rain-name", name);
     try {
       const c = code.toUpperCase().trim();
       if (!/^[A-HJ-NP-Z2-9]{8}$/.test(c)) throw new Error("请输入 8 位房间码");
@@ -394,6 +333,8 @@ function App() {
     }
   }
   function leave() {
+    sessionAttempt.current++;
+    setConnected(false);
     if (session && room?.phase === "lobby")
       void api(
         `/rooms/${session.code}/command`,
@@ -404,7 +345,7 @@ function App() {
     connection.current = null;
     currentSession.current = null;
     currentRoom.current = null;
-    sessionStorage.removeItem(KEY);
+    forget("session", KEY);
     setSession(null);
     setRoom(null);
     setError("");
@@ -414,6 +355,9 @@ function App() {
     if (location.search) history.replaceState(null, "", location.pathname);
   }
   function restart(next = false) {
+    keyboardInput.current.clear();
+    touchInput.current.clear();
+    input.current = idleInput();
     setHelp(false);
     if (session)
       connection.current?.command({

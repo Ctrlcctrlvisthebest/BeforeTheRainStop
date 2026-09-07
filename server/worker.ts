@@ -17,6 +17,7 @@ interface Reply {
 }
 interface Attachment {
   slot: number;
+  token?: string;
   seq: number;
   window: number;
   count: number;
@@ -35,6 +36,22 @@ export class RainRoom extends DurableObject<Env> {
         .exec<{ data: string }>("SELECT data FROM room WHERE id=1")
         .toArray();
       this.room = rows[0] ? (JSON.parse(rows[0].data) as Room) : null;
+      if (this.room) {
+        const online = new Set(
+          this.ctx
+            .getWebSockets()
+            .filter((ws) => ws.readyState === 1)
+            .map(
+              (ws) =>
+                this.member(
+                  this.room!,
+                  ws.deserializeAttachment() as Attachment,
+                )?.slot,
+            ),
+        );
+        for (const player of this.room.players)
+          player.online = online.has(player.slot);
+      }
       if ((await this.ctx.storage.getAlarm()) === null)
         await this.ctx.storage.setAlarm(Date.now() + LIFE);
     });
@@ -45,6 +62,47 @@ export class RainRoom extends DurableObject<Env> {
       JSON.stringify(room),
     );
     this.room = room;
+  }
+  private member(room: Room, attachment: Attachment) {
+    if (attachment.slot < 0 || !attachment.token) return null;
+    try {
+      const player = authenticate(room, attachment.token);
+      return player.slot === attachment.slot ? player : null;
+    } catch (e) {
+      if (e instanceof RoomError) return null;
+      throw e;
+    }
+  }
+  private revoke(ws: WebSocket, code: number, reason: string) {
+    ws.serializeAttachment({
+      ...ws.deserializeAttachment(),
+      slot: -1,
+      token: undefined,
+    });
+    ws.close(code, reason);
+  }
+  private applyCommand(
+    token: string,
+    body: Record<string, unknown>,
+    now: number,
+  ) {
+    const previous = this.room!;
+    const next = command(previous, token, body, now, crypto.randomUUID());
+    if (next.game?.id !== previous.game?.id) this.inputs = {};
+    for (const player of previous.players) {
+      if (!next.players.some((p) => p.slot === player.slot))
+        delete this.inputs[player.slot];
+    }
+    // Both HTTP and WebSocket commands revoke departed seats before reuse.
+    for (const ws of this.ctx.getWebSockets()) {
+      const a = ws.deserializeAttachment() as Attachment;
+      if (a.slot >= 0 && !this.member(next, a))
+        this.revoke(ws, 1008, "此座位已离开房间");
+    }
+    this.save(next);
+    this.broadcast();
+    this.run();
+    return next;
   }
   private packet() {
     return JSON.stringify({
@@ -59,7 +117,7 @@ export class RainRoom extends DurableObject<Env> {
     const data = this.packet();
     for (const ws of this.ctx.getWebSockets()) {
       const a = ws.deserializeAttachment() as Attachment;
-      if (a.slot >= 0 && ws.readyState === 1) {
+      if (this.member(this.room, a) && ws.readyState === 1) {
         try {
           ws.send(data);
         } catch {
@@ -135,12 +193,7 @@ export class RainRoom extends DurableObject<Env> {
       }
       authenticate(r, token);
       if (kind === "command") {
-        const next = command(r, token, body, now, crypto.randomUUID());
-        if (next.game?.id !== r.game?.id) this.inputs = {};
-        r = next;
-        this.save(r);
-        this.broadcast();
-        this.run();
+        r = this.applyCommand(token, body, now);
       }
       return { status: 200, data: { room: publicRoom(r) } };
     } catch (e) {
@@ -152,7 +205,7 @@ export class RainRoom extends DurableObject<Env> {
   async fetch(_request: Request): Promise<Response> {
     if (!this.room || Date.now() >= this.room.expiresAt)
       return Response.json({ error: "房间不存在或已过期" }, { status: 404 });
-    if (this.ctx.getWebSockets().length > this.room.capacity + 6)
+    if (this.ctx.getWebSockets().length >= this.room.capacity + 6)
       return new Response("连接数过多", { status: 429 });
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
@@ -173,8 +226,14 @@ export class RainRoom extends DurableObject<Env> {
     try {
       if (typeof message !== "string" || message.length > 4096)
         throw new RoomError("消息格式无效");
-      const raw: unknown = JSON.parse(message);
-      if (!raw || typeof raw !== "object") throw new RoomError("消息格式无效");
+      let raw: unknown;
+      try {
+        raw = JSON.parse(message);
+      } catch {
+        throw new RoomError("消息格式无效");
+      }
+      if (!raw || typeof raw !== "object" || Array.isArray(raw))
+        throw new RoomError("消息格式无效");
       const m = raw as Record<string, unknown>;
       const a = ws.deserializeAttachment() as Attachment;
       const r = this.room;
@@ -191,14 +250,12 @@ export class RainRoom extends DurableObject<Env> {
             other !== ws &&
             (other.deserializeAttachment() as Attachment).slot === player.slot
           ) {
-            other.serializeAttachment({
-              ...other.deserializeAttachment(),
-              slot: -1,
-            });
-            other.close(4001, "已在另一个页面重新连接");
+            this.revoke(other, 4001, "已在另一个页面重新连接");
           }
         }
         a.slot = player.slot;
+        a.token = m.token;
+        this.inputs[player.slot] = idleInput();
         player.online = true;
         player.lastSeen = Date.now();
         r.revision++;
@@ -209,6 +266,11 @@ export class RainRoom extends DurableObject<Env> {
         return;
       }
       if (a.slot < 0) throw new RoomError("请先认证");
+      if (!this.member(r, a)) {
+        // Connections surviving an older deployment reauthenticate on reconnect.
+        this.revoke(ws, a.token ? 1008 : 1012, "请重新连接房间");
+        return;
+      }
       if (Date.now() - a.window > 1000) {
         a.window = Date.now();
         a.count = 0;
@@ -225,38 +287,46 @@ export class RainRoom extends DurableObject<Env> {
         this.inputs[a.slot] = input;
         this.run();
       } else if (m.type === "command") {
-        if (!m.command || typeof m.command !== "object")
+        if (
+          !m.command ||
+          typeof m.command !== "object" ||
+          Array.isArray(m.command)
+        )
           throw new RoomError("操作格式无效");
-        const next = command(
-          r,
-          r.players.find((p) => p.slot === a.slot)!.token,
+        this.applyCommand(
+          a.token!,
           m.command as Record<string, unknown>,
           Date.now(),
-          crypto.randomUUID(),
         );
-        if (next.game?.id !== r.game?.id) this.inputs = {};
-        this.save(next);
-        this.broadcast();
-        this.run();
       } else if (m.type === "ping") {
         ws.send(JSON.stringify({ type: "pong", t: m.t }));
       } else throw new RoomError("未知消息");
     } catch (e) {
-      ws.send(
-        JSON.stringify({
-          type: "error",
-          error: e instanceof Error ? e.message : "连接异常",
-        }),
-      );
-      if ((ws.deserializeAttachment() as Attachment).slot < 0)
-        ws.close(1008, "认证失败");
+      if (!(e instanceof RoomError))
+        console.error(
+          JSON.stringify({
+            event: "room_socket_failed",
+            message: e instanceof Error ? e.message : "unknown",
+          }),
+        );
+      if (ws.readyState === 1) {
+        ws.send(
+          JSON.stringify({
+            type: "error",
+            error: e instanceof RoomError ? e.message : "连接异常，请重新连接",
+          }),
+        );
+        if ((ws.deserializeAttachment() as Attachment).slot < 0)
+          ws.close(1008, "认证失败");
+      }
     }
   }
+
   private disconnected(ws: WebSocket): void {
     const a = ws.deserializeAttachment() as Attachment;
     if (a.slot < 0 || !this.room) return;
-    const p = this.room.players.find((p) => p.slot === a.slot);
-    if (p) {
+    const p = this.member(this.room, a);
+    if (p?.online) {
       p.online = false;
       p.lastSeen = Date.now();
       this.inputs[a.slot] = idleInput();

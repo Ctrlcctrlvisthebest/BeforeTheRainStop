@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { platformAt, type Platform } from "./game";
 import type { Tool } from "./editor-model";
 
@@ -423,7 +423,7 @@ export function EditorHelp({
                 表示沿前后跨过，需侧面视角。起始岸是玩家先到的那一岸。
               </li>
               <li>
-                移动断口或更改方向、长度、高度后，两岸、低檐、侧栏仍是独立平台，需要一起调整；「搭桥过岸」引导也要指向新的对岸。
+                移动断口或更改方向、长度、高度后，两岸、低檐、侧栏仍是独立平台，需要一起调整；「搭桥过岸」引导会自动跟随新的对岸和方向。
               </li>
             </ol>
             <div className="help-note">
