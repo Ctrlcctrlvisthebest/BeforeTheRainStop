@@ -23,6 +23,12 @@ import type { PublicRoom } from "./room";
 import type { PaperScene } from "./scene";
 import { loadScene, warmScene } from "./scene-loader";
 import { FrameBudget } from "./frame-budget";
+import {
+  LocalRecords,
+  bestTimeFor,
+  formatTime,
+  type Completion,
+} from "./records";
 import "./style.css";
 import "./mobile.css";
 import { TouchInput, mergeInput, type TouchField } from "./touch-input";
@@ -54,6 +60,16 @@ function App() {
       translate(language, "雨停之前") + " · " + translate(language, "纸上祈愿");
   }, [language]);
   const [initialGame] = useState(() => newGame(1));
+  const [records] = useState(() => new LocalRecords());
+  const [bestTimes, setBestTimes] = useState(() => records.times);
+  const [completion, setCompletion] = useState<Completion | null>(null);
+  function recordWin(g: Game) {
+    const result = records.record(g);
+    if (result) {
+      setBestTimes(records.times);
+      setCompletion(result);
+    }
+  }
   const [sceneStatus, setSceneStatus] = useState("idle");
   const sceneReady = useRef(false);
   const canvas = useRef<HTMLCanvasElement>(null),
@@ -95,7 +111,9 @@ function App() {
   const guide = useRef<ReturnType<typeof guideFor> | null>(null);
   if (!guide.current)
     guide.current = guideFor(game.current, 0, guideTracker.current);
-  useEffect(() => save("local", "rain-guide", guideEnabled), [guideEnabled]);
+  useEffect(() => {
+    save("local", "rain-guide", guideEnabled);
+  }, [guideEnabled]);
   function learn(lesson: Lesson) {
     setToolsOpen(false);
     setMapOpen(false);
@@ -160,6 +178,9 @@ function App() {
       // A WebSocket packet owns this snapshot; prediction clones before stepping.
       game.current = r.game;
       authTime.current = performance.now();
+      recordWin(r.game);
+      if (r.game.id !== previous.id || r.game.status !== previous.status)
+        setHud(structuredClone(r.game));
     }
     if (
       r.revision !== previousRoom?.revision ||
@@ -263,6 +284,7 @@ function App() {
               }
             }
           } else acc = 0;
+          if (!currentSession.current) recordWin(game.current);
           let display = game.current;
           if (
             playing &&
@@ -364,6 +386,7 @@ function App() {
       setSession(null);
       setRoom(null);
       game.current = newGame(1, level, crypto.randomUUID());
+      setHud(structuredClone(game.current));
       changePhase("game");
       return;
     }
@@ -434,6 +457,7 @@ function App() {
         : game.current.level;
       setLevel(l);
       game.current = newGame(1, l, crypto.randomUUID());
+      setHud(structuredClone(game.current));
       input.current = idleInput();
     }
   }
@@ -451,6 +475,8 @@ function App() {
     local = hud.players[session?.slot ?? 0] ?? hud.players[0],
     isPlaying = phase === "game",
     won = isPlaying && hud.status === "won";
+  const selectedBest = bestTimeFor(bestTimes, level, mode);
+  const finish = completion?.gameId === hud.id ? completion : null;
   const { minX, maxX, minZ, maxZ } = useMemo(() => {
     const mapPlatforms = LEVELS[hud.level].platforms.filter(
       (p) => !["wall", "low-roof", "railing"].includes(p.kind ?? ""),
@@ -679,10 +705,25 @@ function App() {
                 {LEVELS.map((l, i) => (
                   <option key={i} value={i}>
                     {String(i + 1).padStart(2, "0")} · {t(l.name)}
+                    {bestTimeFor(bestTimes, i, mode) !== undefined &&
+                      ` · ${formatTime(bestTimeFor(bestTimes, i, mode)!)}`}
                   </option>
                 ))}
               </select>
             </label>
+            <div className="chapter-record" aria-label={t("本关通关记录")}>
+              <div>
+                <span>
+                  {t("本地最佳")} · {mode} {t("人")}
+                </span>
+                <strong>
+                  {selectedBest === undefined
+                    ? t("暂无通关记录")
+                    : formatTime(selectedBest)}
+                </strong>
+              </div>
+              <small>{t("仅保存在此浏览器 · 按人数分别记录")}</small>
+            </div>
             <div className="chapter-brief">
               {level >= 8 && (
                 <strong className="challenge-label">
@@ -1278,9 +1319,47 @@ function App() {
             <div className="big-star">✦</div>
             <h2>{t("这一程，我们一起走过。")}</h2>
             <p>
-              {t(l.name)} · {Math.floor(hud.time)} {t("秒")} · {hud.flips}{" "}
-              {t("次转面")}
+              {t(l.name)} · {hud.flips} {t("次转面")}
             </p>
+            {finish && (
+              <div
+                className={`finish-record ${finish.improved ? "new-best" : ""}`}
+              >
+                <dl>
+                  <div>
+                    <dt>{t("本次用时")}</dt>
+                    <dd>{formatTime(finish.timeMs)}</dd>
+                  </div>
+                  <div>
+                    <dt>
+                      {t("本地最佳")} · {hud.mode} {t("人")}
+                    </dt>
+                    <dd>{formatTime(finish.bestMs)}</dd>
+                  </div>
+                </dl>
+                <p className="record-result" role="status">
+                  {t(
+                    finish.improved
+                      ? finish.previousMs === undefined
+                        ? "首次通关记录"
+                        : "刷新最佳纪录！"
+                      : finish.timeMs === finish.bestMs
+                        ? "追平最佳纪录"
+                        : "最佳纪录已保留",
+                  )}
+                  {finish.improved &&
+                    finish.previousMs !== undefined &&
+                    ` · ${t("快了")} ${formatTime(finish.previousMs - finish.timeMs)}`}
+                </p>
+                <small>
+                  {t(
+                    finish.persisted
+                      ? "已保存在此浏览器"
+                      : "浏览器未能保存，记录仅本次有效",
+                  )}
+                </small>
+              </div>
+            )}
             <div className="score">
               {"✦".repeat(hud.stars.length)}
               <span>
@@ -1291,6 +1370,7 @@ function App() {
               {hud.players.reduce((sum, p) => sum + p.deaths, 0)}{" "}
               {t("次重新起飞")} · {hud.mode} {t("只纸鹤平安抵达")}
             </p>
+            <p className="fine">{t("计时包含死亡重试，关卡暂停时不计时。")}</p>
             <button className="primary" onClick={() => restart(true)}>
               {t(
                 hud.level === LEVELS.length - 1

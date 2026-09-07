@@ -309,6 +309,23 @@ const english: Record<string, string> = {
   "所有愿望，都到家了": "Every wish made it home",
   "这一程，我们一起走过。": "We made this journey together.",
   秒: "s",
+  本关通关记录: "Chapter records",
+  人: "P",
+  本地最佳: "Local best",
+  本次用时: "This run",
+  暂无通关记录: "No completed runs yet",
+  "仅保存在此浏览器 · 按人数分别记录":
+    "Saved in this browser · Separate bests for each player count",
+  首次通关记录: "First completion recorded",
+  "刷新最佳纪录！": "New personal best!",
+  追平最佳纪录: "Matched your personal best",
+  最佳纪录已保留: "Your best remains unchanged",
+  快了: "Faster by",
+  已保存在此浏览器: "Saved in this browser",
+  "浏览器未能保存，记录仅本次有效":
+    "Couldn't save in this browser. Available for this visit only.",
+  "计时包含死亡重试，关卡暂停时不计时。":
+    "Retries count toward your time. Paused gameplay does not.",
   次转面: "turns",
   次重新起飞: "retries",
   只纸鹤平安抵达: "cranes home safely",

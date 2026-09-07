@@ -13,8 +13,10 @@ export function stored<T>(kind: StorageKind, key: string): T | null {
 export function save(kind: StorageKind, key: string, value: unknown) {
   try {
     storage(kind).setItem(key, JSON.stringify(value));
+    return true;
   } catch {
     /* Keep playing when persistence is unavailable. */
+    return false;
   }
 }
 export function forget(kind: StorageKind, key: string) {

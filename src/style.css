@@ -788,6 +788,8 @@ footer span {
 .win {
   width: min(460px, 100%);
   text-align: center;
+  max-height: 100%;
+  overflow-y: auto;
 }
 .big-star {
   font-size: 52px;
@@ -810,6 +812,65 @@ footer span {
 }
 .score span {
   color: #b3a28a;
+}
+.chapter-record {
+  margin: -2px 0 16px;
+  padding: 12px;
+  border: 1px solid #96795b36;
+  background: #ded3bf3b;
+}
+.chapter-record > div {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 6px 12px;
+  align-items: baseline;
+  font-size: 12px;
+}
+.chapter-record strong,
+.finish-record dd {
+  font-variant-numeric: tabular-nums;
+  color: #745735;
+}
+.chapter-record small,
+.finish-record small {
+  display: block;
+  margin-top: 6px;
+  font-size: 10px;
+  line-height: 1.6;
+  color: #826b55;
+}
+.finish-record {
+  margin-top: 20px;
+  padding: 14px 10px;
+  border: 1px solid #96795b36;
+  background: #ded3bf3b;
+}
+.finish-record dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+.finish-record dt {
+  font-size: 11px;
+  color: #826b55;
+}
+.finish-record dd {
+  margin: 5px 0 0;
+  font-size: clamp(16px, 4.5vw, 22px);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.win .record-result {
+  margin: 12px 0 0;
+}
+.finish-record.new-best {
+  border-color: #a9783e80;
+}
+.win .new-best .record-result {
+  color: #906032;
+  font-weight: 600;
 }
 .help {
   position: relative;
