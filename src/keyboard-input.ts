@@ -57,9 +57,12 @@ export function bindGameKeyboard(
     change?: () => void;
     clear?: () => void;
     jump?: () => void;
+    restart?: () => void;
   },
 ) {
+  let restartHeld = false;
   const clear = () => {
+    restartHeld = false;
     keyboard.clear();
     options.clear?.();
     options.change?.();
@@ -78,7 +81,18 @@ export function bindGameKeyboard(
       }
       return;
     }
-    if (!options.enabled() || !Object.hasOwn(bindings, e.code)) return;
+    if (!options.enabled()) return;
+    if (e.code === "KeyT" && options.restart) {
+      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+      e.preventDefault();
+      if (!e.repeat && !restartHeld) {
+        clear();
+        restartHeld = true;
+        options.restart();
+      }
+      return;
+    }
+    if (!Object.hasOwn(bindings, e.code)) return;
     e.preventDefault();
     if (keyboard.down(e.code, performance.now(), e.repeat)) {
       if (bindings[e.code][0] === "jump") options.jump?.();
@@ -86,6 +100,7 @@ export function bindGameKeyboard(
     }
   };
   const up = (e: KeyboardEvent) => {
+    if (e.code === "KeyT") restartHeld = false;
     keyboard.up(e.code, performance.now());
     options.change?.();
   };

@@ -615,3 +615,107 @@ for (const capacity of [2, 3, 6])
       peers.forEach((p) => p.ws.close());
     }
   });
+
+test("quick restart synchronizes a fresh run and drops held inputs and stale commands", async () => {
+  const created = await post("/rooms", {
+    capacity: 2,
+    level: 0,
+    name: "restart host",
+  });
+  const joined = await post(`/rooms/${created.room.code}/join`, {
+    name: "restart peer",
+  });
+  const host = peer(created.room.code, created.token);
+  const guest = peer(created.room.code, joined.token);
+  try {
+    await until(
+      () => !!host.room?.players.every((p) => p.online),
+      "restart peers online",
+    );
+    host.ws.send(
+      JSON.stringify({ type: "command", command: { type: "start" } }),
+    );
+    await until(
+      () => !!host.room?.game && !!guest.room?.game,
+      "restart game started",
+    );
+    const oldId = host.room!.game!.id;
+    host.ws.send(
+      JSON.stringify({
+        type: "input",
+        gameId: oldId,
+        seq: ++host.seq,
+        input: { ...idleInput(), axis: 1, jump: true },
+      }),
+    );
+    await until(
+      () => host.room!.game!.players[0].x > 0,
+      "held input moves before restart",
+    );
+    host.ws.send(
+      JSON.stringify({
+        type: "command",
+        command: { type: "restart", gameId: oldId, next: false },
+      }),
+    );
+    await until(
+      () => guest.room!.votes.length === 1,
+      "first restart vote visible",
+    );
+    assert.equal(guest.room!.game!.id, oldId);
+    assert.ok(guest.room!.game!.time > 0);
+    guest.ws.send(
+      JSON.stringify({
+        type: "command",
+        command: { type: "restart", gameId: oldId, next: false },
+      }),
+    );
+    await until(
+      () =>
+        host.room!.game!.id !== oldId &&
+        host.room!.game!.id === guest.room!.game!.id,
+      "fresh game synchronized",
+    );
+    const id = host.room!.game!.id;
+    for (const client of [host, guest]) {
+      const g = client.room!.game!;
+      assert.equal(g.level, 0);
+      assert.ok(g.time < 0.5);
+      assert.deepEqual(g.keys, []);
+      assert.deepEqual(g.stars, []);
+      assert.deepEqual(g.savedKeys, []);
+      assert.deepEqual(g.savedStars, []);
+      assert.equal(g.players[0].checkpoint, -1);
+      assert.equal(g.players[0].x, -1);
+      assert.equal(g.players[0].y, 0);
+    }
+    host.ws.send(
+      JSON.stringify({
+        type: "command",
+        command: { type: "restart", gameId: oldId, next: false },
+      }),
+    );
+    host.ws.send(
+      JSON.stringify({
+        type: "input",
+        gameId: oldId,
+        seq: ++host.seq,
+        input: { ...idleInput(), axis: 1 },
+      }),
+    );
+    await until(
+      () => host.errors.includes("关卡已经更新"),
+      "old restart rejected",
+    );
+    await until(
+      () => host.room!.game!.time > 0.5,
+      "fresh run advances without old movement",
+    );
+    assert.equal(host.room!.game!.id, id);
+    assert.equal(host.room!.game!.players[0].x, -1);
+    assert.deepEqual(host.room!.votes, []);
+  } finally {
+    host.ws.close();
+    guest.ws.close();
+  }
+});

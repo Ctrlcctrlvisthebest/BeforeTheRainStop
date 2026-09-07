@@ -298,6 +298,10 @@ const english: Record<string, string> = {
   纸桥: "Bridge",
   修补: "Mend",
   回存档: "Return",
+  重开: "Retry",
+  快速重开: "Quick restart",
+  "重开本关：回到出生点，清空计时、钥匙、星星和本关存档。最佳纪录保留。":
+    "Restart this chapter from spawn. Reset the timer, keys, stars and checkpoints. Keep your personal best.",
   "Q 转面": "Q Turn",
   "跳 / 滑翔": "Jump / glide",
   "你已抵达，等同伴一起到家": "You made it. Wait for your friends",
@@ -321,6 +325,7 @@ const english: Record<string, string> = {
   追平最佳纪录: "Matched your personal best",
   最佳纪录已保留: "Your best remains unchanged",
   快了: "Faster by",
+  "提升不足 0.1 秒": "Improved by less than 0.1 s",
   已保存在此浏览器: "Saved in this browser",
   "浏览器未能保存，记录仅本次有效":
     "Couldn't save in this browser. Available for this visit only.",
@@ -332,6 +337,7 @@ const english: Record<string, string> = {
   再来一趟: "Travel again",
   "下一阵风 · 下一关": "On to the next chapter",
   全员同意后出发: "Continue when everyone agrees",
+  全员同意后重开: "Restart when everyone agrees",
   纸会记住每一次折叠: "Paper remembers every fold",
   "借出一张纸，留住一个愿望。": "Lend your paper. Keep a wish alive.",
   沿当前画面的左右方向行走: "Move left and right along the current view.",

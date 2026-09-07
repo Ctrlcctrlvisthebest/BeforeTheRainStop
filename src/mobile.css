@@ -423,10 +423,14 @@
 .compact .touch-axis {
   font-size: 25px;
 }
-.compact .touch-reset {
-  grid-column: span 2;
+.compact .touch-reset,
+.compact .touch-restart {
   font-size: 11px;
   background: #253647;
+}
+.compact .touch-restart {
+  color: #edd3a7;
+  border-color: #b69a7473;
 }
 .compact .touch-jump {
   grid-column: span 2;

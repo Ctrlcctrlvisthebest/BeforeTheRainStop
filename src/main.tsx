@@ -178,6 +178,10 @@ function App() {
       // A WebSocket packet owns this snapshot; prediction clones before stepping.
       game.current = r.game;
       authTime.current = performance.now();
+      if (r.game.id !== previous.id) {
+        resetRunControls();
+        setCompletion(null);
+      }
       recordWin(r.game);
       if (r.game.id !== previous.id || r.game.status !== previous.status)
         setHud(structuredClone(r.game));
@@ -236,9 +240,16 @@ function App() {
         let last = performance.now(),
           acc = 0,
           net = 0,
-          ui = 0;
+          ui = 0,
+          simulatedGameId = game.current.id;
         const budget = new FrameBudget();
         const update = (now: number) => {
+          if (simulatedGameId !== game.current.id) {
+            simulatedGameId = game.current.id;
+            last = now;
+            acc = 0;
+            ui = 0;
+          }
           if (document.hidden) {
             last = now;
             acc = 0;
@@ -360,6 +371,7 @@ function App() {
         },
         clear: () => touchInput.current.clear(),
         jump: () => sound(280),
+        restart: () => restart(false),
         change: () => {
           input.current = helpRef.current
             ? idleInput()
@@ -440,25 +452,42 @@ function App() {
     changePhase("menu");
     if (location.search) history.replaceState(null, "", location.pathname);
   }
-  function restart(next = false) {
+  function resetRunControls() {
     keyboardInput.current.clear();
     touchInput.current.clear();
     input.current = idleInput();
+    helpRef.current = false;
     setHelp(false);
-    if (session)
+    setToolsOpen(false);
+    setMapOpen(false);
+  }
+  function restart(next = false) {
+    if (phaseRef.current !== "game") return;
+    // The keyboard listener is installed once, so use the current session refs.
+    const activeSession = currentSession.current;
+    const activeRoom = currentRoom.current;
+    if (
+      activeSession &&
+      (activeRoom?.votes.includes(activeSession.slot) ||
+        (activeRoom?.voteNext != null && activeRoom.voteNext !== next))
+    )
+      return;
+    resetRunControls();
+    if (activeSession) {
+      connection.current?.input(game.current.id, input.current);
       connection.current?.command({
         type: "restart",
         gameId: game.current.id,
         next,
       });
-    else {
+    } else {
       const l = next
         ? (game.current.level + 1) % LEVELS.length
         : game.current.level;
       setLevel(l);
       game.current = newGame(1, l, crypto.randomUUID());
+      setCompletion(null);
       setHud(structuredClone(game.current));
-      input.current = idleInput();
     }
   }
   async function copyInvite() {
@@ -477,6 +506,15 @@ function App() {
     won = isPlaying && hud.status === "won";
   const selectedBest = bestTimeFor(bestTimes, level, mode);
   const finish = completion?.gameId === hud.id ? completion : null;
+  const restartBlocked =
+    !!session &&
+    (!connected ||
+      !!room?.votes.includes(session.slot) ||
+      room?.voteNext === true);
+  const restartLabel = t(session ? "发起重开投票" : "快速重开");
+  const restartHint = t(
+    "重开本关：回到出生点，清空计时、钥匙、星星和本关存档。最佳纪录保留。",
+  );
   const { minX, maxX, minZ, maxZ } = useMemo(() => {
     const mapPlatforms = LEVELS[hud.level].platforms.filter(
       (p) => !["wall", "low-roof", "railing"].includes(p.kind ?? ""),
@@ -629,7 +667,18 @@ function App() {
         <button onClick={() => (help ? setHelp(false) : learn("basics"))}>
           {t("操作说明")}
         </button>
-        {isPlaying && <button onClick={leave}>{t("返回大厅")}</button>}
+        {isPlaying && (
+          <>
+            <button
+              onClick={() => restart(false)}
+              disabled={restartBlocked || !sceneReady.current}
+              title={restartHint}
+            >
+              {restartLabel} · T
+            </button>
+            <button onClick={leave}>{t("返回大厅")}</button>
+          </>
+        )}
       </nav>
       {error && (
         <div role="alert" className="toast" onClick={() => setError("")}>
@@ -871,8 +920,7 @@ function App() {
                 </span>
               )}
               <span className="elapsed-time">
-                ◷ {Math.floor(hud.time / 60)}:
-                {String(Math.floor(hud.time % 60)).padStart(2, "0")}
+                ◷ {formatTime(Math.round(hud.time * 1000))}
               </span>
               {session && (
                 <span className={connected ? "online" : "offline"}>
@@ -1274,10 +1322,26 @@ function App() {
             {t("修补")}
             <kbd>R</kbd>
             {t("回存档")}
+            <kbd>T</kbd>
+            {t("快速重开")}
           </div>
           <div className="touch-controls" aria-label={t("触控操作")}>
             <div className="touch-movement">
               {touch("reset", true, t("回存档"))}
+              <button
+                className="touch-key touch-restart"
+                onClick={() => restart(false)}
+                aria-label={restartLabel}
+                title={restartHint}
+                disabled={
+                  restartBlocked ||
+                  !sceneReady.current ||
+                  helpRef.current ||
+                  won
+                }
+              >
+                <span>{t("重开")}</span>
+              </button>
               {touch("axis", -1, "←")}
               {touch("axis", 1, "→")}
             </div>
@@ -1349,7 +1413,9 @@ function App() {
                   )}
                   {finish.improved &&
                     finish.previousMs !== undefined &&
-                    ` · ${t("快了")} ${formatTime(finish.previousMs - finish.timeMs)}`}
+                    (finish.previousMs - finish.timeMs < 100
+                      ? ` · ${t("提升不足 0.1 秒")}`
+                      : ` · ${t("快了")} ${formatTime(finish.previousMs - finish.timeMs)}`)}
                 </p>
                 <small>
                   {t(
@@ -1371,7 +1437,16 @@ function App() {
               {t("次重新起飞")} · {hud.mode} {t("只纸鹤平安抵达")}
             </p>
             <p className="fine">{t("计时包含死亡重试，关卡暂停时不计时。")}</p>
-            <button className="primary" onClick={() => restart(true)}>
+            <button
+              className="primary"
+              onClick={() => restart(true)}
+              disabled={
+                !!session &&
+                (!connected ||
+                  !!room?.votes.includes(session.slot) ||
+                  room?.voteNext === false)
+              }
+            >
               {t(
                 hud.level === LEVELS.length - 1
                   ? "再来一趟"
@@ -1381,9 +1456,22 @@ function App() {
             </button>
             {session && (
               <p className="fine">
-                {t("全员同意后出发")} · {room?.votes.length ?? 0}/{hud.mode}
+                {t(
+                  room?.voteNext === false
+                    ? "全员同意后重开"
+                    : "全员同意后出发",
+                )}{" "}
+                · {room?.votes.length ?? 0}/{hud.mode}
               </p>
             )}
+            <button
+              className="text-button"
+              onClick={() => restart(false)}
+              disabled={restartBlocked}
+              title={restartHint}
+            >
+              {restartLabel} · T
+            </button>
             <button className="text-button" onClick={leave}>
               {t("返回大厅")}
             </button>
@@ -1408,9 +1496,16 @@ function App() {
               compact={compact}
             />
             {isPlaying && (
-              <button className="primary" onClick={() => restart(false)}>
-                {t(session ? "发起重开投票" : "重新开始本关")}
-              </button>
+              <>
+                <button
+                  className="primary"
+                  onClick={() => restart(false)}
+                  disabled={restartBlocked}
+                >
+                  {t(session ? "发起重开投票" : "重新开始本关")}
+                </button>
+                <p className="fine">{restartHint}</p>
+              </>
             )}
             <button className="text-button" onClick={() => setHelp(false)}>
               {t("继续冒险")}

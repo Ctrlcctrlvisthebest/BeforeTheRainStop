@@ -424,6 +424,7 @@ export class PaperScene {
   private width = 1000;
   private height = 600;
   private clock = 0;
+  private gameId = "";
   private language: Language = "zh";
   private compact = false;
   private wishes: THREE.Object3D[] = [];
@@ -976,6 +977,16 @@ export class PaperScene {
       this.language = language;
       this.compact = compact;
       this.build(g);
+    }
+    if (this.gameId !== g.id) {
+      this.gameId = g.id;
+      this.initialized = false;
+      this.clock = 0;
+      this.birds.forEach((node, i) => {
+        const p = g.players[i];
+        node.position.set(p.x, p.y, p.z);
+        node.userData.unfold = p.folded || p.sheltering ? 1 : 0;
+      });
     }
     this.clock += dt;
     this.guideMarker.visible =

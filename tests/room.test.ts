@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { LEVELS } from "../src/game";
+import { LEVELS, newGame } from "../src/game";
 import {
   makeRoom,
   joinRoom,
@@ -44,6 +44,57 @@ test("restarting needs every vote and cannot advance unfinished level", () => {
   r = command(r, "b", { type: "restart", gameId: "g2", next: true }, 0, "g3");
   assert.equal(r.level, 1);
 });
+test("a same-chapter restart clears the whole run only after every player agrees", () => {
+  for (const mode of [2, 3, 6] as const) {
+    let room = makeRoom("ABCDEFGH", mode, 1, "host", "p0", 0);
+    for (let slot = 1; slot < mode; slot++)
+      joinRoom(room, "friend", `p${slot}`, 0);
+    room.players.forEach((p) => (p.online = true));
+    room = command(room, "p0", { type: "start" }, 0, "old");
+    Object.assign(room.game!, {
+      time: 100,
+      tick: 6000,
+      motionTime: 95,
+      keys: [0],
+      savedKeys: [0],
+      stars: [0],
+      savedStars: [0],
+      view: 1,
+      flips: 3,
+      gateOpen: true,
+      bridgeLatched: true,
+    });
+    room.game!.players.forEach((p) =>
+      Object.assign(p, {
+        x: 20,
+        z: -7,
+        checkpoint: 1,
+        carriedStars: [1],
+        deaths: 2,
+        wetness: 80,
+        heat: 30,
+        foldsLeft: 1,
+      }),
+    );
+    const old = structuredClone(room.game);
+    for (let slot = 0; slot < mode; slot++) {
+      room = command(
+        room,
+        `p${slot}`,
+        { type: "restart", gameId: "old", next: false },
+        0,
+        "fresh",
+      );
+      if (slot < mode - 1)
+        assert.deepEqual(room.game, old, "pending votes preserve the run");
+    }
+    assert.equal(room.level, 1);
+    assert.deepEqual(room.game, newGame(mode, 1, "fresh"));
+    assert.deepEqual(room.votes, []);
+    assert.equal(room.voteNext, null);
+  }
+});
+
 test("leaving lobby transfers hosting and permits replacement", () => {
   let r = makeRoom("ABCDEFGH", 2, 0, "host", "a", 0);
   joinRoom(r, "peer", "b", 0);

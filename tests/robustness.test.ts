@@ -309,7 +309,7 @@ test("blocked storage getters, quota errors and corrupt preferences never stop g
   }
 });
 
-test("keyboard listeners ignore paused input and are fully removed on cleanup", () => {
+test("keyboard listeners guard quick restart, clear held input, and clean up", () => {
   const previousWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
   const previousDocument = Object.getOwnPropertyDescriptor(
     globalThis,
@@ -327,22 +327,51 @@ test("keyboard listeners ignore paused input and are fully removed on cleanup", 
   });
   const keyboard = new KeyboardInput();
   let enabled = false,
-    escapes = 0;
+    escapes = 0,
+    restarts = 0;
   const unbind = bindGameKeyboard(keyboard, {
     enabled: () => enabled,
     escape: () => escapes++,
+    restart: () => restarts++,
   });
-  const key = (type: string, code: string, repeat = false) => {
+  const key = (
+    type: string,
+    code: string,
+    repeat = false,
+    extras = {},
+    editable = false,
+  ) => {
     const event = new Event(type, { cancelable: true });
-    Object.assign(event, { code, repeat });
+    Object.assign(event, { code, repeat, ...extras });
+    if (editable)
+      Object.defineProperty(event, "target", {
+        value: { closest: () => ({}) },
+      });
     windowTarget.dispatchEvent(event);
   };
   try {
     key("keydown", "KeyD");
+    key("keydown", "KeyT");
+    assert.equal(restarts, 0, "menus and pause do not restart");
     assert.equal(keyboard.read(performance.now()).axis, 0);
     enabled = true;
     key("keydown", "KeyD");
     assert.equal(keyboard.read(performance.now()).axis, 1);
+    key("keydown", "KeyT", false, { ctrlKey: true });
+    key("keydown", "KeyT", false, { metaKey: true });
+    key("keydown", "KeyT", false, { altKey: true });
+    key("keydown", "KeyT", false, { shiftKey: true });
+    key("keydown", "KeyT", false, {}, true);
+    assert.equal(restarts, 0, "browser shortcuts and typing are ignored");
+    key("keydown", "KeyT");
+    key("keydown", "KeyT", true);
+    key("keydown", "KeyT");
+    assert.equal(restarts, 1, "holding T only restarts once");
+    assert.deepEqual(keyboard.read(performance.now()), idleInput());
+    key("keyup", "KeyT");
+    key("keydown", "KeyT");
+    assert.equal(restarts, 2);
+    key("keyup", "KeyT");
     documentTarget.dispatchEvent(new Event("visibilitychange"));
     key("keydown", "KeyD", true);
     assert.equal(keyboard.read(performance.now()).axis, 0);
@@ -353,6 +382,8 @@ test("keyboard listeners ignore paused input and are fully removed on cleanup", 
     assert.equal(escapes, 1);
     assert.deepEqual(keyboard.read(performance.now()), idleInput());
     unbind();
+    key("keydown", "KeyT");
+    assert.equal(restarts, 2, "cleanup removes the restart shortcut");
     key("keydown", "KeyD");
     assert.deepEqual(keyboard.read(performance.now()), idleInput());
   } finally {

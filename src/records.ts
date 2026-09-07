@@ -31,12 +31,13 @@ export function bestTimeFor(times: BestTimes, level: number, mode: Mode) {
   return key ? times[key] : undefined;
 }
 
-/** Milliseconds are compared and displayed at the same precision. */
+/** Keep stored millisecond precision; round the display to tenths of a second. */
 export function formatTime(ms: number) {
   if (!Number.isSafeInteger(ms) || ms < 0) return "—";
-  const minutes = String(Math.floor(ms / 60000)).padStart(2, "0");
-  const seconds = String(Math.floor(ms / 1000) % 60).padStart(2, "0");
-  return `${minutes}:${seconds}.${String(ms % 1000).padStart(3, "0")}`;
+  const tenths = Math.round(ms / 100);
+  const minutes = String(Math.floor(tenths / 600)).padStart(2, "0");
+  const seconds = String(Math.floor(tenths / 10) % 60).padStart(2, "0");
+  return `${minutes}:${seconds}.${tenths % 10}`;
 }
 
 export interface Completion {

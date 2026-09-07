@@ -218,11 +218,14 @@ test("a write quota failure retains the previous saved best", () =>
     assert.equal(disk.get(RECORDS_KEY), original);
   }));
 
-test("time formatting preserves millisecond improvements and minute boundaries", () => {
-  assert.equal(formatTime(0), "00:00.000");
-  assert.equal(formatTime(59999), "00:59.999");
-  assert.equal(formatTime(60000), "01:00.000");
-  assert.equal(formatTime(65416), "01:05.416");
-  assert.equal(formatTime(3600000), "60:00.000");
+test("time display rounds to one decimal and carries into the next minute", () => {
+  assert.equal(formatTime(0), "00:00.0");
+  assert.equal(formatTime(59949), "00:59.9");
+  assert.equal(formatTime(59950), "01:00.0");
+  assert.equal(formatTime(59999), "01:00.0");
+  assert.equal(formatTime(60000), "01:00.0");
+  assert.equal(formatTime(65416), "01:05.4");
+  assert.equal(formatTime(65450), "01:05.5");
+  assert.equal(formatTime(3600000), "60:00.0");
   assert.equal(formatTime(NaN), "—");
 });
