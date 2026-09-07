@@ -1,11 +1,18 @@
 import { translate, type Language } from "./i18n";
 import { touchCopy } from "./mobile";
 import { CROSSINGS, bankPoint, bridgePlank } from "./bridges";
-import { WEATHER, rainStrength, SHIELD_RADIUS, CAMPFIRES } from "./weather";
+import {
+  WEATHER,
+  rainStrength,
+  SHIELD_RADIUS,
+  CAMPFIRES,
+  BLAZE_ROOFS,
+} from "./weather";
 import { campfire, animateFire } from "./fire-scene";
 import * as THREE from "three";
 import {
   COLORS,
+  activeHazard,
   MAX_FOLDS,
   LEVELS,
   platformAt,
@@ -684,7 +691,7 @@ export class PaperScene {
       this.hazards.push(group);
       this.root.add(group);
       const label = textSprite(
-        translate(this.language, "旺火 · 碰到即烧毁"),
+        this.text(k.period ? "间歇旺火 · 看准熄火空档" : "旺火 · 碰到即烧毁"),
         "#ffb08b",
         0.58,
       );
@@ -792,6 +799,43 @@ export class PaperScene {
       this.birds.push(group);
     }
     // Roofs stop rain; the small campfires below them provide drying heat.
+    (BLAZE_ROOFS[g.level] ?? []).forEach((a) => {
+      // Existing covered blazes already have a canopy.
+      if (
+        WEATHER[g.level].awnings.some(
+          (r) =>
+            Math.abs(r.x - a.x) + a.w / 2 <= r.w / 2 &&
+            Math.abs(r.z - a.z) + a.d / 2 <= r.d / 2 &&
+            r.y > a.floor! + 0.88,
+        )
+      )
+        return;
+      for (const side of [-1, 1]) {
+        const roof = box(
+          a.w + 0.25,
+          0.13,
+          a.d / 2 + 0.18,
+          "#414b58",
+          a.x,
+          a.y + 0.14,
+          a.z + (side * a.d) / 4,
+        );
+        roof.rotation.x = side * 0.085;
+        this.root.add(roof);
+      }
+      for (const side of [-1, 1])
+        this.root.add(
+          box(
+            0.12,
+            3.4,
+            0.12,
+            "#705245",
+            a.x + (side * a.w) / 2,
+            a.y - 1.7,
+            a.z - a.d / 2,
+          ),
+        );
+    });
     WEATHER[g.level].awnings.forEach((a, index) => {
       const rack = wishingRack(a.w, 3.4, index);
       rack.position.set(a.x, a.y - 3.4, a.z - a.d / 2 + 0.12);
@@ -1154,14 +1198,14 @@ export class PaperScene {
       m.scale.y = on ? 0.35 : 1;
     });
     if (this.gate) this.gate.visible = !g.gateOpen;
-    this.hazards.forEach((o) => {
-      animateFire(o, this.clock);
+    this.hazards.forEach((o, i) => {
+      animateFire(o, this.clock, activeHazard(l.hazards[i].period, g.time));
     });
     this.fires.forEach((o) => animateFire(o, this.clock));
     const fireViewer = new THREE.Vector3(player.x, player.y, player.z);
     const nearestFire = [
       ...this.fires,
-      ...this.hazards,
+      ...this.hazards.filter((o) => o.userData.active),
     ].reduce<THREE.Group | null>(
       (best, fire) =>
         !best ||
@@ -1210,7 +1254,10 @@ export class PaperScene {
       const time = g.status === "playing" ? this.clock : g.motionTime;
       this.rainSeeds.forEach((seed, i) => {
         let bottom = -2.5;
-        for (const a of WEATHER[g.level].awnings)
+        for (const a of [
+          ...WEATHER[g.level].awnings,
+          ...(BLAZE_ROOFS[g.level] ?? []),
+        ])
           if (
             Math.abs(seed.x - a.x) < a.w / 2 &&
             Math.abs(seed.z - a.z) < a.d / 2

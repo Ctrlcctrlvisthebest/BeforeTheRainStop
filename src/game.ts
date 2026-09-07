@@ -1,4 +1,5 @@
 import { EXTRA_LEVELS } from "./chapters";
+import { CHALLENGE_MAPS } from "./challenge-maps";
 import {
   initializeCollectibles,
   collect,
@@ -15,6 +16,8 @@ import {
   FIRE_HEAT_RATE,
   FIRE_COOL_RATE,
   BLAZE_HEIGHT,
+  BLAZE_ROOFS,
+  blazeRoofsFor,
 } from "./weather";
 export const MAX_FOLDS = 6;
 export const REPAIR_SECONDS = 2;
@@ -249,7 +252,11 @@ export const LEVELS: Level[] = [
     ],
   },
   ...EXTRA_LEVELS,
+  ...CHALLENGE_MAPS.map((m) => m.level),
 ];
+LEVELS.forEach((level, i) => {
+  BLAZE_ROOFS[i] = blazeRoofsFor(level);
+});
 export interface Input {
   axis: number;
   jump: boolean;

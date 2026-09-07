@@ -1,5 +1,9 @@
+import { MAP_TRANSLATIONS } from "./challenge-maps";
 export type Language = "zh" | "en";
 const english: Record<string, string> = {
+  ...MAP_TRANSLATIONS,
+  "间歇旺火 · 看准熄火空档": "Pulsing fire · wait for the flames to go out",
+  "挑战关 · 熟练后再来": "Challenge · for experienced cranes",
   游戏工具: "Game tools",
   湿度: "Wet",
   热度: "Heat",

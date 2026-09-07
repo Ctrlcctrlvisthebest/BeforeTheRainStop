@@ -1,12 +1,14 @@
 import {
   LEVELS,
   atRepairRack,
+  activeHazard,
   platformAt,
   type Bird,
   type Game,
   type Point,
 } from "./game";
 import { CROSSINGS, bankPoint } from "./bridges";
+import { CHALLENGE_MAPS } from "./challenge-maps";
 import type { Language } from "./i18n";
 export type Copy = readonly [string, string];
 export const words = (value: Copy, language: Language) =>
@@ -23,7 +25,7 @@ export type StepKind =
   | "ferry"
   | "pads"
   | "exit";
-interface RouteStep {
+export interface RouteStep {
   kind: StepKind;
   target: Point;
   view: 0 | 1;
@@ -223,6 +225,7 @@ export const GUIDE_ROUTES: RouteStep[][] = [
     jump(22.5, -16, 1.2),
     exit(7),
   ],
+  ...CHALLENGE_MAPS.map((m) => m.route),
 ];
 export interface GuideTracker {
   gameId: string;
@@ -382,7 +385,9 @@ export function guideFor(
     target = riding ? s.target : { ...platform };
     const hasKey =
       s.requiredKey === undefined || g.keys.includes(s.requiredKey);
-    const canJump = riding && hasKey && Math.abs(p.x - s.target.x) < 4.5;
+    const ferryAxis = l.platforms[s.id!].motion?.axis ?? "x";
+    const canJump =
+      riding && hasKey && Math.abs(p[ferryAxis] - s.target[ferryAxis]) < 4.5;
     waitForFerry = riding ? !canJump : distance(p, platform) > 4.5;
     title = riding
       ? canJump
@@ -598,6 +603,19 @@ export function guideFor(
       "前方旺火碰到就失败，提前起跳，不要贴着火再跳。",
       "Blazing fire burns on contact. Jump early, before you get close.",
     ];
+    const pulsing = l.hazards.find(
+      (h) => h.period && distance(p, h) < 3 && Math.abs(p.y - h.y) < 1.4,
+    );
+    if (pulsing)
+      warning = activeHazard(pulsing.period, g.time)
+        ? [
+            "前方是间歇旺火：等火焰熄灭再通过，或提前跳过。",
+            "Pulsing fire ahead: wait for the flame to go out, or jump early.",
+          ]
+        : [
+            "火焰暂时熄灭，可以通过；下一轮还会重新燃起。",
+            "The flame is out briefly. Cross now; it will reignite next cycle.",
+          ];
   } else if (p.foldsLeft <= 1) {
     warning = atRepairRack(g, p)
       ? [

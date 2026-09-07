@@ -1,14 +1,14 @@
 {
   "name": "before-the-rain",
   "private": true,
-  "version": "2.7.0",
+  "version": "2.8.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "dev:server": "wrangler dev --port 8788",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && node scripts/clean-build.mjs",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "tsx --test tests/game.test.ts tests/bridges.test.ts tests/fire.test.ts tests/collectibles.test.ts tests/guide.test.ts tests/room.test.ts tests/touch-input.test.ts",
+    "test": "tsx --test tests/game.test.ts tests/bridges.test.ts tests/fire.test.ts tests/collectibles.test.ts tests/guide.test.ts tests/room.test.ts tests/touch-input.test.ts tests/editor.test.ts",
     "test:integration": "tsx --test tests/integration.test.ts",
     "deploy:server": "wrangler deploy",
     "types": "wrangler types"

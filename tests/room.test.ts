@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { LEVELS } from "../src/game";
 import {
   makeRoom,
   joinRoom,
@@ -51,8 +52,8 @@ test("leaving lobby transfers hosting and permits replacement", () => {
   assert.equal(joinRoom(r, "new", "c", 0), 0);
 });
 
-for (const level of [3, 7])
-  test(`chapter ${level + 1} advances through the eight-chapter campaign after all votes`, () => {
+for (const level of [3, 7, LEVELS.length - 1])
+  test(`chapter ${level + 1} advances through the full campaign after all votes`, () => {
     let r = makeRoom("ABCDEFGH", 3, level, "host", "a", 0);
     joinRoom(r, "friend", "b", 0);
     joinRoom(r, "friend", "c", 0);
@@ -69,6 +70,6 @@ for (const level of [3, 7])
       );
     assert.equal(r.level, level);
     r = command(r, "c", { type: "restart", gameId: "g", next: true }, 0, "g2");
-    assert.equal(r.level, level === 3 ? 4 : 0);
+    assert.equal(r.level, (level + 1) % LEVELS.length);
     assert.deepEqual(r.game!.savedKeys, []);
   });

@@ -649,12 +649,17 @@ function App() {
               >
                 {LEVELS.map((l, i) => (
                   <option key={i} value={i}>
-                    0{i + 1} · {t(l.name)}
+                    {String(i + 1).padStart(2, "0")} · {t(l.name)}
                   </option>
                 ))}
               </select>
             </label>
             <div className="chapter-brief">
+              {level >= 8 && (
+                <strong className="challenge-label">
+                  {t("挑战关 · 熟练后再来")}
+                </strong>
+              )}
               <b>{t("本关练习")}</b>
               <p>
                 {compact
@@ -767,7 +772,7 @@ function App() {
         <>
           <section className="hud">
             <div className="stage">
-              <b>0{hud.level + 1}</b>
+              <b>{String(hud.level + 1).padStart(2, "0")}</b>
               <div>
                 {t(l.name)}
                 <small>{t(l.sub)}</small>

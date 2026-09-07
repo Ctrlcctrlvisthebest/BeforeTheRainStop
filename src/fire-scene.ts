@@ -90,6 +90,7 @@ export function campfire(
     }),
   );
   halo.rotation.x = -Math.PI / 2;
+  halo.name = "halo";
   halo.position.y = 0.012;
   fire.add(halo);
   if (!blazing) {
@@ -118,9 +119,15 @@ export function campfire(
   }
   return fire;
 }
-export function animateFire(fire: THREE.Group, time: number): void {
+export function animateFire(
+  fire: THREE.Group,
+  time: number,
+  active = true,
+): void {
+  fire.userData.active = active;
   const blazing = fire.userData.blazing;
   fire.children.forEach((o) => {
+    if (["flame", "spark", "halo"].includes(o.name)) o.visible = active;
     if (o.name === "flame") {
       const phase = o.userData.phase,
         base = o.userData.base;

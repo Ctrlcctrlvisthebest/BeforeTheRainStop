@@ -50,11 +50,18 @@ function peer(code: string, token: string) {
   };
   return p;
 }
-for (const n of [2, 3, 6])
-  test(`${n} real WebSockets: shared state, seat ownership, turn sync and reconnect`, async () => {
+for (const [n, level] of [
+  [2, 0],
+  [3, 0],
+  [6, 0],
+  [2, 8],
+  [3, 10],
+  [6, 11],
+])
+  test(`${n} real WebSockets, chapter ${level + 1}: shared state, seat ownership, turn sync and reconnect`, async () => {
     const created = await post("/rooms", {
       capacity: n,
-      level: 0,
+      level,
       name: "host",
     });
     const sessions = [created];
@@ -258,7 +265,12 @@ for (const capacity of [2, 3, 6])
       await until(
         () => peers.every((p) => p.room!.game!.bridgeLatched),
         "wooden deck synchronized",
-      );
+      ).catch((error) => {
+        const g = peers[0].room!.game!;
+        throw Error(
+          `${error}; ${JSON.stringify({ charge: g.bridgeCharge, crossed: g.bridgeCrossed, players: g.players.map((p) => ({ id: p.id, x: p.x, y: p.y, z: p.z, bridge: p.bridgeDock, deaths: p.deaths })) })}`,
+        );
+      });
       assert.ok(peers.every((p) => p.room!.game!.bridgeCrossed.includes(1)));
       for (let id = 0; id < capacity; id++)
         if (id !== 1) send(id, { ...idleInput(), axis: 1 });

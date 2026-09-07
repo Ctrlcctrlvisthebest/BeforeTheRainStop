@@ -2034,3 +2034,4 @@ footer span {
     font-size: 23px;
   }
 }
+.challenge-label { display: block; color: #a65342; font-size: 11px; margin-bottom: 8px; letter-spacing: .08em; }

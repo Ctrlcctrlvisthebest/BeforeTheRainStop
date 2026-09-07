@@ -1,5 +1,6 @@
 import { EXTRA_WEATHER } from "./chapters";
-import type { Point } from "./game";
+import { CHALLENGE_MAPS } from "./challenge-maps";
+import type { Point, Level } from "./game";
 export interface RainZone {
   x: number;
   z: number;
@@ -76,21 +77,34 @@ export const WEATHER: Weather[] = [
     ],
   },
   ...EXTRA_WEATHER,
+  ...CHALLENGE_MAPS.map((m) => m.weather),
 ];
 export const FIRE_DRY_RATE = 26;
 export const FIRE_HEAT_RATE = 12.5;
 export const FIRE_COOL_RATE = 22;
 export const FIRE_WARNING = 65;
 export const BLAZE_HEIGHT = 0.85;
-export const CAMPFIRES = WEATHER.map((weather) =>
+export const firesForWeather = (weather: Weather) =>
   weather.awnings.map((a, i) => ({
     // Keep the starting fire behind the spawn, so waiting for friends is safe.
     x: i === 0 ? a.x - a.w / 2 + 0.95 : a.x,
     y: a.floor ?? 0,
     z: a.z - (i === 0 ? 1.1 : 0.95),
     radius: 1.45,
-  })),
-);
+  }));
+export const CAMPFIRES = WEATHER.map(firesForWeather);
+// Hazard roofs are derived separately: adding a blaze must not also add a
+// drying fire. The same derived cover is used for collision rules and drawing.
+export const BLAZE_ROOFS: Awning[][] = [];
+export const blazeRoofsFor = (level: Level): Awning[] =>
+  level.hazards.map((h) => ({
+    x: h.x,
+    z: h.z,
+    y: h.y + 3.4,
+    w: h.w + 0.6,
+    d: h.d + 0.6,
+    floor: h.y,
+  }));
 export function besideCampfire(level: number, p: Point): boolean {
   return CAMPFIRES[level].some(
     (f) =>
@@ -113,7 +127,7 @@ export function rainfall(level: number, p: Point, t: number): number {
   );
 }
 export function underAwning(level: number, p: Point): boolean {
-  return WEATHER[level].awnings.some(
+  return [...WEATHER[level].awnings, ...(BLAZE_ROOFS[level] ?? [])].some(
     (r) =>
       p.y + 0.88 < r.y &&
       Math.abs(p.x - r.x) < r.w / 2 &&
