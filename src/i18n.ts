@@ -2,6 +2,9 @@ import { MAP_TRANSLATIONS } from "./challenge-maps";
 export type Language = "zh" | "en";
 const english: Record<string, string> = {
   ...MAP_TRANSLATIONS,
+  "正在铺开雨中小径…": "Preparing the rainy path…",
+  "场景加载失败，请重新加载。": "The scene could not load. Please reload.",
+  重新加载: "Reload",
   "间歇旺火 · 看准熄火空档": "Pulsing fire · wait for the flames to go out",
   "挑战关 · 熟练后再来": "Challenge · for experienced cranes",
   游戏工具: "Game tools",

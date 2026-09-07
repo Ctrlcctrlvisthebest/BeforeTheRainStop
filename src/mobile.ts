@@ -8,6 +8,8 @@ export function useCompactControls() {
     const media = matchMedia(query);
     const update = () => setCompact(media.matches);
     media.addEventListener("change", update);
+    // The viewport can change between the first render and this subscription.
+    update();
     return () => media.removeEventListener("change", update);
   }, []);
   return compact;

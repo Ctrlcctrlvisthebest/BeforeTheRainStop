@@ -1,0 +1,76 @@
+{
+  "date": "2026-09-07",
+  "baselineCommit": "9309254dfd6c28689eac0ba79756586d982998f8",
+  "scene": {
+    "cssViewport": [960, 540],
+    "frames": 180,
+    "warmup": 30,
+    "fixedDt": 0.016666666666666666,
+    "viewChangeAtFrame": 100
+  },
+  "loading": {
+    "before": {
+      "files": [
+        "assets/game-BmgohQzo.js",
+        "assets/guide-sDi0Icj1.js",
+        "assets/scene-DJpvpaJ1.js"
+      ],
+      "bytes": 905290,
+      "gzip": 256256
+    },
+    "after": {
+      "files": [
+        "assets/game-Dycu73IX.js",
+        "assets/guide-B8F6txJF.js",
+        "assets/mobile-v_xqAjda.js"
+      ],
+      "bytes": 316817,
+      "gzip": 107132
+    }
+  },
+  "rendering": [
+    {
+      "mode": 1,
+      "level": 1,
+      "before": {
+        "cpuMs": 3.98,
+        "drawCalls": 1027,
+        "geometries": 712
+      },
+      "after": {
+        "cpuMs": 2.35,
+        "drawCalls": 369,
+        "geometries": 315
+      }
+    },
+    {
+      "mode": 6,
+      "level": 11,
+      "before": {
+        "cpuMs": 5.11,
+        "drawCalls": 1324,
+        "geometries": 976
+      },
+      "after": {
+        "cpuMs": 2.71,
+        "drawCalls": 554,
+        "geometries": 530
+      }
+    },
+    {
+      "mode": 6,
+      "level": 12,
+      "before": {
+        "cpuMs": 5.13,
+        "drawCalls": 1284,
+        "geometries": 948
+      },
+      "after": {
+        "cpuMs": 2.7,
+        "drawCalls": 531,
+        "geometries": 485
+      }
+    }
+  ],
+  "note": "CPU time around PaperScene.render in the same local browser. All cases maintained 16.67 ms frame intervals before and after. This is not an end-to-end load-time or mobile-device benchmark."
+}

@@ -1,3 +1,5 @@
+import { mergeDecorations, colorSlab } from "./render-geometry";
+import { rainFloorAt, type RainCover } from "./rain-occlusion";
 import { disposeObjectTree, platformVisual } from "./scene-resources";
 import { translate, type Language } from "./i18n";
 import { touchCopy } from "./mobile";
@@ -31,16 +33,11 @@ const material = (color: string) =>
   });
 function slab(b: Platform, color: string): THREE.Group {
   const group = new THREE.Group();
-  const mats = [
-    material(color),
-    material(color),
-    material("#8c98a3"),
-    material(color),
-    material(color),
-    material(color),
-  ];
   const geo = new THREE.BoxGeometry(b.w, b.h, b.d);
-  const mesh = new THREE.Mesh(geo, mats);
+  colorSlab(geo, color);
+  const mat = material("#ffffff");
+  mat.vertexColors = true;
+  const mesh = new THREE.Mesh(geo, mat);
   mesh.position.y = -b.h / 2;
   mesh.castShadow = true;
   mesh.receiveShadow = true;
@@ -210,6 +207,7 @@ function wishingRack(w: number, height: number, seed = 0): THREE.Group {
           0.007,
         ),
       );
+    mergeDecorations(tag);
     rack.add(tag);
     if (i % 2 === 0) {
       const paper = box(
@@ -225,6 +223,7 @@ function wishingRack(w: number, height: number, seed = 0): THREE.Group {
       rack.add(paper);
     }
   }
+  mergeDecorations(rack);
   return rack;
 }
 function unfoldedPaper(color: string): THREE.Group {
@@ -394,8 +393,13 @@ export class PaperScene {
   private camera = new THREE.OrthographicCamera();
   private birds: THREE.Group[] = [];
   private rain: THREE.LineSegments | null = null;
-  private rainSeeds: { x: number; z: number; phase: number; speed: number }[] =
-    [];
+  private rainSeeds: {
+    x: number;
+    z: number;
+    phase: number;
+    speed: number;
+    floor: number;
+  }[] = [];
   private tiles: THREE.Group[] = [];
   private keys: THREE.Group[] = [];
   private stars: THREE.Mesh[] = [];
@@ -403,7 +407,6 @@ export class PaperScene {
   private crossingDeck: THREE.Group | null = null;
   private crossingPad: THREE.Mesh | null = null;
   private crossingLabel: THREE.Sprite | null = null;
-  private checkpoints: THREE.Group[] = [];
   private hazards: THREE.Group[] = [];
   private fires: THREE.Group[] = [];
   private fireLight = new THREE.PointLight("#ffad5b", 0, 6, 2);
@@ -424,6 +427,12 @@ export class PaperScene {
   private language: Language = "zh";
   private compact = false;
   private wishes: THREE.Object3D[] = [];
+  private labels: THREE.Object3D[] = [];
+  private movingPlatforms: Platform[] = [];
+  private scratch = new THREE.Vector3();
+  private goal = new THREE.Vector3();
+  private wetColor = new THREE.Color("#586f82");
+  private heatColor = new THREE.Color("#553725");
   private text(text: string) {
     const translated = translate(this.language, text);
     return this.compact ? touchCopy(translated, this.language) : translated;
@@ -514,7 +523,6 @@ export class PaperScene {
     this.stars = [];
     this.signs = [];
     this.pads = [];
-    this.checkpoints = [];
     this.hazards = [];
     this.fires = [];
     this.windLines = [];
@@ -668,7 +676,6 @@ export class PaperScene {
       title.position.set(k.x, k.y + 2.25, k.z - 1.05);
       title.name = "awning-label";
       this.root.add(group, title);
-      this.checkpoints.push(group);
     });
     l.hazards.forEach((k) => {
       const group = campfire(k.w, k.d, true);
@@ -882,9 +889,19 @@ export class PaperScene {
     temple.position.set(11, 0, -29);
     this.root.add(temple);
     this.wishes = [];
+    this.labels = [];
     this.root.traverse((o) => {
       if (o.name === "wish-tag") this.wishes.push(o);
+      if (o.name === "awning-label") this.labels.push(o);
     });
+    this.movingPlatforms = l.platforms.filter((p) => p.motion);
+    const fixedCovers: RainCover[] = [
+      ...WEATHER[g.level].awnings.map((a) => ({ ...a, top: a.y + 0.05 })),
+      ...(BLAZE_ROOFS[g.level] ?? []).map((a) => ({ ...a, top: a.y + 0.05 })),
+      ...l.platforms
+        .filter((p) => !p.motion)
+        .map((p) => ({ ...p, top: p.y + 0.02 })),
+    ];
     this.rainSeeds = [];
     WEATHER[g.level].zones.forEach((zone, zi) => {
       for (let i = 0; i < 160; i++)
@@ -893,7 +910,11 @@ export class PaperScene {
           z: zone.z + (((i * 0.414213 + zi * 0.19) % 1) - 0.5) * zone.d,
           phase: (i * 0.754877) % 1,
           speed: 1 + (i % 7) * 0.08,
+          floor: -2.5,
         });
+    });
+    this.rainSeeds.forEach((seed) => {
+      seed.floor = rainFloorAt(seed, fixedCovers);
     });
     const rainGeo = new THREE.BufferGeometry();
     rainGeo.setAttribute(
@@ -982,12 +1003,12 @@ export class PaperScene {
       Math.hypot(p.x - player.x, p.z - player.z) < 8 &&
       (g.view === 0 ? Math.abs(p.z - player.z) : Math.abs(p.x - player.x)) <
         2.2;
-    this.root.children.forEach((o) => {
-      if (o.name === "awning-label") o.visible = nearbyLabel(o.position);
+    this.labels.forEach((o) => {
+      o.visible = nearbyLabel(o.position);
     });
     const yawTarget = (g.view * Math.PI) / 2;
     this.yaw += (yawTarget - this.yaw) * Math.min(1, dt * 12);
-    const goal = new THREE.Vector3(
+    const goal = this.goal.set(
       player.x + (g.view === 0 ? 4 * player.facing : 0),
       Math.max(1.3, player.y + 1.3),
       player.z - (g.view === 1 ? 4 * player.facing : 0),
@@ -1013,11 +1034,7 @@ export class PaperScene {
     this.camera.position
       .copy(this.target)
       .add(
-        new THREE.Vector3(
-          Math.sin(this.yaw) * 32,
-          7.5,
-          Math.cos(this.yaw) * 32,
-        ),
+        this.scratch.set(Math.sin(this.yaw) * 32, 7.5, Math.cos(this.yaw) * 32),
       );
     this.camera.lookAt(this.target);
     this.camera.updateProjectionMatrix();
@@ -1029,29 +1046,32 @@ export class PaperScene {
       const depth = g.view === 0 ? b.d : b.w;
       const corridor = b.kind === "low-roof" || b.kind === "railing";
       const ghost = corridor || distance > depth / 2 + 0.45;
-      node.traverse((o) => {
-        if (o instanceof THREE.Mesh) {
-          const mats = Array.isArray(o.material) ? o.material : [o.material];
-          mats.forEach((m) => {
-            m.transparent = ghost;
-            m.opacity =
-              o.name === "eave-beam"
-                ? 0.7
-                : corridor
-                  ? b.kind === "low-roof"
-                    ? 0.32
-                    : 0.15
-                  : ghost
-                    ? 0.24
-                    : 1;
-            m.depthWrite = !ghost;
-          });
-        }
-      });
+      if (node.userData.ghost !== ghost) {
+        node.userData.ghost = ghost;
+        node.traverse((o) => {
+          if (o instanceof THREE.Mesh) {
+            const mats = Array.isArray(o.material) ? o.material : [o.material];
+            mats.forEach((m) => {
+              m.transparent = ghost;
+              m.opacity =
+                o.name === "eave-beam"
+                  ? 0.7
+                  : corridor
+                    ? b.kind === "low-roof"
+                      ? 0.32
+                      : 0.15
+                    : ghost
+                      ? 0.24
+                      : 1;
+              m.depthWrite = !ghost;
+            });
+          }
+        });
+      }
     });
     this.birds.forEach((node, i) => {
       const p = g.players[i];
-      const target = new THREE.Vector3(p.x, p.y, p.z);
+      const target = this.scratch.set(p.x, p.y, p.z);
       if (node.position.distanceTo(target) > 3) node.position.copy(target);
       else
         node.position.lerp(target, 1 - Math.exp(-dt * (i === local ? 32 : 17)));
@@ -1073,24 +1093,26 @@ export class PaperScene {
       bridge.visible = unfold > 0.01 && node.userData.shape === "bridge";
       bird.visible = unfold < 0.93;
       bird.scale.setScalar(Math.max(0.01, 1 - unfold));
-      shapePaper(
-        shelter,
-        unfold,
-        p.foldsLeft ?? MAX_FOLDS,
-        p.wetness ?? 0,
-        this.clock,
-        false,
-        p.heat ?? 0,
-      );
-      shapePaper(
-        bridge,
-        unfold,
-        p.foldsLeft ?? MAX_FOLDS,
-        p.wetness ?? 0,
-        this.clock,
-        true,
-        p.heat ?? 0,
-      );
+      if (shelter.visible)
+        shapePaper(
+          shelter,
+          unfold,
+          p.foldsLeft ?? MAX_FOLDS,
+          p.wetness ?? 0,
+          this.clock,
+          false,
+          p.heat ?? 0,
+        );
+      if (bridge.visible)
+        shapePaper(
+          bridge,
+          unfold,
+          p.foldsLeft ?? MAX_FOLDS,
+          p.wetness ?? 0,
+          this.clock,
+          true,
+          p.heat ?? 0,
+        );
       bird.rotation.y = (g.view * Math.PI) / 2 + (p.facing < 0 ? Math.PI : 0);
       bridge.rotation.y =
         ((p.bridgeAxis ? p.bridgeAxis === "z" : g.view === 1) ? Math.PI : 0) /
@@ -1113,11 +1135,8 @@ export class PaperScene {
         )
           o.material.color
             .set(COLORS[p.id])
-            .lerp(new THREE.Color("#586f82"), (p.wetness ?? 0) / 160)
-            .lerp(
-              new THREE.Color("#553725"),
-              Math.max(0, (p.heat ?? 0) - 25) / 90,
-            );
+            .lerp(this.wetColor, (p.wetness ?? 0) / 160)
+            .lerp(this.heatColor, Math.max(0, (p.heat ?? 0) - 25) / 90);
       });
       const meter = node.getObjectByName("wet-meter")!;
       meter.visible = (p.wetness ?? 0) > 1;
@@ -1206,7 +1225,7 @@ export class PaperScene {
       animateFire(o, this.clock, activeHazard(l.hazards[i].period, g.time));
     });
     this.fires.forEach((o) => animateFire(o, this.clock));
-    const fireViewer = new THREE.Vector3(player.x, player.y, player.z);
+    const fireViewer = this.scratch.set(player.x, player.y, player.z);
     const nearestFire = [
       ...this.fires,
       ...this.hazards.filter((o) => o.userData.active),
@@ -1220,9 +1239,8 @@ export class PaperScene {
       null,
     );
     if (nearestFire) {
-      this.fireLight.position
-        .copy(nearestFire.position)
-        .add(new THREE.Vector3(0, 0.7, 0));
+      this.fireLight.position.copy(nearestFire.position);
+      this.fireLight.position.y += 0.7;
       this.fireLight.intensity =
         (nearestFire.userData.blazing ? 6 : 3) *
         (1 + Math.sin(this.clock * 12) * 0.1);
@@ -1230,9 +1248,7 @@ export class PaperScene {
     this.signs.forEach((o, i) => {
       const sign = l.signs[i];
       o.visible =
-        nearbyLabel(sign) &&
-        (sign.view === undefined || sign.view === g.view) &&
-        Math.hypot(sign.x - player.x, sign.z - player.z) < 8;
+        nearbyLabel(sign) && (sign.view === undefined || sign.view === g.view);
     });
     this.windLines.forEach((o, i) => {
       const w = o.userData.wind as Point & {
@@ -1256,32 +1272,21 @@ export class PaperScene {
         "position",
       ) as THREE.BufferAttribute;
       const time = g.status === "playing" ? this.clock : g.motionTime;
+      const movingCovers: RainCover[] = this.movingPlatforms.map((raw) => {
+        const p = platformAt(raw, g.motionTime);
+        return { x: p.x, z: p.z, w: p.w, d: p.d, top: p.y + 0.02 };
+      });
+      for (const p of g.players)
+        if (p.sheltering)
+          movingCovers.push({
+            x: p.x,
+            z: p.z,
+            w: SHIELD_RADIUS * 2,
+            d: SHIELD_RADIUS * 2,
+            top: p.y + 1.34,
+          });
       this.rainSeeds.forEach((seed, i) => {
-        let bottom = -2.5;
-        for (const a of [
-          ...WEATHER[g.level].awnings,
-          ...(BLAZE_ROOFS[g.level] ?? []),
-        ])
-          if (
-            Math.abs(seed.x - a.x) < a.w / 2 &&
-            Math.abs(seed.z - a.z) < a.d / 2
-          )
-            bottom = Math.max(bottom, a.y + 0.05);
-        for (const p of g.players)
-          if (
-            p.sheltering &&
-            Math.abs(seed.x - p.x) < SHIELD_RADIUS &&
-            Math.abs(seed.z - p.z) < SHIELD_RADIUS
-          )
-            bottom = Math.max(bottom, p.y + 1.34);
-        for (const raw of l.platforms) {
-          const p = platformAt(raw, g.motionTime);
-          if (
-            Math.abs(seed.x - p.x) < p.w / 2 &&
-            Math.abs(seed.z - p.z) < p.d / 2
-          )
-            bottom = Math.max(bottom, p.y + 0.02);
-        }
+        const bottom = rainFloorAt(seed, movingCovers, seed.floor);
         const y =
           bottom +
           (1 - ((time * 0.7 * seed.speed + seed.phase) % 1)) * (12 - bottom);

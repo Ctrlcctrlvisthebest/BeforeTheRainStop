@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   LEVELS,
@@ -20,7 +20,9 @@ import { api, Connection, validSession, type Session } from "./api";
 import { save, stored, forget } from "./storage";
 import { KeyboardInput, bindGameKeyboard } from "./keyboard-input";
 import type { PublicRoom } from "./room";
-import { PaperScene } from "./scene";
+import type { PaperScene } from "./scene";
+import { loadScene, warmScene } from "./scene-loader";
+import { FrameBudget } from "./frame-budget";
 import "./style.css";
 import "./mobile.css";
 import { TouchInput, mergeInput, type TouchField } from "./touch-input";
@@ -51,9 +53,11 @@ function App() {
     document.title =
       translate(language, "雨停之前") + " · " + translate(language, "纸上祈愿");
   }, [language]);
+  const [initialGame] = useState(() => newGame(1));
+  const [sceneStatus, setSceneStatus] = useState("idle");
+  const sceneReady = useRef(false);
   const canvas = useRef<HTMLCanvasElement>(null),
-    scene = useRef<PaperScene | null>(null),
-    game = useRef<Game>(newGame(1)),
+    game = useRef<Game>(initialGame),
     input = useRef<Input>(idleInput()),
     keyboardInput = useRef(new KeyboardInput()),
     touchInput = useRef(new TouchInput()),
@@ -77,7 +81,7 @@ function App() {
     [connected, setConnected] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    [hud, setHud] = useState<Game>(newGame(1)),
+    [hud, setHud] = useState<Game>(() => structuredClone(initialGame)),
     [help, setHelp] = useState(false);
   const [guideEnabled, setGuideEnabled] = useState(
     () => stored<boolean>("local", "rain-guide") !== false,
@@ -144,6 +148,7 @@ function App() {
   }, [phase]);
   function receive(r: PublicRoom, ins: Inputs) {
     const previous = game.current;
+    const previousRoom = currentRoom.current;
     currentRoom.current = r;
     others.current = ins;
     if (r.game) {
@@ -152,10 +157,15 @@ function App() {
         r.game.stars.length > previous.stars.length
       )
         sound(660);
-      game.current = structuredClone(r.game);
+      // A WebSocket packet owns this snapshot; prediction clones before stepping.
+      game.current = r.game;
       authTime.current = performance.now();
     }
-    setRoom(r);
+    if (
+      r.revision !== previousRoom?.revision ||
+      r.phase !== previousRoom?.phase
+    )
+      setRoom(r);
     if (r.phase !== phaseRef.current) changePhase(r.phase);
   }
   function enter(s: Session) {
@@ -165,6 +175,7 @@ function App() {
     currentSession.current = s;
     setSession(s);
     save("session", KEY, s);
+    warmScene();
     changePhase("lobby");
     connection.current = new Connection(s, receive, setConnected, setError);
   }
@@ -188,90 +199,140 @@ function App() {
     };
   }, []);
   useEffect(() => {
-    const s = new PaperScene(canvas.current!);
-    scene.current = s;
-    let last = performance.now(),
-      acc = 0,
-      net = 0,
-      ui = 0,
-      frame = 0;
-    const loop = (now: number) => {
-      const dt = Math.min(0.05, (now - last) / 1000);
-      last = now;
-      acc += dt;
-      const playing = phaseRef.current === "game";
-      input.current = helpRef.current
-        ? idleInput()
-        : mergeInput(
-            keyboardInput.current.read(now),
-            touchInput.current.read(now),
+    if (phase !== "game") return;
+    let cancelled = false,
+      frame = 0,
+      scene: PaperScene | null = null;
+    sceneReady.current = false;
+    setSceneStatus("loading");
+    void loadScene()
+      .then(({ PaperScene }) => {
+        if (cancelled) return;
+        const created = new PaperScene(canvas.current!);
+        scene = created;
+        sceneReady.current = true;
+        setSceneStatus("ready");
+        let last = performance.now(),
+          acc = 0,
+          net = 0,
+          ui = 0;
+        const budget = new FrameBudget();
+        const update = (now: number) => {
+          if (document.hidden) {
+            last = now;
+            acc = 0;
+            return;
+          }
+          if (
+            !budget.ready(
+              now,
+              helpRef.current && !currentSession.current ? 30 : 60,
+            )
+          )
+            return;
+          const dt = Math.min(0.05, (now - last) / 1000);
+          last = now;
+          acc += dt;
+          const playing = phaseRef.current === "game";
+          input.current = helpRef.current
+            ? idleInput()
+            : mergeInput(
+                keyboardInput.current.read(now),
+                touchInput.current.read(now),
+              );
+          if (playing) {
+            if (!currentSession.current && helpRef.current) {
+              acc = 0;
+            } else if (!currentSession.current) {
+              while (acc >= 1 / 60) {
+                const before =
+                  game.current.keys.length + game.current.stars.length;
+                stepGame(game.current, { 0: input.current });
+                if (
+                  game.current.keys.length + game.current.stars.length >
+                  before
+                )
+                  sound(660);
+                acc -= 1 / 60;
+              }
+            } else {
+              acc = 0;
+              if (now - net > 33) {
+                connection.current?.input(game.current.id, input.current);
+                net = now;
+              }
+            }
+          } else acc = 0;
+          let display = game.current;
+          if (
+            playing &&
+            currentSession.current &&
+            currentRoom.current?.players.every((p) => p.online)
+          ) {
+            display = structuredClone(game.current);
+            const predicted = Math.min(
+              0.1,
+              Math.max(0, (now - authTime.current) / 1000),
+            );
+            for (let t = 0; t < predicted; t += 1 / 60)
+              stepGame(display, {
+                ...others.current,
+                [currentSession.current.slot]: input.current,
+              });
+          }
+          guide.current = guideFor(
+            game.current,
+            currentSession.current?.slot ?? 0,
+            guideTracker.current,
           );
-      if (playing) {
-        if (!currentSession.current && helpRef.current) {
-          acc = 0;
-        } else if (!currentSession.current) {
-          while (acc >= 1 / 60) {
-            const before = game.current.keys.length + game.current.stars.length;
-            stepGame(game.current, { 0: input.current });
-            if (game.current.keys.length + game.current.stars.length > before)
-              sound(660);
-            acc -= 1 / 60;
+          created.render(
+            display,
+            currentSession.current?.slot ?? 0,
+            dt,
+            phaseRef.current !== "game",
+            languageRef.current,
+            guideEnabledRef.current && playing
+              ? guide.current.target
+              : undefined,
+            compactRef.current,
+          );
+          if (now - ui > 100) {
+            setHud(structuredClone(game.current));
+            ui = now;
           }
-        } else {
-          acc = 0;
-          if (now - net > 33) {
+        };
+        const loop = (now: number) => {
+          if (cancelled) return;
+          try {
+            update(now);
+          } catch {
+            sceneReady.current = false;
+            keyboardInput.current.clear();
+            touchInput.current.clear();
+            input.current = idleInput();
             connection.current?.input(game.current.id, input.current);
-            net = now;
+            setSceneStatus("error");
+            return;
           }
-        }
-      } else acc = 0;
-      let display = game.current;
-      if (
-        playing &&
-        currentSession.current &&
-        currentRoom.current?.players.every((p) => p.online)
-      ) {
-        display = structuredClone(game.current);
-        const predicted = Math.min(
-          0.1,
-          Math.max(0, (now - authTime.current) / 1000),
-        );
-        for (let t = 0; t < predicted; t += 1 / 60)
-          stepGame(display, {
-            ...others.current,
-            [currentSession.current.slot]: input.current,
-          });
-      }
-      guide.current = guideFor(
-        game.current,
-        currentSession.current?.slot ?? 0,
-        guideTracker.current,
-      );
-      s.render(
-        display,
-        currentSession.current?.slot ?? 0,
-        dt,
-        phaseRef.current !== "game",
-        languageRef.current,
-        guideEnabledRef.current && playing ? guide.current.target : undefined,
-        compactRef.current,
-      );
-      if (now - ui > 100) {
-        setHud(structuredClone(game.current));
-        ui = now;
-      }
-      frame = requestAnimationFrame(loop);
-    };
-    frame = requestAnimationFrame(loop);
+          frame = requestAnimationFrame(loop);
+        };
+        frame = requestAnimationFrame(loop);
+      })
+      .catch(() => {
+        if (!cancelled) setSceneStatus("error");
+      });
     return () => {
+      cancelled = true;
+      sceneReady.current = false;
       cancelAnimationFrame(frame);
-      s.dispose();
+      scene?.dispose();
     };
-  }, []);
+  }, [phase]);
   useEffect(
     () =>
       bindGameKeyboard(keyboardInput.current, {
-        enabled: () => phaseRef.current === "game" && !helpRef.current,
+        enabled: () =>
+          phaseRef.current === "game" && sceneReady.current && !helpRef.current,
         escape: () => {
           if (phaseRef.current === "game") setHelp((v) => !v);
         },
@@ -292,6 +353,7 @@ function App() {
   );
   async function create() {
     sessionAttempt.current++;
+    warmScene();
     void audio.start();
     setError("");
     save("local", "rain-name", name);
@@ -317,6 +379,7 @@ function App() {
   }
   async function join() {
     sessionAttempt.current++;
+    warmScene();
     void audio.start();
     setBusy(true);
     setError("");
@@ -388,33 +451,36 @@ function App() {
     local = hud.players[session?.slot ?? 0] ?? hud.players[0],
     isPlaying = phase === "game",
     won = isPlaying && hud.status === "won";
-  const mapPlatforms = l.platforms.filter(
-    (p) => !["wall", "low-roof", "railing"].includes(p.kind ?? ""),
-  );
-  const minX =
-    Math.min(
-      ...mapPlatforms.map(
-        (p) => p.x - p.w / 2 - (p.motion?.axis === "x" ? p.motion.range : 0),
-      ),
-    ) - 1.5;
-  const maxX =
-    Math.max(
-      ...mapPlatforms.map(
-        (p) => p.x + p.w / 2 + (p.motion?.axis === "x" ? p.motion.range : 0),
-      ),
-    ) + 1.5;
-  const minZ =
-    Math.min(
-      ...mapPlatforms.map(
-        (p) => p.z - p.d / 2 - (p.motion?.axis === "z" ? p.motion.range : 0),
-      ),
-    ) - 1.5;
-  const maxZ =
-    Math.max(
-      ...mapPlatforms.map(
-        (p) => p.z + p.d / 2 + (p.motion?.axis === "z" ? p.motion.range : 0),
-      ),
-    ) + 1.5;
+  const { minX, maxX, minZ, maxZ } = useMemo(() => {
+    const mapPlatforms = LEVELS[hud.level].platforms.filter(
+      (p) => !["wall", "low-roof", "railing"].includes(p.kind ?? ""),
+    );
+    const minX =
+      Math.min(
+        ...mapPlatforms.map(
+          (p) => p.x - p.w / 2 - (p.motion?.axis === "x" ? p.motion.range : 0),
+        ),
+      ) - 1.5;
+    const maxX =
+      Math.max(
+        ...mapPlatforms.map(
+          (p) => p.x + p.w / 2 + (p.motion?.axis === "x" ? p.motion.range : 0),
+        ),
+      ) + 1.5;
+    const minZ =
+      Math.min(
+        ...mapPlatforms.map(
+          (p) => p.z - p.d / 2 - (p.motion?.axis === "z" ? p.motion.range : 0),
+        ),
+      ) - 1.5;
+    const maxZ =
+      Math.max(
+        ...mapPlatforms.map(
+          (p) => p.z + p.d / 2 + (p.motion?.axis === "z" ? p.motion.range : 0),
+        ),
+      ) + 1.5;
+    return { minX, maxX, minZ, maxZ };
+  }, [hud.level]);
   const carriedKeys = local.carriedKeys?.length ?? 0,
     carriedStars = local.carriedStars?.length ?? 0;
   const touch = (
@@ -429,7 +495,7 @@ function App() {
         field === "axis" ? t(value === -1 ? "向左移动" : "向右移动") : label
       }
       aria-pressed={input.current[field] === value}
-      disabled={helpRef.current || won}
+      disabled={!sceneReady.current || helpRef.current || won}
       title={
         field === "reset"
           ? t("返回最近许愿架，未存档物品复位。湿度清零，耐折不会重置。")
@@ -457,7 +523,26 @@ function App() {
       className={`app ${isPlaying ? "playing" : ""} ${compact ? "compact" : ""} ${toolsOpen ? "tools-open" : ""} ${mapOpen ? "map-open" : ""} ${guideEnabled ? "with-guide" : ""}`}
       lang={language === "zh" ? "zh-CN" : "en"}
     >
-      <canvas ref={canvas} tabIndex={0} aria-label={t("千纸鹤横版游戏场景")} />
+      <canvas
+        ref={canvas}
+        tabIndex={0}
+        aria-label={t("千纸鹤横版游戏场景")}
+        hidden={!isPlaying}
+      />
+      {isPlaying && sceneStatus !== "ready" && (
+        <div className="scene-loading" role="status">
+          <p>
+            {t(
+              sceneStatus === "error"
+                ? "场景加载失败，请重新加载。"
+                : "正在铺开雨中小径…",
+            )}
+          </p>
+          {sceneStatus === "error" && (
+            <button onClick={() => location.reload()}>{t("重新加载")}</button>
+          )}
+        </div>
+      )}
       <div className="atmosphere" />
       <div className="grain" />
       {compact && isPlaying && (toolsOpen || mapOpen) && (
@@ -614,7 +699,13 @@ function App() {
                 {t("第一次玩？先看图解")} ↗
               </button>
             </div>
-            <button className="primary" disabled={busy} onClick={create}>
+            <button
+              className="primary"
+              disabled={busy}
+              onPointerEnter={warmScene}
+              onFocus={warmScene}
+              onClick={create}
+            >
               {t(busy ? "正在连接…" : mode === 1 ? "开始冒险" : "创建好友房间")}
               <span>↗</span>
             </button>

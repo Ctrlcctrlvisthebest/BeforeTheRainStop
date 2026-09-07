@@ -17,6 +17,7 @@
   "include": [
     "src",
     "tests",
+    "benchmarks",
     "vite.config.ts",
     "server",
     "worker-configuration.d.ts"

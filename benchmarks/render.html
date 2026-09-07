@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+  <meta charset="UTF-8" /><meta
+    name="viewport"
+    content="width=device-width,initial-scale=1"
+  /><title>雨停之前 · 渲染基准</title
+  ><style>
+    body {
+      margin: 0;
+      background: #263747;
+      color: #eee;
+      font: 14px system-ui;
+    }
+    canvas {
+      width: 960px;
+      height: 540px;
+      display: block;
+    }
+    pre {
+      white-space: pre-wrap;
+    }
+    button {
+      padding: 12px;
+    }</style
+  ><button id="run">运行渲染基准</button
+  ><span id="status">准备就绪 · 960 × 540 · 固定步长</span
+  ><button id="snapshot">导出菜单背景</button
+  ><textarea
+    aria-label="菜单背景数据"
+    id="snapshot-data"
+    style="display: none"
+  ></textarea
+  ><canvas></canvas>
+  <pre id="result"></pre>
+  <script type="module" src="./render.ts"></script>
+</html>

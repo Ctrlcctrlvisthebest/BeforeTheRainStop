@@ -5,9 +5,10 @@ import { translate, type Language } from "./i18n";
 type Playback = "ready" | "loading" | "playing" | "paused" | "error";
 export function useGameAudio(inGame: boolean) {
   const player = useRef<HTMLAudioElement>(null);
-  const enabled = useRef(
-    stored<boolean>("local", "rain-music-enabled") !== false,
+  const [initialEnabled] = useState(
+    () => stored<boolean>("local", "rain-music-enabled") !== false,
   );
+  const enabled = useRef(initialEnabled);
   const [state, setState] = useState<Playback>("ready");
   const [volume, setVolumeState] = useState(() => {
     const saved = stored<number>("local", "rain-music-volume");
@@ -180,7 +181,9 @@ export function MusicControls({
         onPlaying={() => audio.setState("playing")}
         onPause={() => audio.setState("paused")}
         onError={() => audio.setState("error")}
-        onTimeUpdate={(event) => setPosition(event.currentTarget.currentTime)}
+        onTimeUpdate={(event) => {
+          if (open) setPosition(event.currentTarget.currentTime);
+        }}
       />
       <button
         className={playing ? "music-active" : ""}

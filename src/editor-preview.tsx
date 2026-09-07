@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MAX_FOLDS, newGame, stepGame } from "./game";
 import { PaperScene } from "./scene";
+import { FrameBudget } from "./frame-budget";
 import { TouchInput, mergeInput, type TouchField } from "./touch-input";
 import { KeyboardInput, bindGameKeyboard } from "./keyboard-input";
 import { installPreviewMap } from "./preview-map";
@@ -57,7 +58,14 @@ export default function MapPreview({
       last = performance.now(),
       acc = 0,
       ui = 0;
-    const loop = (now: number) => {
+    const budget = new FrameBudget();
+    const update = (now: number) => {
+      if (document.hidden) {
+        last = now;
+        acc = 0;
+        return;
+      }
+      if (!budget.ready(now, pause.current ? 30 : 60)) return;
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
       acc += dt;
@@ -86,6 +94,14 @@ export default function MapPreview({
           cue: words(guide.title, "zh"),
         });
         ui = now;
+      }
+    };
+    const loop = (now: number) => {
+      try {
+        update(now);
+      } catch {
+        setError("场景渲染中断，请重新试玩。");
+        return;
       }
       frame = requestAnimationFrame(loop);
     };
