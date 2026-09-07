@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { LEVELS, type Game } from "./game";
 import { words, type Guidance, type Lesson, type Copy } from "./guide";
 import type { Language } from "./i18n";
+import { touchCopy } from "./mobile";
 interface LessonData {
   name: Copy;
   title: Copy;
@@ -213,13 +214,16 @@ export function GuideCard({
   guide,
   language,
   onLearn,
+  compact = false,
 }: {
   g: Game;
   guide: Guidance;
   language: Language;
   onLearn: (l: Lesson) => void;
+  compact?: boolean;
 }) {
-  const w = (c: Copy) => words(c, language),
+  const w = (c: Copy) =>
+      compact ? touchCopy(words(c, language), language) : words(c, language),
     l = LEVELS[g.level];
   return (
     <section
@@ -251,7 +255,13 @@ export function GuideCard({
       <div className="guide-keys">
         {guide.keys.length ? (
           guide.keys.map((k, i) => (
-            <kbd key={i}>{k === "空格" ? w(["空格", "Space"]) : k}</kbd>
+            <kbd key={i}>
+              {compact
+                ? touchCopy(k, language)
+                : k === "空格"
+                  ? w(["空格", "Space"])
+                  : k}
+            </kbd>
           ))
         ) : (
           <span>
@@ -321,11 +331,14 @@ function Crane({
 function LessonDiagram({
   lesson,
   language,
+  compact = false,
 }: {
   lesson: Lesson;
   language: Language;
+  compact?: boolean;
 }) {
-  const w = (c: Copy) => words(c, language);
+  const w = (c: Copy) =>
+    compact ? touchCopy(words(c, language), language) : words(c, language);
   return (
     <svg
       className="lesson-diagram"
@@ -533,15 +546,18 @@ export function HowToPlay({
   initialLesson = "basics",
   playing = false,
   multiplayer = false,
+  compact = false,
 }: {
   language: Language;
   initialLesson?: Lesson;
   playing?: boolean;
   multiplayer?: boolean;
+  compact?: boolean;
 }) {
   const [lesson, setLesson] = useState<Lesson>(initialLesson),
     data = LESSONS[lesson],
-    w = (c: Copy) => words(c, language);
+    w = (c: Copy) =>
+      compact ? touchCopy(words(c, language), language) : words(c, language);
   return (
     <div className="how-to-play">
       <span className="eyebrow">{w(["玩法图解", "PLAYING GUIDE"])}</span>
@@ -588,7 +604,7 @@ export function HowToPlay({
         aria-labelledby={`lesson-${lesson}`}
       >
         <h3>{w(data.title)}</h3>
-        <LessonDiagram lesson={lesson} language={language} />
+        <LessonDiagram lesson={lesson} language={language} compact={compact} />
         <ol>
           {data.steps.map((s, i) => (
             <li key={i}>{w(s)}</li>

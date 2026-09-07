@@ -1,4 +1,5 @@
 import { translate, type Language } from "./i18n";
+import { touchCopy } from "./mobile";
 import { CROSSINGS, bankPoint, bridgePlank } from "./bridges";
 import { WEATHER, rainStrength, SHIELD_RADIUS, CAMPFIRES } from "./weather";
 import { campfire, animateFire } from "./fire-scene";
@@ -412,7 +413,12 @@ export class PaperScene {
   private height = 600;
   private clock = 0;
   private language: Language = "zh";
+  private compact = false;
   private wishes: THREE.Object3D[] = [];
+  private text(text: string) {
+    const translated = translate(this.language, text);
+    return this.compact ? touchCopy(translated, this.language) : translated;
+  }
   constructor(private canvas: HTMLCanvasElement) {
     this.renderer = new THREE.WebGLRenderer({
       canvas,
@@ -420,7 +426,10 @@ export class PaperScene {
       alpha: false,
       powerPreference: "high-performance",
     });
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    const touchDevice = matchMedia("(pointer: coarse)").matches;
+    this.renderer.setPixelRatio(
+      Math.min(devicePixelRatio, touchDevice ? 1.5 : 2),
+    );
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -434,7 +443,7 @@ export class PaperScene {
     const sun = new THREE.DirectionalLight("#c4d6eb", 2.2);
     sun.position.set(-8, 18, 10);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.mapSize.setScalar(touchDevice ? 1024 : 2048);
     Object.assign(sun.shadow.camera, {
       left: -35,
       right: 35,
@@ -603,8 +612,7 @@ export class PaperScene {
       this.crossingPad.position.set(far.x, 0.08, far.z);
       this.root.add(this.crossingPad);
       this.crossingLabel = textSprite(
-        translate(
-          this.language,
+        this.text(
           g.mode === 1
             ? "按住 Shift 2 秒 · 自动接桥"
             : "过桥后踩住 2 秒 · 接应搭桥的人",
@@ -647,7 +655,7 @@ export class PaperScene {
       this.stars.push(node);
     });
     l.signs.forEach((k) => {
-      const sprite = textSprite(translate(this.language, k.text ?? ""));
+      const sprite = textSprite(this.text(k.text ?? ""));
       sprite.position.set(k.x, k.y + 2, k.z);
       this.signs.push(sprite);
       this.root.add(sprite);
@@ -664,11 +672,7 @@ export class PaperScene {
     [l.spawn, ...l.checkpoints].forEach((k) => {
       const group = wishingRack(1.55, 1.75);
       group.position.set(k.x, k.y, k.z - 1.05);
-      const title = textSprite(
-        translate(this.language, "许愿架 · F 修补"),
-        "#e5bd81",
-        0.55,
-      );
+      const title = textSprite(this.text("许愿架 · F 修补"), "#e5bd81", 0.55);
       title.position.set(k.x, k.y + 2.25, k.z - 1.05);
       title.name = "awning-label";
       this.root.add(group, title);
@@ -911,13 +915,16 @@ export class PaperScene {
     preview = false,
     language: Language = "zh",
     guideTarget?: Point,
+    compact = false,
   ) {
     if (
       g.level !== this.level ||
       g.mode !== this.count ||
-      language !== this.language
+      language !== this.language ||
+      compact !== this.compact
     ) {
       this.language = language;
+      this.compact = compact;
       this.build(g);
     }
     this.clock += dt;
@@ -959,7 +966,10 @@ export class PaperScene {
     this.target.lerp(goal, 1 - Math.exp(-dt * 6));
     const aspect = this.width / this.height;
     const viewHeight = aspect > 1.5 ? 12.5 : 17;
-    const viewWidth = Math.max(19, viewHeight * aspect);
+    const viewWidth = Math.max(
+      !preview && aspect < 1 ? 15.5 : 19,
+      viewHeight * aspect,
+    );
     this.camera.left = -viewWidth / 2;
     this.camera.right = viewWidth / 2;
     this.camera.top = viewWidth / aspect / 2;

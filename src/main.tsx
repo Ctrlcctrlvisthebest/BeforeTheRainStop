@@ -20,6 +20,9 @@ import { api, Connection, save, stored, type Session } from "./api";
 import type { PublicRoom } from "./room";
 import { PaperScene } from "./scene";
 import "./style.css";
+import "./mobile.css";
+import { TouchInput, mergeInput, type TouchField } from "./touch-input";
+import { useCompactControls, touchCopy } from "./mobile";
 import { useGameAudio, MusicControls } from "./audio";
 import { translate, type Language } from "./i18n";
 import { CROSSINGS } from "./bridges";
@@ -29,6 +32,11 @@ import { GuideCard, HowToPlay, GoalFlow } from "./guide-ui";
 const KEY = "rain-action-session-v2";
 const initialCode = new URLSearchParams(location.search).get("room") ?? "";
 function App() {
+  const compact = useCompactControls();
+  const compactRef = useRef(compact);
+  compactRef.current = compact;
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [mapOpen, setMapOpen] = useState(false);
   const [language, setLanguage] = useState<Language>(() =>
     stored<string>(localStorage, "rain-language") === "en" ? "en" : "zh",
   );
@@ -45,6 +53,8 @@ function App() {
     scene = useRef<PaperScene | null>(null),
     game = useRef<Game>(newGame(1)),
     input = useRef<Input>(idleInput()),
+    keyboardInput = useRef<Input>(idleInput()),
+    touchInput = useRef(new TouchInput()),
     others = useRef<Inputs>({}),
     connection = useRef<Connection | null>(null),
     currentRoom = useRef<PublicRoom | null>(null),
@@ -69,7 +79,7 @@ function App() {
   const [helpLesson, setHelpLesson] = useState<Lesson>("basics");
   const helpRef = useRef(help),
     guideEnabledRef = useRef(guideEnabled);
-  helpRef.current = help;
+  helpRef.current = help || (compact && (toolsOpen || mapOpen));
   guideEnabledRef.current = guideEnabled;
   const guideTracker = useRef(newGuideTracker());
   const guide = useRef<ReturnType<typeof guideFor> | null>(null);
@@ -80,6 +90,10 @@ function App() {
     [guideEnabled],
   );
   function learn(lesson: Lesson) {
+    setToolsOpen(false);
+    setMapOpen(false);
+    touchInput.current.clear();
+    keyboardInput.current = idleInput();
     input.current = idleInput();
     if (currentSession.current && phaseRef.current === "game")
       connection.current?.input(game.current.id, input.current);
@@ -94,7 +108,37 @@ function App() {
     phaseRef.current = p;
     setPhase(p);
     input.current = idleInput();
+    keyboardInput.current = idleInput();
+    touchInput.current.clear();
+    setToolsOpen(false);
+    setMapOpen(false);
   }
+  function toggleMobilePanel(panel: "tools" | "map") {
+    touchInput.current.clear();
+    keyboardInput.current = idleInput();
+    input.current = idleInput();
+    if (currentSession.current)
+      connection.current?.input(game.current.id, input.current);
+    if (panel === "tools") {
+      setToolsOpen((v) => !v);
+      setMapOpen(false);
+    } else {
+      setMapOpen((v) => !v);
+      setToolsOpen(false);
+    }
+  }
+  useEffect(() => {
+    if (phase === "game") {
+      // Starting after a scrolled lobby must not leave the fixed play surface
+      // below the viewport. Menus continue to scroll normally.
+      window.scrollTo(0, 0);
+      const previous = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = previous;
+      };
+    }
+  }, [phase]);
   function receive(r: PublicRoom, ins: Inputs) {
     const previous = game.current;
     currentRoom.current = r;
@@ -141,6 +185,9 @@ function App() {
       last = now;
       acc += dt;
       const playing = phaseRef.current === "game";
+      input.current = helpRef.current
+        ? idleInput()
+        : mergeInput(keyboardInput.current, touchInput.current.read(now));
       if (playing) {
         if (!currentSession.current && helpRef.current) {
           acc = 0;
@@ -189,6 +236,7 @@ function App() {
         phaseRef.current !== "game",
         languageRef.current,
         guideEnabledRef.current && playing ? guide.current.target : undefined,
+        compactRef.current,
       );
       if (now - ui > 100) {
         setHud(structuredClone(game.current));
@@ -207,7 +255,7 @@ function App() {
     const pressedAt = new Map<string, number>();
     const releases = new Map<string, ReturnType<typeof setTimeout>>();
     const refresh = () => {
-      input.current = helpRef.current
+      keyboardInput.current = helpRef.current
         ? idleInput()
         : {
             axis:
@@ -220,6 +268,10 @@ function App() {
             shelter: held.has("KeyS") || held.has("ArrowDown"),
             repair: held.has("KeyF"),
           };
+      input.current = mergeInput(
+        keyboardInput.current,
+        touchInput.current.read(performance.now()),
+      );
       if (phaseRef.current === "game" && currentSession.current)
         connection.current?.input(game.current.id, input.current);
     };
@@ -287,6 +339,7 @@ function App() {
       releases.clear();
       pressedAt.clear();
       held.clear();
+      touchInput.current.clear();
       refresh();
     };
     window.addEventListener("keydown", down);
@@ -421,38 +474,58 @@ function App() {
   const carriedKeys = local.carriedKeys?.length ?? 0,
     carriedStars = local.carriedStars?.length ?? 0;
   const touch = (
-    field: "axis" | "jump" | "fold" | "turn" | "shelter" | "repair",
+    field: TouchField,
     value: number | boolean,
     label: string,
+    hint?: string,
   ) => (
     <button
-      className={`touch-key ${field === "jump" ? "jump" : ""}`}
-      aria-label={label}
+      className={`touch-key touch-${field} ${input.current[field] === value ? "held" : ""}`}
+      aria-label={
+        field === "axis" ? t(value === -1 ? "向左移动" : "向右移动") : label
+      }
+      aria-pressed={input.current[field] === value}
+      disabled={helpRef.current || won}
+      title={
+        field === "reset"
+          ? t("返回最近许愿架，未存档物品复位。湿度清零，耐折不会重置。")
+          : undefined
+      }
       onPointerDown={(e) => {
+        if (e.pointerType === "mouse" && e.button !== 0) return;
         e.preventDefault();
         e.currentTarget.setPointerCapture(e.pointerId);
-        (input.current[field] as number | boolean) = value;
+        touchInput.current.press(e.pointerId, field, value, performance.now());
       }}
-      onPointerUp={() => {
-        (input.current[field] as number | boolean) =
-          field === "axis" ? 0 : false;
-      }}
-      onPointerCancel={() => {
-        (input.current[field] as number | boolean) =
-          field === "axis" ? 0 : false;
-      }}
+      onPointerUp={(e) =>
+        touchInput.current.release(e.pointerId, performance.now())
+      }
+      onPointerCancel={(e) => touchInput.current.cancel(e.pointerId)}
+      onLostPointerCapture={(e) => touchInput.current.cancel(e.pointerId)}
+      onContextMenu={(e) => e.preventDefault()}
     >
-      {label}
+      <span>{label}</span>
+      {hint && <small>{hint}</small>}
     </button>
   );
   return (
     <main
-      className={isPlaying ? "app playing" : "app"}
+      className={`app ${isPlaying ? "playing" : ""} ${compact ? "compact" : ""} ${toolsOpen ? "tools-open" : ""} ${mapOpen ? "map-open" : ""} ${guideEnabled ? "with-guide" : ""}`}
       lang={language === "zh" ? "zh-CN" : "en"}
     >
       <canvas ref={canvas} tabIndex={0} aria-label={t("千纸鹤横版游戏场景")} />
       <div className="atmosphere" />
       <div className="grain" />
+      {compact && isPlaying && (toolsOpen || mapOpen) && (
+        <button
+          className="mobile-panel-backdrop"
+          aria-label={t("收起")}
+          onClick={() => {
+            setToolsOpen(false);
+            setMapOpen(false);
+          }}
+        />
+      )}
       <header className="brand">
         <span className="brand-icon">{t("祈愿")}</span>
         <div>
@@ -461,7 +534,28 @@ function App() {
         </div>
         <span className="edition">{t("纸鹤 · 许愿架 · 雨中归途")}</span>
       </header>
-      <nav className="tools">
+      {compact && isPlaying && (
+        <nav className="mobile-toolbar" aria-label={t("游戏工具")}>
+          <button
+            aria-expanded={mapOpen}
+            aria-controls="route-map"
+            onClick={() => toggleMobilePanel("map")}
+          >
+            {t("路线")}
+          </button>
+          <button onClick={() => learn(guide.current?.lesson ?? "basics")}>
+            {t("帮助")}
+          </button>
+          <button
+            aria-expanded={toolsOpen}
+            aria-controls="game-tools"
+            onClick={() => toggleMobilePanel("tools")}
+          >
+            {t(toolsOpen ? "收起" : "菜单")}
+          </button>
+        </nav>
+      )}
+      <nav className="tools" id="game-tools">
         <button
           className="language"
           aria-label={t("切换语言")}
@@ -562,7 +656,11 @@ function App() {
             </label>
             <div className="chapter-brief">
               <b>{t("本关练习")}</b>
-              <p>{t(LEVELS[level].hint)}</p>
+              <p>
+                {compact
+                  ? touchCopy(t(LEVELS[level].hint), language)
+                  : t(LEVELS[level].hint)}
+              </p>
               <button onClick={() => learn("basics")}>
                 {t("第一次玩？先看图解")} ↗
               </button>
@@ -691,7 +789,7 @@ function App() {
                       : `${t("机关")} ${Math.round(((hud.gateCharge ?? 0) / 4) * 100)}%`}
                 </span>
               )}
-              <span>
+              <span className="elapsed-time">
                 ◷ {Math.floor(hud.time / 60)}:
                 {String(Math.floor(hud.time % 60)).padStart(2, "0")}
               </span>
@@ -708,49 +806,52 @@ function App() {
               guide={guide.current}
               language={language}
               onLearn={learn}
+              compact={compact}
             />
           )}
           <section
             className={`rain-hud ${(local.wetness ?? 0) > 70 ? "soaked" : ""}`}
             aria-label={t("纸鹤状态")}
           >
-            <div className="meter-heading">
-              <span>{t("纸的湿度")}</span>
-              <strong>
-                {Math.round(local.wetness ?? 0)}
-                <small>%</small>
-              </strong>
+            <div className="wet-condition">
+              <div className="meter-heading">
+                <span>{t(compact ? "湿度" : "纸的湿度")}</span>
+                <strong>
+                  {Math.round(local.wetness ?? 0)}
+                  <small>%</small>
+                </strong>
+              </div>
+              <div
+                className="wet-track"
+                role="progressbar"
+                aria-label={t("淋湿程度")}
+                aria-valuenow={Math.round(local.wetness ?? 0)}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
+                <i style={{ width: `${local.wetness ?? 0}%` }} />
+              </div>
+              <p>
+                {t(
+                  local.nearFire
+                    ? "小火旁 · 正在烤干"
+                    : local.rainCover === "roof"
+                      ? "檐下只挡雨 · 靠近小火才能烤干"
+                      : local.rainCover === "ally"
+                        ? "同伴挡雨 · 湿度保持不变"
+                        : local.sheltering
+                          ? "展成方纸 · 自己仍会缓慢淋湿"
+                          : local.rainCover === "rain"
+                            ? "正在淋雨 · S 展纸 / 寻找屋檐"
+                            : "无雨处 · 湿度保持不变",
+                )}
+              </p>
             </div>
-            <div
-              className="wet-track"
-              role="progressbar"
-              aria-label={t("淋湿程度")}
-              aria-valuenow={Math.round(local.wetness ?? 0)}
-              aria-valuemin={0}
-              aria-valuemax={100}
-            >
-              <i style={{ width: `${local.wetness ?? 0}%` }} />
-            </div>
-            <p>
-              {t(
-                local.nearFire
-                  ? "小火旁 · 正在烤干"
-                  : local.rainCover === "roof"
-                    ? "檐下只挡雨 · 靠近小火才能烤干"
-                    : local.rainCover === "ally"
-                      ? "同伴挡雨 · 湿度保持不变"
-                      : local.sheltering
-                        ? "展成方纸 · 自己仍会缓慢淋湿"
-                        : local.rainCover === "rain"
-                          ? "正在淋雨 · S 展纸 / 寻找屋檐"
-                          : "无雨处 · 湿度保持不变",
-              )}
-            </p>
             <div
               className={`heat-condition ${(local.heat ?? 0) >= FIRE_WARNING ? "too-hot" : ""}`}
             >
               <div className="meter-heading">
-                <span>{t("烘烤程度")}</span>
+                <span>{t(compact ? "热度" : "烘烤程度")}</span>
                 <b>{Math.round(local.heat ?? 0)} / 100</b>
               </div>
               <div
@@ -781,7 +882,7 @@ function App() {
               className={`fold-condition ${(local.foldsLeft ?? MAX_FOLDS) <= 2 ? "fragile" : ""}`}
             >
               <div className="meter-heading">
-                <span>{t("剩余耐折")}</span>
+                <span>{t(compact ? "耐折" : "剩余耐折")}</span>
                 <b>
                   {local.foldsLeft ?? MAX_FOLDS} / {MAX_FOLDS}
                 </b>
@@ -857,6 +958,42 @@ function App() {
               </div>
             )}
           </section>
+          {compact && (
+            <div
+              className={`mobile-condition-note ${(local.heat ?? 0) >= FIRE_WARNING || local.foldBlocked ? "urgent" : ""}`}
+              role="status"
+            >
+              {helpRef.current
+                ? t(
+                    session
+                      ? "联机仍在进行，请在安全处查看"
+                      : "已暂停 · 关闭面板继续",
+                  )
+                : (local.heat ?? 0) >= FIRE_WARNING
+                  ? t("纸边正在变脆！快离开火堆")
+                  : local.foldBlocked
+                    ? t(
+                        local.foldsLeft === 0
+                          ? "纸已破损，先去许愿架修补"
+                          : "湿纸太脆，先晾干或修补",
+                      )
+                    : local.nearFire
+                      ? t(
+                          local.wetness < 1
+                            ? "纸已经烤干，离开火边"
+                            : "小火旁 · 正在烤干",
+                        )
+                      : atRepairRack(hud, local)
+                        ? t(
+                            local.repairProgress >= REPAIR_SECONDS
+                              ? "修补完成"
+                              : local.repairProgress > 0
+                                ? "修补中"
+                                : "架旁按住「修补」恢复耐折",
+                          )
+                        : t("按住左右移动 · 按住跳跃滑翔")}
+            </div>
+          )}
           <div
             className={`carry-hud ${carriedKeys + carriedStars ? "pending" : ""}`}
             role="status"
@@ -902,10 +1039,19 @@ function App() {
                 )}
               </div>
             )}
-          <aside className="compass">
+          <aside className="compass" id="route-map">
             <div>
               <b>{t(hud.view === 0 ? "正面 · 左右" : "侧面 · 前后")}</b>
-              <kbd>Q</kbd>
+              {compact ? (
+                <button
+                  onClick={() => setMapOpen(false)}
+                  aria-label={t("关闭路线图")}
+                >
+                  ×
+                </button>
+              ) : (
+                <kbd>Q</kbd>
+              )}
             </div>
             <svg
               viewBox={`${minX} ${minZ} ${maxX - minX} ${maxZ - minZ}`}
@@ -1048,17 +1194,18 @@ function App() {
             <kbd>R</kbd>
             {t("回存档")}
           </div>
-          <div className="touch-controls">
-            <div>
+          <div className="touch-controls" aria-label={t("触控操作")}>
+            <div className="touch-movement">
+              {touch("reset", true, t("回存档"))}
               {touch("axis", -1, "←")}
               {touch("axis", 1, "→")}
             </div>
-            <div>
-              {touch("turn", true, t("Q 转面"))}
-              {touch("fold", true, t("纸桥"))}
-              {touch("shelter", true, t("挡雨"))}
-              {touch("repair", true, t("修补"))}
-              {touch("jump", true, t("跳 / 滑翔"))}
+            <div className="touch-actions">
+              {touch("turn", true, t("转面"), t("点一下"))}
+              {touch("fold", true, t("纸桥"), t("按住"))}
+              {touch("shelter", true, t("挡雨"), t("按住"))}
+              {touch("repair", true, t("修补"), t("按住"))}
+              {touch("jump", true, t("跳跃"), t("按住滑翔"))}
             </div>
           </div>
           {local.arrived && !won && (
@@ -1138,6 +1285,7 @@ function App() {
               initialLesson={helpLesson}
               playing={isPlaying}
               multiplayer={!!session}
+              compact={compact}
             />
             {isPlaying && (
               <button className="primary" onClick={() => restart(false)}>

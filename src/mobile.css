@@ -1,0 +1,572 @@
+/* Compact layouts share one breakpoint with useCompactControls, including
+   landscape phones and touch tablets. The play surface never scrolls. */
+.mobile-toolbar,
+.mobile-condition-note,
+.mobile-panel-backdrop {
+  display: none;
+}
+.app.compact {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: max(12px, env(safe-area-inset-left, 0px));
+  --safe-right: max(12px, env(safe-area-inset-right, 0px));
+  --move-width: clamp(94px, 26vw, 124px);
+  --action-width: clamp(174px, 51vw, 234px);
+  -webkit-tap-highlight-color: transparent;
+}
+.compact button {
+  touch-action: manipulation;
+}
+.compact input,
+.compact select {
+  font-size: 16px;
+  min-height: 44px;
+}
+.compact:not(.playing) .brand {
+  left: var(--safe-left);
+  top: calc(var(--safe-top) + 18px);
+}
+.compact:not(.playing) .tools {
+  top: calc(var(--safe-top) + 74px);
+  left: var(--safe-left);
+  right: var(--safe-right);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.compact .tools button {
+  min-height: 44px;
+  padding: 8px 10px;
+  font-size: 11px;
+}
+.compact:not(.playing) .intro {
+  position: relative;
+  left: auto;
+  top: auto;
+  width: auto;
+  max-width: 510px;
+  margin: calc(var(--safe-top) + 146px) 24px 44px;
+}
+.compact:not(.playing) .intro h1 {
+  font-size: clamp(27px, 7vw, 36px);
+  line-height: 1.45;
+  margin: 16px 0;
+}
+.compact:not(.playing) .intro p {
+  max-width: none;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.compact .intro .goal-flow,
+.compact .intro-controls,
+.compact .wish-tags {
+  display: none;
+}
+.compact .menu {
+  width: auto;
+  max-width: 510px;
+  margin: 48px 20px calc(90px + var(--safe-bottom));
+  padding: 18px;
+}
+.compact .modes {
+  gap: 6px;
+}
+.compact .modes button {
+  min-width: 0;
+  padding: 15px 2px 10px;
+}
+.compact .modes span {
+  font-size: 10px;
+}
+.compact .chapter-brief p {
+  font-size: 12px;
+}
+.compact .chapter-brief button,
+.compact .lobby-guide button,
+.compact .text-button {
+  min-height: 44px;
+}
+.compact .lobby {
+  margin-top: calc(var(--safe-top) + 150px);
+  margin-bottom: calc(70px + var(--safe-bottom));
+}
+.compact footer {
+  bottom: calc(20px + var(--safe-bottom));
+}
+.app.compact.playing {
+  position: fixed;
+  inset: 0;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
+  --scene-top: calc(var(--safe-top) + 134px);
+  --control-space: calc(124px + var(--safe-bottom));
+  --guide-space: 0px;
+  --scene-bottom: calc(var(--control-space) + var(--guide-space) + 28px);
+  background: #253648;
+}
+.app.compact.playing.with-guide {
+  --guide-space: 136px;
+}
+.compact.playing canvas {
+  top: var(--scene-top);
+  bottom: var(--scene-bottom);
+  height: calc(100% - var(--scene-top) - var(--scene-bottom));
+  touch-action: none;
+}
+.compact.playing .brand,
+.compact.playing .bottom-hint,
+.compact.playing .tools,
+.compact.playing .compass {
+  display: none;
+}
+.compact.playing .hud {
+  position: absolute;
+  top: calc(var(--safe-top) + 8px);
+  left: var(--safe-left);
+  width: calc(100% - var(--safe-left) - var(--safe-right) - 157px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+}
+.compact .stage {
+  gap: 7px;
+  min-width: 0;
+  max-width: 100%;
+}
+.compact .stage > b {
+  font-size: 23px;
+}
+.app.compact .stage > div {
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.compact .stage small,
+.compact .stats .gate-progress,
+.compact .stats .elapsed-time {
+  display: none;
+}
+.compact .stats {
+  font-size: 10px;
+  gap: 10px;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  white-space: nowrap;
+}
+.compact.playing .mobile-toolbar {
+  position: absolute;
+  display: flex;
+  gap: 5px;
+  right: var(--safe-right);
+  top: calc(var(--safe-top) + 8px);
+  z-index: 14;
+}
+.mobile-toolbar button {
+  min-width: 44px;
+  min-height: 44px;
+  font-size: 11px;
+  padding: 8px;
+  background: #1b2c3ee8;
+  color: #dce1e5;
+  border-color: #9daeb847;
+}
+.mobile-toolbar button[aria-expanded="true"] {
+  border-color: #d1b07a;
+  color: #edd2a7;
+}
+.compact.playing.tools-open .tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  top: calc(var(--safe-top) + 60px);
+  right: var(--safe-right);
+  left: auto;
+  width: min(340px, calc(100% - var(--safe-left) - var(--safe-right)));
+  padding: 14px;
+  background: #1b2d40;
+  border: 1px solid #a3b1bc55;
+  box-shadow: 0 12px 40px #0d182b80;
+  z-index: 14;
+}
+.compact .music-panel {
+  position: fixed;
+  top: calc(var(--safe-top) + 118px);
+  right: var(--safe-right);
+  left: auto;
+  width: min(290px, calc(100vw - var(--safe-left) - var(--safe-right)));
+  max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 134px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.compact .music-panel input[type="range"] {
+  min-height: 44px;
+  margin-top: 0;
+}
+.compact.playing .mobile-panel-backdrop {
+  display: block;
+  position: fixed;
+  inset: 0;
+  z-index: 11;
+  background: #101c2a40;
+  border: 0;
+  padding: 0;
+  transform: none;
+}
+.app.compact.playing .rain-hud {
+  position: absolute;
+  top: calc(var(--safe-top) + 62px);
+  left: var(--safe-left);
+  right: var(--safe-right);
+  width: auto;
+  height: 48px;
+  padding: 6px 9px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  border-left-width: 1px;
+}
+.compact .rain-hud .heat-condition,
+.compact .rain-hud .fold-condition {
+  border-top: 0;
+  margin: 0;
+  padding: 0;
+}
+.compact .rain-hud p,
+.compact .rain-hud .repair-hint,
+.compact .rain-hud .team-wet {
+  display: none;
+}
+.compact .meter-heading {
+  gap: 4px;
+  line-height: 22px;
+}
+.compact .meter-heading span {
+  font-size: 10px;
+  letter-spacing: 0;
+}
+.compact .meter-heading strong,
+.compact .meter-heading b {
+  font-size: 13px;
+  white-space: nowrap;
+}
+.compact .wet-track,
+.compact .heat-track {
+  margin: 4px 0 0;
+  height: 4px;
+}
+.compact .fold-pips {
+  margin-top: 4px;
+  gap: 3px;
+}
+.compact .fold-pips i {
+  height: 4px;
+  flex: 1;
+}
+.compact.playing .mobile-condition-note {
+  display: block;
+  position: absolute;
+  top: calc(var(--safe-top) + 115px);
+  left: var(--safe-left);
+  right: var(--safe-right);
+  color: #b9c8d4;
+  font-size: 10px;
+  text-align: center;
+  line-height: 15px;
+}
+.compact .mobile-condition-note.urgent {
+  color: #ffc0a3;
+}
+.compact.playing.map-open .compass {
+  display: block;
+  z-index: 13;
+  top: calc(var(--safe-top) + 60px);
+  right: var(--safe-right);
+  width: min(320px, calc(100% - var(--safe-left) - var(--safe-right)));
+  padding: 12px;
+}
+.compact .compass > div {
+  font-size: 13px;
+}
+.compact .compass button {
+  width: 44px;
+  height: 44px;
+  font-size: 22px;
+  padding: 0;
+}
+.compact .compass svg {
+  height: min(110px, 24dvh);
+}
+.compact .compass small,
+.compact .compass .map-legend {
+  font-size: 11px;
+  line-height: 1.6;
+}
+.compact.playing .journey-guide {
+  position: absolute;
+  top: auto;
+  bottom: calc(var(--control-space) + 28px);
+  left: var(--safe-left);
+  right: var(--safe-right);
+  width: auto;
+  height: var(--guide-space);
+  max-height: none;
+  padding: 5px 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.compact .guide-heading {
+  font-size: 10px;
+  letter-spacing: 0;
+}
+.compact .guide-heading button {
+  min-height: 44px;
+  font-size: 11px;
+}
+.compact .guide-action {
+  gap: 7px;
+  margin-top: 0;
+}
+.compact .guide-action h2 {
+  font-size: 13px;
+}
+.compact .guide-arrow {
+  font-size: 23px;
+}
+.compact .journey-guide > p {
+  display: block;
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 5px 0;
+}
+.compact .journey-guide .guide-warning button {
+  min-height: 44px;
+}
+.compact .guide-keys,
+.compact .guide-goal {
+  display: none;
+}
+.compact.playing .carry-hud {
+  bottom: var(--control-space);
+  height: 28px;
+  padding: 4px 8px;
+  border: 0;
+  font-size: 10px;
+  justify-content: center;
+  max-width: calc(100% - var(--safe-left) - var(--safe-right));
+}
+.compact .carry-hud b + span {
+  display: none;
+}
+.compact.playing .touch-controls {
+  display: flex;
+  position: absolute;
+  left: var(--safe-left);
+  right: var(--safe-right);
+  bottom: calc(var(--safe-bottom) + 8px);
+  height: 110px;
+  justify-content: space-between;
+  align-items: stretch;
+  gap: 10px;
+  z-index: 5;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.compact .touch-controls .touch-movement {
+  display: grid;
+  width: var(--move-width);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: 44px 60px;
+  gap: 6px;
+}
+.compact .touch-controls .touch-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(2, 52px);
+  gap: 6px;
+  width: var(--action-width);
+  max-width: none;
+}
+.compact .touch-key {
+  min-width: 0;
+  min-height: 44px;
+  height: auto;
+  padding: 4px 2px;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 3px;
+  border: 1px solid #9bb2c566;
+  background: #2a3e51f5;
+  color: #e1e7ea;
+  border-radius: 8px;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  box-shadow: 0 3px 0 #101e2d;
+}
+.compact .touch-key small {
+  font-size: 9px;
+  font-weight: 400;
+  opacity: 0.72;
+}
+.compact .touch-axis {
+  font-size: 25px;
+}
+.compact .touch-reset {
+  grid-column: span 2;
+  font-size: 11px;
+  background: #253647;
+}
+.compact .touch-jump {
+  grid-column: span 2;
+  background: #a25949;
+  border-color: #d7987d;
+  font-size: 15px;
+}
+.compact .touch-key:hover {
+  transform: none;
+}
+.compact .touch-key.held,
+.compact .touch-key:active {
+  background: #6b786d;
+  border-color: #efd5a5;
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 #101e2d;
+}
+.compact .touch-jump.held,
+.compact .touch-jump:active {
+  background: #c2765f;
+}
+.compact .failure-notice,
+.compact .waiting,
+.compact .vote {
+  z-index: 6;
+  bottom: calc(var(--scene-bottom) + 12px);
+  width: max-content;
+  max-width: calc(100% - 24px);
+  padding: 8px 12px;
+  font-size: 11px;
+}
+.compact .vote button {
+  min-height: 44px;
+}
+.compact .scrim {
+  z-index: 30;
+  padding: calc(var(--safe-top) + 12px) var(--safe-right)
+    calc(var(--safe-bottom) + 12px) var(--safe-left);
+}
+.compact .scrim .panel {
+  width: min(660px, 100%);
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px;
+}
+.compact .help .close {
+  position: sticky;
+  display: block;
+  margin: -9px -9px -35px auto;
+  top: -12px;
+  right: auto;
+  width: 44px;
+  height: 44px;
+  z-index: 2;
+  background: #e7d8bc;
+  padding: 0;
+}
+.compact .help .eyebrow {
+  padding-right: 44px;
+}
+.compact .how-to-play h2 {
+  font-size: 20px;
+  margin-right: 22px;
+}
+.compact .lesson-tabs {
+  gap: 5px;
+}
+.compact .lesson-tabs button {
+  min-height: 44px;
+  font-size: 11px;
+}
+.compact .how-to-play ol,
+.compact .help p {
+  font-size: 12px;
+}
+@media (min-width: 560px) {
+  .compact:not(.playing) .intro,
+  .compact .menu {
+    margin-left: auto;
+    margin-right: auto;
+  }
+}
+@media (orientation: portrait) and (max-height: 680px) {
+  .app.compact.playing.with-guide {
+    --guide-space: 92px;
+  }
+  .compact .journey-guide > p:not(.guide-warning) {
+    display: none;
+  }
+}
+@media (orientation: landscape) {
+  .app.compact.playing {
+    --scene-top: calc(var(--safe-top) + 114px);
+    --scene-bottom: 0px;
+  }
+  .app.compact.playing .rain-hud {
+    max-width: 400px;
+    right: auto;
+    width: calc(100% - 300px);
+  }
+  .compact.playing .mobile-condition-note {
+    top: calc(var(--safe-top) + 61px);
+    left: auto;
+    width: calc(100% - 430px - var(--safe-right));
+    max-width: 360px;
+    text-align: right;
+  }
+  .compact.playing .carry-hud {
+    top: calc(var(--safe-top) + 83px);
+    bottom: auto;
+    left: auto;
+    right: var(--safe-right);
+    transform: none;
+  }
+  .compact.playing .journey-guide {
+    left: calc(var(--safe-left) + var(--move-width) + 12px);
+    right: calc(var(--safe-right) + var(--action-width) + 12px);
+    bottom: calc(var(--safe-bottom) + 8px);
+    height: 100px;
+  }
+  .compact .journey-guide > p:not(.guide-warning) {
+    display: none;
+  }
+  .compact .guide-action h2 {
+    font-size: 12px;
+  }
+  .compact .guide-heading small {
+    display: none;
+  }
+  .compact .guide-heading {
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+  .compact .failure-notice,
+  .compact .waiting,
+  .compact .vote {
+    bottom: calc(var(--safe-bottom) + 124px);
+  }
+  .compact .help .lesson-diagram {
+    max-height: 115px;
+  }
+}
