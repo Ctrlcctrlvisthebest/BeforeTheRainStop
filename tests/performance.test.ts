@@ -6,7 +6,31 @@ import { colorSlab, mergeDecorations } from "../src/render-geometry";
 import { rainFloorAt } from "../src/rain-occlusion";
 import { LEVELS, platformAt } from "../src/game";
 import { WEATHER, BLAZE_ROOFS, SHIELD_RADIUS } from "../src/weather";
-import { disposeObjectTree } from "../src/scene-resources";
+import {
+  disposeObjectTree,
+  platformLayer,
+  landingHeight,
+} from "../src/scene-resources";
+
+test("depth styling distinguishes front and back lanes in both camera views", () => {
+  const tile = { x: 0, y: 0, z: 0, w: 10, h: 1, d: 2 };
+  assert.equal(platformLayer(tile, { x: 0, y: 8, z: 0 }, 0), "active");
+  assert.equal(platformLayer(tile, { x: 0, y: 0, z: -4 }, 0), "front");
+  assert.equal(platformLayer(tile, { x: 0, y: 0, z: 4 }, 0), "back");
+  // Turning uses the other span, including wide platforms that cross lanes.
+  assert.equal(platformLayer(tile, { x: 4, y: 0, z: 20 }, 1), "active");
+  assert.equal(platformLayer(tile, { x: -8, y: 0, z: 0 }, 1), "front");
+  assert.equal(platformLayer(tile, { x: 8, y: 0, z: 0 }, 1), "back");
+});
+test("contact shadows select the highest floor below the player and disappear over gaps", () => {
+  const floor = { x: 0, y: 0, z: 0, w: 4, h: 1, d: 2 };
+  const upper = { ...floor, y: 3 };
+  assert.equal(landingHeight({ x: 0, y: 1, z: 0 }, [floor, upper]), 0);
+  assert.equal(landingHeight({ x: 0, y: 4, z: 0 }, [floor, upper]), 3);
+  assert.equal(landingHeight({ x: 0, y: -1, z: 0 }, [floor, upper]), undefined);
+  assert.equal(landingHeight({ x: 0, y: 4, z: 3 }, [floor, upper]), undefined);
+  assert.equal(landingHeight({ x: 3, y: 4, z: 0 }, [floor, upper]), undefined);
+});
 
 for (const hz of [60, 90, 120, 144])
   test(`${hz} Hz screen keeps 60 render frames without slowing physics time`, () => {

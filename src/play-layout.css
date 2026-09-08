@@ -1,0 +1,177 @@
+/* Keep status and guidance in one flowing column. Canvas space is reserved,
+   so translated copy and extra teammates never cover the playable scene. */
+.playing .status-sidebar {
+  position: absolute;
+  top: 156px;
+  left: 28px;
+  width: 244px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: calc(100dvh - 220px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #718598 #1d2e40;
+}
+.app.playing .status-sidebar > :is(.rain-hud, .journey-guide) {
+  position: relative;
+  inset: auto;
+  width: 100%;
+  flex-shrink: 0;
+  max-height: none;
+  background: #1d2e40;
+}
+.app.playing .status-sidebar > .journey-guide {
+  padding: 12px 14px;
+}
+.status-sidebar .guide-action h2 {
+  font-size: 14px;
+}
+.status-sidebar .guide-heading {
+  gap: 8px;
+  letter-spacing: 0;
+}
+.playing:not(.compact) canvas {
+  left: 292px;
+  width: calc(100% - 292px);
+}
+.depth-legend {
+  border-top: 1px solid #8197ae33;
+  padding-top: 6px;
+  margin-top: 7px;
+  color: #d6c7a4;
+  font-size: 9px;
+}
+.depth-legend i {
+  width: 16px;
+  height: 2px;
+  border-radius: 0;
+  background: #e4d1aa;
+}
+
+/* On portrait phones the same stack sits above the canvas, below the header.
+   The measured stack height includes warnings and multi-line English titles. */
+.app.compact.playing {
+  --sidebar-height: 140px;
+  --scene-top: calc(var(--safe-top) + 62px + var(--sidebar-height) + 24px);
+  --scene-bottom: calc(var(--control-space) + 28px);
+}
+.compact.playing .status-sidebar {
+  top: calc(var(--safe-top) + 62px);
+  left: var(--safe-left);
+  right: var(--safe-right);
+  width: auto;
+  max-height: none;
+  gap: 6px;
+  overflow: visible;
+}
+.app.compact.playing .status-sidebar > .rain-hud {
+  height: 48px;
+}
+.app.compact.playing .status-sidebar > .journey-guide {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 56px;
+  align-items: center;
+  gap: 3px 8px;
+  height: auto;
+  min-height: 70px;
+  overflow: visible;
+  padding: 7px 10px;
+}
+.compact .status-sidebar .guide-heading {
+  display: contents;
+}
+.compact .status-sidebar .guide-heading > span {
+  grid-column: 1;
+  grid-row: 1;
+  color: #cead75;
+  font-size: 10px;
+}
+.compact .status-sidebar .guide-heading button {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  min-height: 44px;
+  font-size: 11px;
+  padding: 4px;
+  border: 1px solid #aa926157;
+  text-decoration: none;
+}
+.compact .status-sidebar .guide-action {
+  grid-column: 1;
+  grid-row: 2;
+  gap: 7px;
+  margin: 0;
+}
+.compact .status-sidebar .guide-action h2 {
+  font-size: 12px;
+  line-height: 1.4;
+}
+.compact .status-sidebar .guide-arrow {
+  font-size: 21px;
+  min-width: 22px;
+}
+.compact .status-sidebar .journey-guide > p:not(.guide-warning) {
+  display: none;
+}
+.compact .status-sidebar .guide-meter {
+  grid-column: 1;
+  grid-row: 3;
+  margin: 2px 0 0;
+  font-size: 10px;
+}
+.compact .status-sidebar .guide-warning {
+  grid-column: 1 / -1;
+  margin: 2px 0 0;
+}
+.compact.playing .mobile-condition-note {
+  top: calc(var(--safe-top) + 62px + var(--sidebar-height) + 4px);
+  left: var(--safe-left);
+  right: var(--safe-right);
+  width: auto;
+  max-width: none;
+  text-align: center;
+}
+
+/* Landscape phones keep the stack to the left, preserving vertical space. */
+@media (orientation: landscape) {
+  .app.compact.playing {
+    --scene-top: calc(var(--safe-top) + 62px);
+    --scene-bottom: 0px;
+  }
+  .compact.playing .status-sidebar {
+    width: 220px;
+    right: auto;
+    max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 186px);
+    overflow-y: auto;
+  }
+  .compact .status-sidebar .meter-heading {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+    line-height: 14px;
+  }
+  .compact .status-sidebar .meter-heading span {
+    font-size: 9px;
+    line-height: 12px;
+  }
+  .compact .status-sidebar .meter-heading :is(strong, b) {
+    font-size: 11px;
+    line-height: 15px;
+  }
+  .compact .status-sidebar :is(.wet-track, .heat-track, .fold-pips) {
+    margin-top: 2px;
+  }
+  .compact.playing canvas {
+    left: calc(var(--safe-left) + 232px);
+    width: calc(100% - var(--safe-left) - 232px);
+  }
+  .compact.playing .mobile-condition-note {
+    top: calc(var(--safe-top) + 62px);
+    left: calc(var(--safe-left) + 242px);
+    text-align: right;
+  }
+  .compact .status-sidebar .guide-warning button {
+    min-height: 30px;
+  }
+}

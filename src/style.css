@@ -661,10 +661,6 @@ footer span {
   margin-left: 6px;
 }
 .rain-hud {
-  position: absolute;
-  left: 28px;
-  top: 156px;
-  width: 244px;
   padding: 12px 14px;
   background: #1d2e40e0;
   border: 1px solid #8197ae33;
@@ -1060,13 +1056,6 @@ footer span {
   .hud {
     display: block;
   }
-  .rain-hud {
-    top: 192px;
-    width: 218px;
-  }
-  .app[lang="en"] .rain-hud {
-    width: 230px;
-  }
   .app[lang="en"] .intro h1 {
     font-size: 31px;
   }
@@ -1222,9 +1211,6 @@ footer span {
     padding: 2px 4px;
   }
   .rain-hud {
-    left: 16px;
-    top: 184px;
-    width: 198px;
     padding: 9px 11px;
   }
   .meter-heading span {
@@ -1732,10 +1718,6 @@ footer span {
   color: #78644c;
 }
 .journey-guide {
-  position: absolute;
-  top: 156px;
-  left: 300px;
-  width: min(370px, calc(100vw - 535px));
   color: #f0dfbe;
   border: 1px solid #aa926157;
   border-left: 3px solid #d8b977;
@@ -1958,8 +1940,6 @@ footer span {
 }
 @media (max-width: 1000px) {
   .journey-guide {
-    left: 292px;
-    width: calc(100vw - 510px);
     padding: 11px 13px;
   }
   .guide-action h2 {
@@ -1981,11 +1961,6 @@ footer span {
   }
 }
 @media (max-width: 850px) {
-  .journey-guide {
-    top: 192px;
-    left: 272px;
-    width: calc(100vw - 296px);
-  }
   .guide-action {
     margin-top: 7px;
   }
@@ -1996,10 +1971,6 @@ footer span {
 }
 @media (max-width: 650px) {
   .journey-guide {
-    top: auto;
-    bottom: 204px;
-    left: 16px;
-    width: calc(100vw - 32px);
     padding: 10px 12px;
   }
   .guide-action h2 {
@@ -2054,16 +2025,6 @@ footer span {
   }
 }
 @media (max-height: 520px) and (orientation: landscape) {
-  .journey-guide {
-    top: 142px;
-    left: auto;
-    right: 16px;
-    width: min(330px, calc(100vw - 280px));
-    bottom: auto;
-    max-height: calc(100svh - 222px);
-    overflow: auto;
-    padding: 8px 11px;
-  }
   .guide-action {
     margin-top: 4px;
   }

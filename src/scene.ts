@@ -1,6 +1,11 @@
 import { mergeDecorations, colorSlab } from "./render-geometry";
 import { rainFloorAt, type RainCover } from "./rain-occlusion";
-import { disposeObjectTree, platformVisual } from "./scene-resources";
+import {
+  disposeObjectTree,
+  platformVisual,
+  platformLayer,
+  landingHeight,
+} from "./scene-resources";
 import { translate, type Language } from "./i18n";
 import { touchCopy } from "./mobile";
 import { CROSSINGS, bankPoint, bridgePlank } from "./bridges";
@@ -21,6 +26,7 @@ import {
   MAX_FOLDS,
   LEVELS,
   platformAt,
+  bodies,
   type Game,
   type Platform,
   type Point,
@@ -43,18 +49,68 @@ function slab(b: Platform, color: string): THREE.Group {
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   group.add(mesh);
-  const edge = new THREE.LineSegments(
-    new THREE.EdgesGeometry(geo),
+  const edge = new THREE.LineLoop(
+    new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(-b.w / 2, 0.018, -b.d / 2),
+      new THREE.Vector3(b.w / 2, 0.018, -b.d / 2),
+      new THREE.Vector3(b.w / 2, 0.018, b.d / 2),
+      new THREE.Vector3(-b.w / 2, 0.018, b.d / 2),
+    ]),
     new THREE.LineBasicMaterial({
-      color: "#243442",
+      color: "#e4d1aa",
       transparent: true,
-      opacity: 0.18,
+      opacity: 0.85,
+      depthWrite: false,
     }),
   );
-  edge.position.y = -b.h / 2;
+  edge.name = "landing-edge";
   group.add(edge);
   group.position.set(b.x, b.y, b.z);
   return group;
+}
+
+const distantTint = new THREE.Color("#74899e");
+function styleDepth(
+  node: THREE.Group,
+  platform: Platform,
+  player: Point,
+  view: 0 | 1,
+  preview: boolean,
+) {
+  const layer = preview ? "active" : platformLayer(platform, player, view);
+  const corridor = platform.kind === "low-roof" || platform.kind === "railing";
+  const state = `${layer}:${corridor}`;
+  if (node.userData.depthState === state) return;
+  node.userData.depthState = state;
+  node.traverse((o) => {
+    if (o.name === "landing-edge" && o instanceof THREE.Line) {
+      const m = o.material as THREE.LineBasicMaterial;
+      m.color.set(layer === "active" ? "#e4d1aa" : "#7b90a4");
+      m.opacity = corridor ? 0.16 : layer === "active" ? 0.85 : 0.16;
+    }
+    if (!(o instanceof THREE.Mesh)) return;
+    o.castShadow = layer === "active" && !corridor;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    for (const m of mats) {
+      m.transparent = corridor || layer === "front";
+      m.opacity = corridor
+        ? o.name === "eave-beam"
+          ? 0.55
+          : 0.14
+        : layer === "front"
+          ? 0.09
+          : 1;
+      m.depthWrite = !m.transparent;
+      if (
+        m instanceof THREE.MeshStandardMaterial ||
+        m instanceof THREE.MeshBasicMaterial
+      ) {
+        m.userData.baseColor ??= m.color.clone();
+        m.color.copy(m.userData.baseColor);
+        if (layer === "back") m.color.multiply(distantTint);
+      }
+    }
+  });
 }
 function facet(points: number[], color: string): THREE.Mesh {
   const g = new THREE.BufferGeometry();
@@ -131,7 +187,12 @@ function textSprite(text: string, color = "#d6d9dc", scale = 1): THREE.Sprite {
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   const sprite = new THREE.Sprite(
-    new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }),
+    new THREE.SpriteMaterial({
+      map: tex,
+      transparent: true,
+      depthTest: true,
+      depthWrite: false,
+    }),
   );
   sprite.scale.set(6.4 * scale, 0.96 * scale, 1);
   return sprite;
@@ -391,6 +452,7 @@ export class PaperScene {
   readonly renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
   private root = new THREE.Group();
+  private backdrop = new THREE.Group();
   private camera = new THREE.OrthographicCamera();
   private birds: THREE.Group[] = [];
   private rain: THREE.LineSegments | null = null;
@@ -491,7 +553,8 @@ export class PaperScene {
       color: "#ffe6ab",
       transparent: true,
       opacity: 0.9,
-      depthTest: false,
+      depthTest: true,
+      depthWrite: false,
     });
     const ring = new THREE.Mesh(
       new THREE.RingGeometry(0.43, 0.49, 40),
@@ -507,15 +570,7 @@ export class PaperScene {
     pointer.rotation.z = Math.PI;
     pointer.position.y = 1.5;
     pointer.renderOrder = 20;
-    const markerLabel = textSprite(
-      translate(this.language, "下一步"),
-      "#ffe6ab",
-      0.52,
-    );
-    markerLabel.position.y = 1.95;
-    markerLabel.material.depthTest = false;
-    markerLabel.renderOrder = 20;
-    this.guideMarker.add(ring, pointer, markerLabel);
+    this.guideMarker.add(ring, pointer);
     this.guideMarker.visible = false;
     this.root.add(this.guideMarker);
     this.level = g.level;
@@ -531,7 +586,7 @@ export class PaperScene {
     this.windLines = [];
     const l = LEVELS[g.level];
     this.scene.background = new THREE.Color(l.sky);
-    this.scene.fog = new THREE.Fog(l.sky, 32, 95);
+    this.scene.fog = new THREE.Fog(l.sky, 32, 80);
     l.platforms.forEach((b) => {
       // Show the corridor as a cutaway: its solid upper walls are out of play.
       const corridor = b.kind === "low-roof" || b.kind === "railing";
@@ -750,6 +805,7 @@ export class PaperScene {
       "#e7c183",
       0.65,
     );
+    doorText.name = "exit-label";
     doorText.position.y = 3.15;
     this.portal.add(top, door, doorText);
     this.portal.position.set(l.exit.x, l.exit.y, l.exit.z);
@@ -767,13 +823,14 @@ export class PaperScene {
       const shadow = new THREE.Mesh(
         new THREE.CircleGeometry(0.35, 20),
         new THREE.MeshBasicMaterial({
-          color: "#284d43",
+          color: "#122131",
           transparent: true,
-          opacity: 0.13,
+          opacity: 0.38,
           depthWrite: false,
         }),
       );
       shadow.rotation.x = -Math.PI / 2;
+      shadow.name = "contact-shadow";
       shadow.position.y = 0.015;
       const shelter = unfoldedPaper(COLORS[p.id]);
       shelter.name = "shelter";
@@ -786,14 +843,19 @@ export class PaperScene {
         new THREE.PlaneGeometry(0.8, 0.06),
         new THREE.MeshBasicMaterial({
           color: "#fff6df",
-          depthTest: false,
+          depthTest: true,
+          depthWrite: false,
           transparent: true,
           opacity: 0.7,
         }),
       );
       const fill = new THREE.Mesh(
         new THREE.PlaneGeometry(0.8, 0.06),
-        new THREE.MeshBasicMaterial({ color: "#627f8c", depthTest: false }),
+        new THREE.MeshBasicMaterial({
+          color: "#627f8c",
+          depthTest: true,
+          depthWrite: false,
+        }),
       );
       fill.name = "fill";
       fill.position.z = 0.001;
@@ -883,10 +945,11 @@ export class PaperScene {
       this.root.add(fire);
     });
     // A distant shrine courtyard remains behind the playable route in both views.
+    this.backdrop = new THREE.Group();
     for (let i = 0; i < 5; i++) {
       const rack = wishingRack(5.8, 3.6, i * 7);
       rack.position.set(-7 + i * 10, -1.1, -20 - (i % 2) * 3);
-      this.root.add(rack);
+      this.backdrop.add(rack);
     }
     const temple = new THREE.Group();
     temple.add(box(27, 3, 5, "#28313e", 0, 1.5, 0));
@@ -900,7 +963,15 @@ export class PaperScene {
       temple.add(box(0.7, 1.3, 0.06, "#816b52", x, 1.8, 2.53));
     }
     temple.position.set(11, 0, -29);
-    this.root.add(temple);
+    this.backdrop.add(temple);
+    this.backdrop.traverse((o) => {
+      if (!(o instanceof THREE.Mesh)) return;
+      o.castShadow = false;
+      o.receiveShadow = false;
+      const m = o.material as THREE.MeshStandardMaterial;
+      m.color.multiply(new THREE.Color("#718497"));
+    });
+    this.root.add(this.backdrop);
     this.wishes = [];
     this.labels = [];
     this.root.traverse((o) => {
@@ -1023,9 +1094,9 @@ export class PaperScene {
     const player = g.players[local] ?? g.players[0];
     const nearbyLabel = (p: Point) =>
       !preview &&
-      Math.hypot(p.x - player.x, p.z - player.z) < 8 &&
+      Math.hypot(p.x - player.x, p.z - player.z) < 5 &&
       (g.view === 0 ? Math.abs(p.z - player.z) : Math.abs(p.x - player.x)) <
-        2.2;
+        1.3;
     this.labels.forEach((o) => {
       o.visible = nearbyLabel(o.position);
     });
@@ -1042,6 +1113,8 @@ export class PaperScene {
       this.initialized = true;
     }
     this.target.lerp(goal, 1 - Math.exp(-dt * 6));
+    this.backdrop.position.set(this.target.x, 0, this.target.z);
+    this.backdrop.rotation.y = this.yaw;
     const aspect = this.width / this.height;
     const viewHeight = aspect > 1.5 ? 12.5 : 17;
     const viewWidth = Math.max(
@@ -1061,36 +1134,11 @@ export class PaperScene {
       );
     this.camera.lookAt(this.target);
     this.camera.updateProjectionMatrix();
+    const solid = bodies(g);
     this.tiles.forEach((node, i) => {
-      const b = platformAt(l.platforms[i], g.motionTime);
+      const b = solid[i];
       node.position.set(b.x, platformVisual(b).y, b.z);
-      const distance =
-        g.view === 0 ? Math.abs(b.z - player.z) : Math.abs(b.x - player.x);
-      const depth = g.view === 0 ? b.d : b.w;
-      const corridor = b.kind === "low-roof" || b.kind === "railing";
-      const ghost = corridor || distance > depth / 2 + 0.45;
-      if (node.userData.ghost !== ghost) {
-        node.userData.ghost = ghost;
-        node.traverse((o) => {
-          if (o instanceof THREE.Mesh) {
-            const mats = Array.isArray(o.material) ? o.material : [o.material];
-            mats.forEach((m) => {
-              m.transparent = ghost;
-              m.opacity =
-                o.name === "eave-beam"
-                  ? 0.7
-                  : corridor
-                    ? b.kind === "low-roof"
-                      ? 0.32
-                      : 0.15
-                    : ghost
-                      ? 0.24
-                      : 1;
-              m.depthWrite = !ghost;
-            });
-          }
-        });
-      }
+      styleDepth(node, b, player, g.view, preview);
     });
     this.birds.forEach((node, i) => {
       const p = g.players[i];
@@ -1181,6 +1229,14 @@ export class PaperScene {
           o.visible = Math.sin(this.clock * 16) > -0.5;
         else if (o instanceof THREE.Mesh) o.visible = true;
       });
+      const shadow = node.getObjectByName("contact-shadow") as THREE.Mesh;
+      const floor = landingHeight(node.position, solid);
+      shadow.visible = floor !== undefined && node.position.y - floor < 5;
+      if (floor !== undefined) {
+        shadow.position.y = floor - node.position.y + 0.025;
+        (shadow.material as THREE.MeshBasicMaterial).opacity =
+          0.38 / (1 + Math.max(0, node.position.y - floor) * 0.35);
+      }
     });
     this.keys.forEach((o, i) => {
       o.visible = !g.keys.includes(i);
@@ -1200,6 +1256,8 @@ export class PaperScene {
         5,
         dt,
       );
+      const plank = bridgePlank(g);
+      if (plank) styleDepth(this.crossingDeck, plank, player, g.view, preview);
       (this.crossingPad.material as THREE.MeshStandardMaterial).color.set(
         g.bridgeLatched
           ? "#acc0ac"
@@ -1224,22 +1282,7 @@ export class PaperScene {
       if (this.gateLabel)
         this.gateLabel.visible =
           !g.gateOpen && nearbyLabel(this.gateLabel.position);
-      const gate = l.gate;
-      const distance =
-        g.view === 0
-          ? Math.abs(gate.z - player.z)
-          : Math.abs(gate.x - player.x);
-      const depth = g.view === 0 ? gate.d : gate.w;
-      const ghost = !preview && distance > depth / 2 + 0.45;
-      this.gate.traverse((o) => {
-        if (!(o instanceof THREE.Mesh)) return;
-        const mats = Array.isArray(o.material) ? o.material : [o.material];
-        mats.forEach((m) => {
-          m.transparent = ghost;
-          m.opacity = ghost ? 0.12 : 1;
-          m.depthWrite = !ghost;
-        });
-      });
+      styleDepth(this.gate, l.gate, player, g.view, preview);
     }
     this.hazards.forEach((o, i) => {
       animateFire(o, this.clock, activeHazard(l.hazards[i].period, g.time));
@@ -1270,6 +1313,29 @@ export class PaperScene {
       o.visible =
         nearbyLabel(sign) && (sign.view === undefined || sign.view === g.view);
     });
+    // One nearby instruction at a time; text cannot pile up across depth planes.
+    const visibleLabels = [
+      ...this.labels,
+      ...this.signs,
+      this.crossingLabel,
+      this.gateLabel,
+    ].filter((o): o is THREE.Object3D => !!o && o.visible);
+    let nearestLabel: THREE.Object3D | undefined;
+    let nearestDistance = Infinity;
+    for (const label of visibleLabels) {
+      const distance = Math.hypot(
+        label.position.x - player.x,
+        label.position.z - player.z,
+      );
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestLabel = label;
+      }
+    }
+    visibleLabels.forEach((o) => {
+      o.visible = o === nearestLabel;
+    });
+    this.portal.getObjectByName("exit-label")!.visible = nearbyLabel(l.exit);
     this.windLines.forEach((o, i) => {
       const w = o.userData.wind as Point & {
         w: number;

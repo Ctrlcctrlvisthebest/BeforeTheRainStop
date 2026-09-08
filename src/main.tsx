@@ -40,6 +40,7 @@ import {
 } from "./player-name";
 import "./style.css";
 import "./mobile.css";
+import "./play-layout.css";
 import { TouchInput, mergeInput, type TouchField } from "./touch-input";
 import { useCompactControls, touchCopy } from "./mobile";
 import { useGameAudio, MusicControls } from "./audio";
@@ -59,6 +60,7 @@ const KEY = "rain-action-session-v2";
 const initialCode = new URLSearchParams(location.search).get("room") ?? "";
 function App() {
   const compact = useCompactControls();
+  const statusSidebar = useRef<HTMLDivElement>(null);
   const compactRef = useRef(compact);
   compactRef.current = compact;
   const [toolsOpen, setToolsOpen] = useState(false);
@@ -670,6 +672,18 @@ function App() {
       {hint && <small>{hint}</small>}
     </button>
   );
+  useEffect(() => {
+    const sidebar = statusSidebar.current;
+    if (!sidebar) return;
+    const observer = new ResizeObserver(() => {
+      sidebar.parentElement?.style.setProperty(
+        "--sidebar-height",
+        `${Math.ceil(sidebar.getBoundingClientRect().height)}px`,
+      );
+    });
+    observer.observe(sidebar);
+    return () => observer.disconnect();
+  }, [isPlaying, compact]);
   return (
     <main
       className={`app ${isPlaying ? "playing" : ""} ${compact ? "compact" : ""} ${toolsOpen ? "tools-open" : ""} ${mapOpen ? "map-open" : ""} ${guideEnabled ? "with-guide" : ""}`}
@@ -1034,164 +1048,168 @@ function App() {
               )}
             </div>
           </section>
-          {guideEnabled && (
-            <GuideCard
-              g={hud}
-              guide={guide.current}
-              language={language}
-              onLearn={learn}
-              compact={compact}
-            />
-          )}
-          <section
-            className={`rain-hud ${(local.wetness ?? 0) > 70 ? "soaked" : ""}`}
-            aria-label={t("纸鹤状态")}
-          >
-            <div className="wet-condition">
-              <div className="meter-heading">
-                <span>{t(compact ? "湿度" : "纸的湿度")}</span>
-                <strong>
-                  {Math.round(local.wetness ?? 0)}
-                  <small>%</small>
-                </strong>
-              </div>
-              <div
-                className="wet-track"
-                role="progressbar"
-                aria-label={t("淋湿程度")}
-                aria-valuenow={Math.round(local.wetness ?? 0)}
-                aria-valuemin={0}
-                aria-valuemax={100}
-              >
-                <i style={{ width: `${local.wetness ?? 0}%` }} />
-              </div>
-              <p>
-                {t(
-                  local.nearFire
-                    ? "小火旁 · 正在烤干"
-                    : local.rainCover === "roof"
-                      ? "檐下只挡雨 · 靠近小火才能烤干"
-                      : local.rainCover === "ally"
-                        ? "同伴挡雨 · 湿度保持不变"
-                        : local.sheltering
-                          ? "展成方纸 · 自己仍会缓慢淋湿"
-                          : local.rainCover === "rain"
-                            ? "正在淋雨 · S 展纸 / 寻找屋檐"
-                            : "无雨处 · 湿度保持不变",
-                )}
-              </p>
-            </div>
-            <div
-              className={`heat-condition ${(local.heat ?? 0) >= FIRE_WARNING ? "too-hot" : ""}`}
+          <div className="status-sidebar" ref={statusSidebar}>
+            <section
+              className={`rain-hud ${(local.wetness ?? 0) > 70 ? "soaked" : ""}`}
+              aria-label={t("纸鹤状态")}
             >
-              <div className="meter-heading">
-                <span>{t(compact ? "热度" : "烘烤程度")}</span>
-                <b>{Math.round(local.heat ?? 0)} / 100</b>
-              </div>
-              <div
-                className="heat-track"
-                role="progressbar"
-                aria-label={t("烘烤程度")}
-                aria-valuenow={Math.round(local.heat ?? 0)}
-                aria-valuemin={0}
-                aria-valuemax={100}
-              >
-                <i style={{ width: `${local.heat ?? 0}%` }} />
-              </div>
-              <p>
-                {t(
-                  (local.heat ?? 0) >= FIRE_WARNING
-                    ? "纸边正在变脆！快离开火堆"
-                    : local.nearFire
-                      ? (local.wetness ?? 0) < 1
-                        ? "纸已经烤干，离开火边"
-                        : "烤干就走 · 烘烤到 100 会碎裂"
-                      : (local.heat ?? 0) > 0
-                        ? "远离火堆 · 正在降温"
-                        : "火光圈内可烤干 · 旺火不可接近",
-                )}
-              </p>
-            </div>
-            <div
-              className={`fold-condition ${(local.foldsLeft ?? MAX_FOLDS) <= 2 ? "fragile" : ""}`}
-            >
-              <div className="meter-heading">
-                <span>{t(compact ? "耐折" : "剩余耐折")}</span>
-                <b>
-                  {local.foldsLeft ?? MAX_FOLDS} / {MAX_FOLDS}
-                </b>
-              </div>
-              <div
-                className="fold-pips"
-                role="meter"
-                aria-label={t("耐折次数")}
-                aria-valuenow={local.foldsLeft ?? MAX_FOLDS}
-                aria-valuemin={0}
-                aria-valuemax={MAX_FOLDS}
-              >
-                {Array.from({ length: MAX_FOLDS }, (_, i) => (
-                  <i
-                    key={i}
-                    className={
-                      i < (local.foldsLeft ?? MAX_FOLDS) ? "intact" : "spent"
-                    }
-                  />
-                ))}
-              </div>
-              <p>
-                {t(
-                  local.foldBlocked
-                    ? local.foldsLeft === 0
-                      ? "纸已破损，先去许愿架修补"
-                      : "湿纸太脆，先晾干或修补"
-                    : local.wetness >= 60
-                      ? "湿度 ≥ 60%：每次消耗 2 格"
-                      : "每次展纸或折桥消耗 1 格",
-                )}
-              </p>
-            </div>
-            {atRepairRack(hud, local) ? (
-              <div className="repair-hint">
-                <span>
-                  {t(
-                    local.repairProgress >= REPAIR_SECONDS
-                      ? "修补完成"
-                      : local.repairProgress > 0
-                        ? "修补中"
-                        : "按住 F · 修补纸张",
-                  )}
-                </span>
-                <div className="repair-track">
-                  <i
-                    style={{
-                      width: `${((local.repairProgress ?? 0) / REPAIR_SECONDS) * 100}%`,
-                    }}
-                  />
+              <div className="wet-condition">
+                <div className="meter-heading">
+                  <span>{t(compact ? "湿度" : "纸的湿度")}</span>
+                  <strong>
+                    {Math.round(local.wetness ?? 0)}
+                    <small>%</small>
+                  </strong>
                 </div>
+                <div
+                  className="wet-track"
+                  role="progressbar"
+                  aria-label={t("淋湿程度")}
+                  aria-valuenow={Math.round(local.wetness ?? 0)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                >
+                  <i style={{ width: `${local.wetness ?? 0}%` }} />
+                </div>
+                <p>
+                  {t(
+                    local.nearFire
+                      ? "小火旁 · 正在烤干"
+                      : local.rainCover === "roof"
+                        ? "檐下只挡雨 · 靠近小火才能烤干"
+                        : local.rainCover === "ally"
+                          ? "同伴挡雨 · 湿度保持不变"
+                          : local.sheltering
+                            ? "展成方纸 · 自己仍会缓慢淋湿"
+                            : local.rainCover === "rain"
+                              ? "正在淋雨 · S 展纸 / 寻找屋檐"
+                              : "无雨处 · 湿度保持不变",
+                  )}
+                </p>
               </div>
-            ) : (
-              <p className="repair-away">{t("许愿架可修补 · R 返回存档处")}</p>
-            )}
-            {hud.mode > 1 && (
-              <div className="team-wet">
-                {hud.players.map((p) => (
-                  <span
-                    key={p.id}
-                    title={`${t(NAMES[p.id])}: ${Math.round(p.wetness ?? 0)}% · ${p.foldsLeft ?? MAX_FOLDS} ${t("折")}`}
-                  >
-                    <i style={{ background: COLORS[p.id] }} />
-                    {p.arrived
-                      ? t("已到家")
-                      : `${Math.round(p.wetness ?? 0)}% / ${p.foldsLeft ?? MAX_FOLDS}${t("折")}`}
-                    {(p.heat ?? 0) >= FIRE_WARNING
-                      ? ` · ♨ ${Math.round(p.heat)}`
-                      : ""}
-                    {p.sheltering ? t(" · 挡雨") : ""}
+              <div
+                className={`heat-condition ${(local.heat ?? 0) >= FIRE_WARNING ? "too-hot" : ""}`}
+              >
+                <div className="meter-heading">
+                  <span>{t(compact ? "热度" : "烘烤程度")}</span>
+                  <b>{Math.round(local.heat ?? 0)} / 100</b>
+                </div>
+                <div
+                  className="heat-track"
+                  role="progressbar"
+                  aria-label={t("烘烤程度")}
+                  aria-valuenow={Math.round(local.heat ?? 0)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                >
+                  <i style={{ width: `${local.heat ?? 0}%` }} />
+                </div>
+                <p>
+                  {t(
+                    (local.heat ?? 0) >= FIRE_WARNING
+                      ? "纸边正在变脆！快离开火堆"
+                      : local.nearFire
+                        ? (local.wetness ?? 0) < 1
+                          ? "纸已经烤干，离开火边"
+                          : "烤干就走 · 烘烤到 100 会碎裂"
+                        : (local.heat ?? 0) > 0
+                          ? "远离火堆 · 正在降温"
+                          : "火光圈内可烤干 · 旺火不可接近",
+                  )}
+                </p>
+              </div>
+              <div
+                className={`fold-condition ${(local.foldsLeft ?? MAX_FOLDS) <= 2 ? "fragile" : ""}`}
+              >
+                <div className="meter-heading">
+                  <span>{t(compact ? "耐折" : "剩余耐折")}</span>
+                  <b>
+                    {local.foldsLeft ?? MAX_FOLDS} / {MAX_FOLDS}
+                  </b>
+                </div>
+                <div
+                  className="fold-pips"
+                  role="meter"
+                  aria-label={t("耐折次数")}
+                  aria-valuenow={local.foldsLeft ?? MAX_FOLDS}
+                  aria-valuemin={0}
+                  aria-valuemax={MAX_FOLDS}
+                >
+                  {Array.from({ length: MAX_FOLDS }, (_, i) => (
+                    <i
+                      key={i}
+                      className={
+                        i < (local.foldsLeft ?? MAX_FOLDS) ? "intact" : "spent"
+                      }
+                    />
+                  ))}
+                </div>
+                <p>
+                  {t(
+                    local.foldBlocked
+                      ? local.foldsLeft === 0
+                        ? "纸已破损，先去许愿架修补"
+                        : "湿纸太脆，先晾干或修补"
+                      : local.wetness >= 60
+                        ? "湿度 ≥ 60%：每次消耗 2 格"
+                        : "每次展纸或折桥消耗 1 格",
+                  )}
+                </p>
+              </div>
+              {atRepairRack(hud, local) ? (
+                <div className="repair-hint">
+                  <span>
+                    {t(
+                      local.repairProgress >= REPAIR_SECONDS
+                        ? "修补完成"
+                        : local.repairProgress > 0
+                          ? "修补中"
+                          : "按住 F · 修补纸张",
+                    )}
                   </span>
-                ))}
-              </div>
+                  <div className="repair-track">
+                    <i
+                      style={{
+                        width: `${((local.repairProgress ?? 0) / REPAIR_SECONDS) * 100}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              ) : (
+                <p className="repair-away">
+                  {t("许愿架可修补 · R 返回存档处")}
+                </p>
+              )}
+              {hud.mode > 1 && (
+                <div className="team-wet">
+                  {hud.players.map((p) => (
+                    <span
+                      key={p.id}
+                      title={`${t(NAMES[p.id])}: ${Math.round(p.wetness ?? 0)}% · ${p.foldsLeft ?? MAX_FOLDS} ${t("折")}`}
+                    >
+                      <i style={{ background: COLORS[p.id] }} />
+                      {p.arrived
+                        ? t("已到家")
+                        : `${Math.round(p.wetness ?? 0)}% / ${p.foldsLeft ?? MAX_FOLDS}${t("折")}`}
+                      {(p.heat ?? 0) >= FIRE_WARNING
+                        ? ` · ♨ ${Math.round(p.heat)}`
+                        : ""}
+                      {p.sheltering ? t(" · 挡雨") : ""}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </section>
+            {guideEnabled && (
+              <GuideCard
+                g={hud}
+                guide={guide.current}
+                language={language}
+                onLearn={learn}
+                compact={compact}
+              />
             )}
-          </section>
+          </div>
           {compact && (
             <div
               className={`mobile-condition-note ${(local.heat ?? 0) >= FIRE_WARNING || local.foldBlocked ? "urgent" : ""}`}
@@ -1406,6 +1424,13 @@ function App() {
                 {t("◎ 目标 · □ 存档 · 橙点小火")}
               </div>
             )}
+            <div className="depth-legend">
+              <i aria-hidden="true" />
+              {words(
+                ["亮边：当前行进层", "Bright edges: current lane"],
+                language,
+              )}
+            </div>
             <small>
               {t("你是")} <i style={{ background: COLORS[local.id] }} />
               {t(NAMES[local.id])} ·{" "}

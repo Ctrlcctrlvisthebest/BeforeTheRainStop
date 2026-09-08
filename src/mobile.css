@@ -103,12 +103,8 @@
   overscroll-behavior: none;
   --scene-top: calc(var(--safe-top) + 134px);
   --control-space: calc(124px + var(--safe-bottom));
-  --guide-space: 0px;
-  --scene-bottom: calc(var(--control-space) + var(--guide-space) + 28px);
+  --scene-bottom: calc(var(--control-space) + 28px);
   background: #253648;
-}
-.app.compact.playing.with-guide {
-  --guide-space: 136px;
 }
 .compact.playing canvas {
   top: var(--scene-top);
@@ -221,11 +217,6 @@
   transform: none;
 }
 .app.compact.playing .rain-hud {
-  position: absolute;
-  top: calc(var(--safe-top) + 62px);
-  left: var(--safe-left);
-  right: var(--safe-right);
-  width: auto;
   height: 48px;
   padding: 6px 9px;
   display: grid;
@@ -308,19 +299,6 @@
 .compact .compass .map-legend {
   font-size: 11px;
   line-height: 1.6;
-}
-.compact.playing .journey-guide {
-  position: absolute;
-  top: auto;
-  bottom: calc(var(--control-space) + 28px);
-  left: var(--safe-left);
-  right: var(--safe-right);
-  width: auto;
-  height: var(--guide-space);
-  max-height: none;
-  padding: 5px 10px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
 }
 .compact .guide-heading {
   font-size: 10px;
@@ -515,9 +493,6 @@
   }
 }
 @media (orientation: portrait) and (max-height: 680px) {
-  .app.compact.playing.with-guide {
-    --guide-space: 92px;
-  }
   .compact .journey-guide > p:not(.guide-warning) {
     display: none;
   }
@@ -526,11 +501,6 @@
   .app.compact.playing {
     --scene-top: calc(var(--safe-top) + 114px);
     --scene-bottom: 0px;
-  }
-  .app.compact.playing .rain-hud {
-    max-width: 400px;
-    right: auto;
-    width: calc(100% - 300px);
   }
   .compact.playing .mobile-condition-note {
     top: calc(var(--safe-top) + 61px);
@@ -545,12 +515,6 @@
     left: auto;
     right: var(--safe-right);
     transform: none;
-  }
-  .compact.playing .journey-guide {
-    left: calc(var(--safe-left) + var(--move-width) + 12px);
-    right: calc(var(--safe-right) + var(--action-width) + 12px);
-    bottom: calc(var(--safe-bottom) + 8px);
-    height: 100px;
   }
   .compact .journey-guide > p:not(.guide-warning) {
     display: none;

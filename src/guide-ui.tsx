@@ -56,8 +56,8 @@ export const LESSONS: Record<Lesson, LessonData> = {
       ],
     ],
     note: [
-      "联机视角由全队共享；先让队友站稳，再转面。",
-      "The whole team shares the view. Let friends land safely before turning.",
+      "亮边平台与你在同一行进层，暗色平台在后方，淡化的平台在前方。联机转面前，先让队友站稳。",
+      "Bright edges mark your current lane; darker platforms are behind it and faded platforms are in front. Let teammates land before turning.",
     ],
   },
   bridge: {
@@ -231,14 +231,9 @@ export function GuideCard({
       aria-label={w(["当前玩法引导", "Current gameplay guide"])}
     >
       <div className="guide-heading">
-        <span>
-          {w(["下一步", "NEXT STEP"])}{" "}
-          <small>
-            {String(guide.step).padStart(2, "0")} / {guide.total}
-          </small>
-        </span>
+        <span>{w(["路线建议", "ROUTE HINT"])}</span>
         <button onClick={() => onLearn(guide.lesson)}>
-          {w(["看图学这一步", "Show me how"])} ↗
+          {w(compact ? ["图解", "Help"] : ["查看图解", "Show me how"])} ↗
         </button>
       </div>
       <div className="guide-action">
