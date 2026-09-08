@@ -13,6 +13,7 @@ import {
 } from "./weather";
 import { campfire, animateFire } from "./fire-scene";
 import { gatePad, gateMark, animateGatePad } from "./gate-scene";
+import { isOnGatePad } from "./gate-state";
 import * as THREE from "three";
 import {
   COLORS,
@@ -411,6 +412,7 @@ export class PaperScene {
   private fires: THREE.Group[] = [];
   private fireLight = new THREE.PointLight("#ffad5b", 0, 6, 2);
   private gate: THREE.Group | null = null;
+  private gateLabel: THREE.Sprite | null = null;
   private portal = new THREE.Group();
   private guideMarker = new THREE.Group();
   private signs: THREE.Sprite[] = [];
@@ -630,7 +632,17 @@ export class PaperScene {
         this.gate.add(endMark);
       }
       this.root.add(this.gate);
-    } else this.gate = null;
+      this.gateLabel = textSprite(
+        this.text("挡路闸门 · 踩踏板移开"),
+        "#eac58e",
+        0.5,
+      );
+      this.gateLabel.position.set(l.gate.x, l.gate.y + 0.65, l.gate.z);
+      this.root.add(this.gateLabel);
+    } else {
+      this.gate = null;
+      this.gateLabel = null;
+    }
     l.keys.forEach((k) => {
       const group = new THREE.Group();
       const ring = new THREE.Mesh(
@@ -1202,19 +1214,16 @@ export class PaperScene {
     }
     this.pads.forEach((m, i) => {
       const pad = l.pads[i];
-      const on =
-        g.gateOpen ||
-        g.players.some(
-          (p) =>
-            Math.hypot(p.x - pad.x, p.z - pad.z) < 0.75 &&
-            Math.abs(p.y - pad.y) < 0.4,
-        );
+      const on = g.gateOpen || g.players.some((p) => isOnGatePad(p, pad));
       const depth =
         g.view === 0 ? Math.abs(pad.z - player.z) : Math.abs(pad.x - player.x);
       animateGatePad(m, on, g.gateCharge, g.gateOpen, !preview && depth > 0.9);
     });
     if (this.gate && l.gate) {
       this.gate.visible = !g.gateOpen;
+      if (this.gateLabel)
+        this.gateLabel.visible =
+          !g.gateOpen && nearbyLabel(this.gateLabel.position);
       const gate = l.gate;
       const distance =
         g.view === 0

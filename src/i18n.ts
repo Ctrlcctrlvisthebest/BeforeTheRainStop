@@ -284,6 +284,7 @@ const english: Record<string, string> = {
   等待房主开始: "Waiting for the host",
   离开房间: "Leave room",
   机关已开: "Gate open",
+  "挡路闸门 · 踩踏板移开": "Barrier · Hold plates to open",
   机关: "Gate",
   "● 联机": "● Online",
   "● 重连中": "● Reconnecting",

@@ -9,6 +9,7 @@ import {
 } from "./game";
 import { CROSSINGS, bankPoint } from "./bridges";
 import { CHALLENGE_MAPS } from "./challenge-maps";
+import { gateState, gateStatusCopy, isOnGatePad } from "./gate-state";
 import type { Language } from "./i18n";
 export type Copy = readonly [string, string];
 export const words = (value: Copy, language: Language) =>
@@ -251,6 +252,7 @@ export interface Guidance {
   target?: Point;
   warning?: Copy;
   progress?: number;
+  progressLabel?: Copy;
   direction?: "left" | "right" | "turn" | "up" | "stay";
 }
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -332,7 +334,8 @@ export function guideFor(
       "Follow the hollow gold marker. The next step appears when you reach it.",
     ];
   let keys: string[] = [],
-    progress: number | undefined;
+    progress: number | undefined,
+    progressLabel: Copy | undefined;
   let waitForFerry = false;
   if (s.kind === "jump") {
     title = ["跳到对面的平台", "Jump to the far platform"];
@@ -477,40 +480,67 @@ export function guideFor(
   }
   if (s.kind === "pads") {
     lesson = "gate";
-    const required = Math.min(g.mode, l.pads.length);
-    target =
-      l.pads
-        .slice(0, required)
-        .find(
-          (pad) => distance(p, pad) < 0.75 && Math.abs(p.y - pad.y) < 0.4,
-        ) ?? l.pads[p.id % required];
-    title =
-      g.mode === 1
-        ? ["踩住开门踏板，保持 4 秒", "Hold the gate plate for 4 seconds"]
-        : ["两人各踩一块开门踏板", "Put one friend on each gate plate"];
+    const state = gateState(g);
+    const own = state.pads.find((pad) => isOnGatePad(p, pad));
+    const empty = state.pads.find((_, i) => !state.pressed[i]);
+    target = own ?? empty ?? { ...p };
+    title = ["踩踏板，移开挡路闸门", "Hold plates to clear the blocked path"];
     body =
       g.mode === 1
         ? [
-            "站到带门形标记的石踏板上，等四格灯亮满，门就会打开；淋雨时可按住 S 挡雨。",
-            "Stand on the stone plate with a doorway mark until all four lights fill and the gate opens. Hold S to shelter from rain.",
+            "金色路标指向开门石踏板。站上去不动 4 秒，前方闸门就会移开；之后可以离开踏板，继续去终点灯门。",
+            "Follow the gold marker to the stone plate. Stand on it for 4 seconds to remove the barrier ahead, then leave the plate and head to the lantern exit.",
           ]
         : [
-            "两块带门形标记的石踏板需同时踩住 4 秒；其余队友可在旁边按 S 挡雨，中途离开会重新计时。",
-            "Hold both doorway-marked stone plates together for 4 seconds. Other friends can hold S nearby to shelter them. Stepping away resets the timer.",
+            "金色路标指向一块空踏板。你和一名同伴各站一块，连续保持 4 秒，前方闸门就会移开。开门后两人都能离开，一起去终点灯门。",
+            "The gold marker points to an empty plate. You and one friend must each stand on a different plate for 4 seconds to remove the barrier. Both can then leave and head to the lantern exit.",
           ];
-    keys =
-      distance(p, target) < 0.65 && Math.abs(p.y - target.y) < 0.4 ? ["S"] : [];
+    if (own && state.occupied < state.required) {
+      title = [
+        "你已踩住，等同伴踩另一块",
+        "Stay here; a friend must hold the other plate",
+      ];
+      body = [
+        "保持站在这块石踏板上，让同伴去另一块。两块同时踩住后才开始倒数 4 秒，移开前方闸门。S 仅用于挡雨，可边踩边用。",
+        "Stay on your stone plate while a friend takes the other one. The 4-second countdown starts when both are held and removes the barrier ahead. S provides optional shelter while you stand.",
+      ];
+    } else if (own) {
+      title = ["保持站稳，等闸门移开", "Stay still until the barrier opens"];
+      body = [
+        "看开门倒计时，提前离开会从 4 秒重新开始。闸门移开后会保持打开，所有人都可以离开踏板去终点。按住 S 可同时挡雨。",
+        "Watch the countdown. Leaving early restarts it at 4 seconds. Once the barrier opens, it stays open and everyone can leave for the exit. Hold S for optional shelter.",
+      ];
+    } else if (!empty) {
+      title = ["同伴正在开门，原地等候", "Your friends are opening the gate"];
+      body = [
+        "两块踏板都已有同伴踩住，请留在安全处等倒计时结束。闸门移开后，踩踏板的同伴也能离开，全员一起去终点灯门。",
+        "Both plates are already held. Wait somewhere safe until the countdown finishes. Once the barrier opens, everyone, including the plate holders, can head to the lantern exit.",
+      ];
+    }
+    keys = own ? ["S"] : [];
     progress = g.gateCharge / 4;
+    progressLabel = gateStatusCopy(g);
   }
   if (s.kind === "exit") {
     lesson = "gate";
     title = p.arrived
       ? ["你已到家，等同伴抵达", "You are home. Wait for your friends"]
-      : ["走进金色灯门", "Enter the golden lantern gate"];
-    body = [
-      "钥匙齐了，全员到灯门才通关。最后一段收集会在这里保存。",
-      "With all keys collected, everyone must reach the gate. Your final items are saved here.",
-    ];
+      : l.gate && g.gateOpen
+        ? [
+            "闸门已开，离开踏板去终点",
+            "Gate open! Leave the plates and head to the exit",
+          ]
+        : ["走进金色灯门", "Enter the golden lantern gate"];
+    body =
+      l.gate && g.gateOpen
+        ? [
+            "本轮闯关中闸门会保持打开。踩踏板的人也一起出发，跟随金色路标到终点灯门；钥匙齐了、全员抵达才通关。",
+            "The barrier stays open for this run. Plate holders can come too. Follow the gold marker to the lantern exit; all keys and every crane must arrive to finish.",
+          ]
+        : [
+            "钥匙齐了，全员到灯门才通关。最后一段收集会在这里保存。",
+            "With all keys collected, everyone must reach the gate. Your final items are saved here.",
+          ];
   }
   let requiredView = s.view;
   // Racks and gates may lie around a corner; follow adjacent route points when a missed key is behind us.
@@ -651,6 +681,7 @@ export function guideFor(
     target: p.arrived ? undefined : target,
     warning,
     progress,
+    progressLabel,
     direction,
   };
 }

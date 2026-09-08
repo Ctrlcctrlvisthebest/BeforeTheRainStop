@@ -46,7 +46,14 @@ import { useGameAudio, MusicControls } from "./audio";
 import { translate, type Language } from "./i18n";
 import { CROSSINGS } from "./bridges";
 import { FIRE_WARNING, CAMPFIRES } from "./weather";
-import { guideFor, newGuideTracker, GUIDE_ROUTES, type Lesson } from "./guide";
+import {
+  guideFor,
+  newGuideTracker,
+  GUIDE_ROUTES,
+  words,
+  type Lesson,
+} from "./guide";
+import { gateStatusCopy } from "./gate-state";
 import { GuideCard, HowToPlay, GoalFlow } from "./guide-ui";
 const KEY = "rain-action-session-v2";
 const initialCode = new URLSearchParams(location.search).get("room") ?? "";
@@ -1014,11 +1021,7 @@ function App() {
               </span>
               {l.gate && (
                 <span className="gate-progress">
-                  {CROSSINGS[hud.level] && !hud.bridgeLatched
-                    ? t("先接通木桥")
-                    : hud.gateOpen
-                      ? t("机关已开")
-                      : `${t("机关")} ${Math.round(((hud.gateCharge ?? 0) / 4) * 100)}%`}
+                  {words(gateStatusCopy(hud), language)}
                 </span>
               )}
               <span className="elapsed-time">

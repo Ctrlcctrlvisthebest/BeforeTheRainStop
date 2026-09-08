@@ -167,27 +167,27 @@ export const LESSONS: Record<Lesson, LessonData> = {
   gate: {
     name: ["机关与通关", "Pads & exit"],
     title: [
-      "钥匙齐了，还要所有纸鹤一起到家",
-      "Bring every key and every crane home",
+      "踩踏板移开路障，再一起走到终点",
+      "Open the barrier, then bring everyone to the exit",
     ],
-    keys: ["S"],
+    keys: [],
     steps: [
       [
-        "带走所有钥匙。未拿齐时，路标会提醒你返回寻找；星星不影响通关。",
-        "Collect all keys. The guide points you back if one is missing. Stars do not affect completion.",
+        "带齐钥匙，沿金色路标前进。有闸门挡路时，找门形标记的石踏板；有断桥的关卡要先接通木桥。",
+        "Collect every key and follow the gold marker. If a barrier blocks the path, find the doorway-marked stone plates. Repair any broken bridge first.",
       ],
       [
-        "找到带门形标记的石踏板：单人踩一块，多人同时踩两块，等四格灯亮满（4 秒）开门。中途离开会重新计时。",
-        "Find the stone plates with doorway marks: hold one in solo or two together in multiplayer until all four lights fill (4 seconds). Stepping away resets the timer.",
+        "单人站一块；联机任选两人，每人站一块不同的踏板。保持 4 秒，前方挡路闸门就会移开。提前离开会重新计时。",
+        "Solo: stand on one plate. Multiplayer: any two players each hold a different plate for 4 seconds. This removes the barrier ahead. Leaving early resets the countdown.",
       ],
       [
-        "先完成断桥接应，开门踏板才会供能。门开后每只纸鹤都走进金色灯门，才算通关。",
-        "Repair any broken crossing before powering the gate pads. Once open, every crane must enter the golden lantern gate.",
+        "闸门打开后，本轮会一直保持打开。踩踏板的人也可以离开，所有人跟着路标继续走到金色终点灯门，才算通关。",
+        "The barrier stays open for this run. Plate holders can leave too. Follow the marker onward: everyone must reach the golden lantern exit to finish.",
       ],
     ],
     note: [
-      "门形石踏板负责开门；断桥对岸的金色木踏板负责接桥。小火周围的细光圈标示烘干范围。",
-      "Doorway-marked stone plates open the gate. The gold wooden plate across a gap lowers the bridge. The thin ring around a small fire marks its drying range.",
+      "站在踏板上就能开门。S 仅用于挡雨，踩踏板的人也能按；无需第三人。断桥对岸的金色木踏板用于接桥，小火旁的光圈表示烘干范围。",
+      "Standing on the plates activates them. S is optional rain shelter; plate holders can use it, so no third player is needed. Gold wooden plates lower bridges; fire rings mark drying areas.",
     ],
   },
 };
@@ -276,7 +276,11 @@ export function GuideCard({
             value={guide.progress}
             aria-label={w(["当前机关进度", "Current mechanism progress"])}
           />
-          <span>{Math.round(guide.progress * 100)}%</span>
+          <span>
+            {guide.progressLabel
+              ? w(guide.progressLabel)
+              : `${Math.round(guide.progress * 100)}%`}
+          </span>
         </div>
       )}
       {guide.warning && (
@@ -514,28 +518,70 @@ function LessonDiagram({
       )}
       {lesson === "gate" && (
         <>
-          <ellipse cx="70" cy="103" rx="31" ry="6" fill="#c3a371" />
-          <ellipse cx="179" cy="103" rx="31" ry="6" fill="#c3a371" />
-          <Crane x={70} y={75} />
-          <Crane x={179} y={75} color="#779eaf" />
+          {[55, 145].map((x) => (
+            <g key={x}>
+              <rect
+                x={x - 29}
+                y="92"
+                width="58"
+                height="13"
+                rx="2"
+                fill="#697786"
+              />
+              <path
+                d={`M${x - 9} 103V95H${x + 9}V103`}
+                fill="none"
+                stroke="#ffe0a0"
+                strokeWidth="2"
+              />
+            </g>
+          ))}
+          <Crane x={55} y={69} />
+          <Crane x={145} y={69} color="#779eaf" />
           <path
-            d="M239 69H303"
+            d="M187 83H222"
+            stroke="#b38b52"
+            strokeWidth="2"
+            markerEnd="url(#lesson-arrow)"
+          />
+          <rect
+            x="248"
+            y="49"
+            width="29"
+            height="55"
+            fill="none"
+            stroke="#b38b52"
+            strokeDasharray="4 4"
+          />
+          <rect x="248" y="15" width="29" height="26" rx="2" fill="#d49b57" />
+          <path
+            d="M263 84V53"
             stroke="#b38b52"
             strokeWidth="2"
             markerEnd="url(#lesson-arrow)"
           />
           <path
-            d="M334 105V35H427V105M325 29H436"
+            d="M295 83H351"
+            stroke="#b38b52"
+            strokeWidth="2"
+            markerEnd="url(#lesson-arrow)"
+          />
+          <path
+            d="M373 105V51H443V105M365 45H451"
             stroke="#b78d4f"
-            strokeWidth="7"
+            strokeWidth="6"
             fill="none"
           />
-          <text x="122" y="32">
-            {w(["同时踩住 4 秒", "Hold together for 4s"])}
+          <text x="100" y="28">
+            {w(["① 踩住 4 秒", "① Hold for 4s"])}
           </text>
-          <text x="380" y="78">
-            {w(["全员抵达", "Everyone home"])}
+          <text x="263" y="125">
+            {w(["② 闸门移开", "② Barrier opens"])}
           </text>
+          <text x="408" y="28">
+            {w(["③ 一起到终点", "③ All reach exit"])}
+          </text>
+          <Crane x={408} y={76} />
         </>
       )}
     </svg>

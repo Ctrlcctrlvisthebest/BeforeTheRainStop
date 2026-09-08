@@ -4,6 +4,7 @@ import { guideFor, newGuideTracker, GUIDE_ROUTES, words } from "../src/guide";
 import { newGame, LEVELS, stepGame, idleInput } from "../src/game";
 import { bankPoint, CROSSINGS } from "../src/bridges";
 import { completeLevel } from "./journey";
+import { gateState, gateStatusCopy } from "../src/gate-state";
 for (let level = 0; level < LEVELS.length; level++)
   test(`chapter ${level + 1}: guidance follows the playable route through to the exit`, () => {
     const tracker = newGuideTracker();
@@ -149,4 +150,91 @@ test("an arrived player waits rather than being told to retrieve a teammate’s 
   assert.equal(cue.kind, "exit");
   assert.equal(cue.target, undefined);
   assert.deepEqual(cue.keys, []);
+});
+
+for (const mode of [2, 3, 6] as const)
+  test(`${mode} players: guide fills the empty gate plate and keeps its current holder in place`, () => {
+    const g = newGame(mode, 4);
+    g.keys = [0, 1, 2];
+    for (const p of g.players) p.checkpoint = 2;
+    const pads = LEVELS[4].pads;
+    Object.assign(g.players[1], pads[0]);
+    const incoming = guideFor(g, 0, newGuideTracker());
+    assert.equal(incoming.kind, "pads");
+    assert.deepEqual(incoming.target, pads[1]);
+    assert.match(words(incoming.body, "en"), /Both can then leave/);
+    const holder = guideFor(g, 1, newGuideTracker());
+    assert.deepEqual(holder.target, pads[0]);
+    assert.equal(holder.direction, "stay");
+    assert.match(words(holder.title, "en"), /Stay here/);
+    assert.match(words(holder.progressLabel!, "en"), /1\/2/);
+    Object.assign(g.players[0], pads[1]);
+    g.gateCharge = 2.5;
+    const counting = guideFor(g, 0, newGuideTracker());
+    assert.equal(counting.direction, "stay");
+    assert.match(words(counting.progressLabel!, "en"), /1\.5s/);
+    if (mode > 2) {
+      const helper = guideFor(g, 2, newGuideTracker());
+      assert.equal(helper.direction, "stay");
+      assert.deepEqual(helper.target, { ...g.players[2] });
+      assert.match(words(helper.body, "en"), /already held/);
+    }
+    g.gateOpen = true;
+    const opened = guideFor(g, 0, newGuideTracker());
+    assert.equal(opened.kind, "exit");
+    assert.deepEqual(opened.target, LEVELS[4].exit);
+    assert.match(words(opened.body, "en"), /Plate holders can come too/);
+  });
+
+test("gate feedback agrees with real counting, early departure resets and the gate stays open", () => {
+  const g = newGame(2, 4);
+  const pads = LEVELS[4].pads;
+  const inputs = {
+    0: { ...idleInput(), shelter: true },
+    1: { ...idleInput(), shelter: true },
+  };
+  Object.assign(g.players[0], pads[0]);
+  Object.assign(g.players[1], pads[0]);
+  assert.equal(
+    gateState(g).occupied,
+    1,
+    "two cranes on one plate still count as one plate",
+  );
+  stepGame(g, inputs);
+  assert.equal(g.gateCharge, 0);
+  Object.assign(g.players[1], pads[1]);
+  for (let i = 0; i < 120; i++) stepGame(g, inputs);
+  assert.ok(g.gateCharge > 1.9 && g.gateCharge < 2.1);
+  assert.equal(gateState(g).occupied, 2);
+  g.players[1].z += 1;
+  stepGame(g, inputs);
+  assert.equal(g.gateCharge, 0);
+  assert.equal(gateState(g).remaining, "4.0");
+  Object.assign(g.players[1], pads[1]);
+  for (let i = 0; i < 241; i++) stepGame(g, inputs);
+  assert.equal(g.gateOpen, true);
+  for (const p of g.players) p.x += 2;
+  stepGame(g, inputs);
+  assert.equal(g.gateOpen, true);
+  assert.match(words(gateStatusCopy(g), "en"), /Leave the plates/);
+});
+
+test("solo gate cue requires only its visible plate; an unrepaired bridge explains why charging is blocked", () => {
+  const g = newGame(1, 1);
+  assert.equal(gateState(g).required, 1);
+  assert.match(words(gateStatusCopy(g), "en"), /Repair the bridge/);
+  g.bridgeLatched = true;
+  Object.assign(g.players[0], LEVELS[1].pads[0], { checkpoint: 1 });
+  g.keys = [0];
+  const cue = guideFor(g, 0, newGuideTracker());
+  assert.equal(cue.kind, "pads");
+  assert.equal(cue.direction, "stay");
+  assert.match(words(cue.body, "en"), /everyone can leave/);
+  assert.match(words(cue.progressLabel!, "en"), /4\.0s/);
+  g.players[0].y += 0.5;
+  assert.equal(
+    gateState(g).occupied,
+    0,
+    "jumping off a plate does not count as holding it",
+  );
 });
