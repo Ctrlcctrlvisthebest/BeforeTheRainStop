@@ -7,9 +7,9 @@ import {
   type Game,
   type Point,
 } from "./game";
-import { CROSSINGS, bankPoint } from "./bridges";
+import { CROSSINGS, bankPoint, dockBank } from "./bridges";
 import { CHALLENGE_MAPS } from "./challenge-maps";
-import { gateState, gateStatusCopy, isOnGatePad } from "./gate-state";
+import { gateState, isOnGatePad } from "./gate-state";
 import type { Language } from "./i18n";
 export type Copy = readonly [string, string];
 export const words = (value: Copy, language: Language) =>
@@ -251,8 +251,6 @@ export interface Guidance {
   keys: string[];
   target?: Point;
   warning?: Copy;
-  progress?: number;
-  progressLabel?: Copy;
   direction?: "left" | "right" | "turn" | "up" | "stay";
 }
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -365,9 +363,7 @@ export function guideFor(
       "跟随金色空心路标；到达后会出现下一步。",
       "Follow the hollow gold marker. The next step appears when you reach it.",
     ];
-  let keys: string[] = [],
-    progress: number | undefined,
-    progressLabel: Copy | undefined;
+  let keys: string[] = [];
   let waitForFerry = false;
   if (s.kind === "jump") {
     title = ["跳到对面的平台", "Jump to the far platform"];
@@ -473,7 +469,6 @@ export function guideFor(
               "A friend can reach the far bank by any route, then hold the gold plate for 2 seconds to lower the deck.",
             ];
       keys = ["Shift"];
-      progress = g.bridgeCharge / 2;
     } else if (holder) {
       target = far;
       title =
@@ -484,11 +479,9 @@ export function guideFor(
         "站稳对岸金色方板 2 秒可放下木桥。可以走纸桥，也可以用其他方式到达。",
         "Hold the far gold plate for 2 seconds to lower the deck. Cross the paper bridge or find another way there.",
       ];
-      progress = g.bridgeCharge / 2;
     } else {
       target = near;
-      const ready =
-        distance(p, near) < 0.4 && Math.abs(p.y - near.y) < 0.35 && p.grounded;
+      const ready = p.grounded && dockBank(c, p, g.view) === c.near;
       title = ready
         ? ["对齐了，按住 Shift 搭桥", "Aligned! Hold Shift to bridge"]
         : ["先走到岸边金色桥钉", "First reach the gold bank pins"];
@@ -551,8 +544,6 @@ export function guideFor(
       ];
     }
     keys = own ? ["S"] : [];
-    progress = g.gateCharge / 4;
-    progressLabel = gateStatusCopy(g);
   }
   if (s.kind === "exit") {
     lesson = "gate";
@@ -713,8 +704,6 @@ export function guideFor(
     keys,
     target: p.arrived ? undefined : target,
     warning,
-    progress,
-    progressLabel,
     direction,
   };
 }

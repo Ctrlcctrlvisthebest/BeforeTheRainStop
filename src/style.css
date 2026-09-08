@@ -604,9 +604,6 @@ footer span {
   font-size: 9px;
   color: #d99c76;
 }
-.gate-progress {
-  color: #dfb87f;
-}
 .compass {
   position: absolute;
   right: 24px;
@@ -690,14 +687,12 @@ footer span {
   font-size: 12px;
   font-weight: 500;
 }
-.wet-track,
-.repair-track {
+.wet-track {
   height: 3px;
   background: #9db4cd26;
   margin: 7px 0;
 }
-.wet-track i,
-.repair-track i {
+.wet-track i {
   display: block;
   height: 100%;
   background: #a7c1d8;
@@ -744,9 +739,6 @@ footer span {
   margin-top: 12px;
   color: #d6bb92;
   font-size: 9px;
-}
-.repair-track i {
-  background: #d6bb92;
 }
 .repair-away {
   border-top: 1px solid #9db4cd22;
@@ -1326,8 +1318,7 @@ footer span {
   button {
     transition: none;
   }
-  .wet-track i,
-  .repair-track i {
+  .wet-track i {
     transition: none;
   }
 }
@@ -1807,28 +1798,6 @@ footer span {
   margin-top: 6px;
   font-size: 9px;
   color: #90a5b4;
-}
-.guide-meter {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 5px;
-  align-items: center;
-  font-size: 10px;
-  margin: 8px 0;
-}
-.guide-meter progress {
-  flex: 1 0 100%;
-  width: 100%;
-  height: 4px;
-  appearance: none;
-  border: 0;
-  background: #d8b77925;
-}
-.guide-meter progress::-webkit-progress-bar {
-  background: #d8b77925;
-}
-.guide-meter progress::-webkit-progress-value {
-  background: #e0c181;
 }
 .journey-guide .guide-warning {
   padding: 8px 10px;

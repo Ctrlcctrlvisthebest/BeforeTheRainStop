@@ -8,7 +8,7 @@ import {
 } from "./scene-resources";
 import { translate, type Language } from "./i18n";
 import { touchCopy } from "./mobile";
-import { CROSSINGS, bankPoint, bridgePlank } from "./bridges";
+import { CROSSINGS, bankPoint, bridgePlank, isOnBridgePlate } from "./bridges";
 import {
   WEATHER,
   rainStrength,
@@ -19,6 +19,9 @@ import {
 import { campfire, animateFire } from "./fire-scene";
 import { gatePad, gateMark, animateGatePad } from "./gate-scene";
 import { SceneryOcclusion, prepareBackdrop } from "./scenery-occlusion";
+import { bridgeSocket, animateBridgeSocket } from "./bridge-scene";
+import { bridgeSocketState, mechanismFeedback } from "./mechanism-state";
+import { MechanismCard } from "./mechanism-scene";
 import { isOnGatePad } from "./gate-state";
 import * as THREE from "three";
 import {
@@ -473,6 +476,8 @@ export class PaperScene {
   private crossingDeck: THREE.Group | null = null;
   private crossingPad: THREE.Mesh | null = null;
   private crossingLabel: THREE.Sprite | null = null;
+  private bridgeSockets: { side: -1 | 1; group: THREE.Group }[] = [];
+  private mechanismCards = new Map<string, MechanismCard>();
   private hazards: THREE.Group[] = [];
   private fires: THREE.Group[] = [];
   private fireLight = new THREE.PointLight("#ffad5b", 0, 6, 2);
@@ -552,6 +557,8 @@ export class PaperScene {
     disposeObjectTree(this.root);
     this.root.clear();
     this.sceneryOcclusion.clear();
+    this.mechanismCards.clear();
+    this.bridgeSockets = [];
     this.guideMarker = new THREE.Group();
     const guideMaterial = new THREE.MeshBasicMaterial({
       color: "#ffe6ab",
@@ -639,26 +646,9 @@ export class PaperScene {
       );
       this.root.add(this.crossingDeck);
       for (const side of [-1, 1] as const) {
-        const bank = bankPoint(crossing, side);
-        const socket = new THREE.Mesh(
-          new THREE.TorusGeometry(0.35, 0.065, 6, 24),
-          material("#e3b875"),
-        );
-        socket.rotation.x = -Math.PI / 2;
-        socket.position.set(bank.x, bank.y + 0.07, bank.z);
+        const socket = bridgeSocket(crossing, side);
         this.root.add(socket);
-        for (const edge of [-1, 1]) {
-          const pin = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.09, 0.12, 0.35, 6),
-            material("#c5a075"),
-          );
-          pin.position.set(
-            crossing.axis === "x" ? bank.x : bank.x + edge * 0.65,
-            bank.y + 0.17,
-            crossing.axis === "z" ? bank.z : bank.z + edge * 0.65,
-          );
-          this.root.add(pin);
-        }
+        this.bridgeSockets.push({ side, group: socket });
       }
       const far = bankPoint(crossing, crossing.near === -1 ? 1 : -1);
       this.crossingPad = new THREE.Mesh(
@@ -1268,18 +1258,29 @@ export class PaperScene {
       );
       const plank = bridgePlank(g);
       if (plank) styleDepth(this.crossingDeck, plank, player, g.view, preview);
-      (this.crossingPad.material as THREE.MeshStandardMaterial).color.set(
-        g.bridgeLatched
-          ? "#acc0ac"
-          : g.bridgeCharge > 0
-            ? "#f6cb7d"
-            : "#b68b55",
+      const pressed = g.players.some((p) =>
+        isOnBridgePlate(CROSSINGS[g.level], p),
       );
-      this.crossingPad.scale.y = g.bridgeCharge > 0 ? 0.4 : 1;
+      (this.crossingPad.material as THREE.MeshStandardMaterial).color.set(
+        g.bridgeLatched ? "#acc0ac" : pressed ? "#89e0d6" : "#b68b55",
+      );
+      this.crossingPad.scale.y = pressed ? 0.4 : 1;
       if (this.crossingLabel)
         this.crossingLabel.visible =
           nearbyLabel(this.crossingLabel.position) && !g.bridgeLatched;
     }
+    this.bridgeSockets.forEach(({ side, group }) => {
+      const bank = group.position;
+      const depth =
+        g.view === 0
+          ? Math.abs(bank.z - player.z)
+          : Math.abs(bank.x - player.x);
+      animateBridgeSocket(
+        group,
+        preview ? "idle" : bridgeSocketState(g, side),
+        !preview && depth > 1.7,
+      );
+    });
     this.pads.forEach((m, i) => {
       const pad = l.pads[i];
       const on = g.gateOpen || g.players.some((p) => isOnGatePad(p, pad));
@@ -1330,9 +1331,20 @@ export class PaperScene {
       this.crossingLabel,
       this.gateLabel,
     ].filter((o): o is THREE.Object3D => !!o && o.visible);
+    const feedback = preview ? [] : mechanismFeedback(g, local, language);
     let nearestLabel: THREE.Object3D | undefined;
     let nearestDistance = Infinity;
     for (const label of visibleLabels) {
+      if (
+        feedback.some(
+          (item) =>
+            Math.hypot(
+              item.anchor.x - label.position.x,
+              item.anchor.z - label.position.z,
+            ) < 3,
+        )
+      )
+        continue;
       const distance = Math.hypot(
         label.position.x - player.x,
         label.position.z - player.z,
@@ -1345,6 +1357,18 @@ export class PaperScene {
     visibleLabels.forEach((o) => {
       o.visible = o === nearestLabel;
     });
+    this.mechanismCards.forEach((card) => {
+      card.visible = false;
+    });
+    for (const item of feedback) {
+      let card = this.mechanismCards.get(item.id);
+      if (!card) {
+        card = new MechanismCard();
+        this.mechanismCards.set(item.id, card);
+        this.root.add(card);
+      }
+      card.update(item, this.camera, viewWidth / this.width, compact);
+    }
     this.portal.getObjectByName("exit-label")!.visible = nearbyLabel(l.exit);
     this.windLines.forEach((o, i) => {
       const w = o.userData.wind as Point & {

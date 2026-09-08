@@ -264,20 +264,6 @@ export function GuideCard({
           </span>
         )}
       </div>
-      {guide.progress !== undefined && (
-        <div className="guide-meter">
-          <progress
-            max={1}
-            value={guide.progress}
-            aria-label={w(["当前机关进度", "Current mechanism progress"])}
-          />
-          <span>
-            {guide.progressLabel
-              ? w(guide.progressLabel)
-              : `${Math.round(guide.progress * 100)}%`}
-          </span>
-        </div>
-      )}
       {guide.warning && (
         <p className="guide-warning">
           ! {w(guide.warning)}{" "}

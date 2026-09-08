@@ -1,4 +1,4 @@
-import type { Game, Platform, Point } from "./game";
+import type { Bird, Game, Platform, Point } from "./game";
 import { CHALLENGE_MAPS, CHALLENGE_START } from "./challenge-maps";
 export interface BridgeCrossing extends Point {
   axis: "x" | "z";
@@ -7,7 +7,11 @@ export interface BridgeCrossing extends Point {
   depth: number;
 }
 export const CROSSINGS: Record<number, BridgeCrossing> = {
-  ...Object.fromEntries(CHALLENGE_MAPS.flatMap((m, i) => m.crossing ? [[CHALLENGE_START + i, m.crossing]] : [])),
+  ...Object.fromEntries(
+    CHALLENGE_MAPS.flatMap((m, i) =>
+      m.crossing ? [[CHALLENGE_START + i, m.crossing]] : [],
+    ),
+  ),
   6: { x: 15.2, y: 0, z: 6, axis: "x", near: -1, span: 2.6, depth: 3 },
   1: { x: 5.2, y: 0, z: 0, axis: "x", near: -1, span: 2.6, depth: 3 },
   3: { x: 11, y: 0, z: -4.4, axis: "z", near: 1, span: 2.6, depth: 3 },
@@ -45,4 +49,16 @@ export function dockBank(
     if (Math.abs(p[c.axis] - bankPoint(c, side)[c.axis]) < 0.5) return side;
   }
   return null;
+}
+
+/** Shared by the simulation and the plate feedback; reaching it by any route works. */
+export function isOnBridgePlate(c: BridgeCrossing, p: Bird): boolean {
+  const far = bankPoint(c, c.near === -1 ? 1 : -1);
+  return (
+    !p.arrived &&
+    !p.bridgeDock &&
+    p.grounded &&
+    Math.hypot(p.x - far.x, p.z - far.z) < 0.7 &&
+    Math.abs(p.y - far.y) < 0.35
+  );
 }

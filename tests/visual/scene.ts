@@ -1,6 +1,8 @@
 import { LEVELS, newGame, type Mode } from "../../src/game";
 import { GUIDE_ROUTES } from "../../src/guide";
 import { PaperScene } from "../../src/scene";
+import { bankPoint, CROSSINGS } from "../../src/bridges";
+import type { Language } from "../../src/i18n";
 
 const select = (id: string) =>
   document.getElementById(id) as unknown as HTMLSelectElement;
@@ -8,7 +10,9 @@ const chapter = select("chapter"),
   mode = select("mode"),
   location = select("location"),
   view = select("view"),
-  local = select("local");
+  local = select("local"),
+  interaction = select("interaction"),
+  language = select("language");
 LEVELS.forEach((level, index) =>
   chapter.add(new Option(`${index + 1} · ${level.name}`, String(index))),
 );
@@ -50,12 +54,67 @@ function loadGame() {
     Object.assign(player, point, { x: point.x + i * 0.75 }),
   );
   game.view = Number(view.value) as 0 | 1;
+  const crossing = CROSSINGS[game.level],
+    map = LEVELS[game.level];
+  const action = interaction.value;
+  if (
+    crossing &&
+    ["aligned", "offset", "bridge", "release", "bridged"].includes(action)
+  ) {
+    const bank = bankPoint(
+      crossing,
+      action === "release" ? (crossing.near === -1 ? 1 : -1) : crossing.near,
+    );
+    game.view = crossing.axis === "x" ? 0 : 1;
+    view.value = String(game.view);
+    game.players.forEach((p, i) =>
+      Object.assign(p, bank, {
+        [crossing.axis]: bank[crossing.axis] + i * crossing.near,
+      }),
+    );
+    if (action === "offset")
+      game.players[0][crossing.axis === "x" ? "z" : "x"] += 0.8;
+    if (action === "bridge")
+      Object.assign(game.players[0], crossing, {
+        y: crossing.y - 0.28,
+        bridgeDock: true,
+        bridgeFrom: crossing.near,
+        bridgeAxis: crossing.axis,
+        folded: true,
+        foldsLeft: 5,
+      });
+    game.bridgeCharge =
+      action === "release" || (action === "bridge" && game.mode === 1)
+        ? 0.9
+        : 0;
+    game.bridgeLatched = action === "bridged";
+  }
+  if (["gate-wait", "gate", "opened"].includes(action) && map.pads.length) {
+    const pads = map.pads;
+    game.players.forEach((p, i) =>
+      Object.assign(p, pads[Math.min(i, pads.length - 1)], {
+        x:
+          pads[Math.min(i, pads.length - 1)].x +
+          (action === "gate-wait" && i > 0 ? 1.2 : 0),
+      }),
+    );
+    game.gateCharge = action === "gate" ? 2.3 : 0;
+    game.gateOpen = action === "opened";
+  }
+  if (action === "repair" || action === "repaired")
+    game.players.forEach((p) =>
+      Object.assign(p, map.spawn, {
+        foldsLeft: action === "repair" ? 3 : 6,
+        repairProgress: action === "repair" ? 0.8 : 2,
+      }),
+    );
   local.disabled = game.mode === 1;
 }
 chapter.addEventListener("change", loadLocations);
 mode.addEventListener("change", loadGame);
 location.addEventListener("change", loadGame);
 local.addEventListener("change", loadGame);
+interaction.addEventListener("change", loadGame);
 view.addEventListener("change", () => {
   game.view = Number(view.value) as 0 | 1;
 });
@@ -69,7 +128,15 @@ function frame(now: number) {
   const dt = Math.min((now - previous) / 1000, 0.05);
   previous = now;
   game.motionTime += dt;
-  scene.render(game, game.mode === 1 ? 0 : Number(local.value), dt);
+  scene.render(
+    game,
+    game.mode === 1 ? 0 : Number(local.value),
+    dt,
+    false,
+    language.value as Language,
+    undefined,
+    window.innerWidth < 900,
+  );
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

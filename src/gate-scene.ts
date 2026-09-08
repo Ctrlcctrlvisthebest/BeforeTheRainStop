@@ -64,6 +64,7 @@ export function animateGatePad(
   );
   for (let i = 0; i < 4; i++) {
     const tick = group.getObjectByName(`gate-second-${i}`) as THREE.Mesh;
+    tick.visible = !opened && (pressed || charge > 0);
     (tick.material as THREE.MeshBasicMaterial).color.set(
       opened || charge >= i + 1 ? "#ffe0a0" : "#394854",
     );

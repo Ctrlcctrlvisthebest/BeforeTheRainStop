@@ -144,7 +144,6 @@
   text-overflow: ellipsis;
 }
 .compact .stage small,
-.compact .stats .gate-progress,
 .compact .stats .elapsed-time {
   display: none;
 }

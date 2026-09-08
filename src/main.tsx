@@ -54,7 +54,6 @@ import {
   words,
   type Lesson,
 } from "./guide";
-import { gateStatusCopy } from "./gate-state";
 import { GuideCard, HowToPlay, GoalFlow } from "./guide-ui";
 const KEY = "rain-action-session-v2";
 const initialCode = new URLSearchParams(location.search).get("room") ?? "";
@@ -1033,11 +1032,6 @@ function App() {
               <span>
                 ✦ {hud.stars.length}/{l.stars.length}
               </span>
-              {l.gate && (
-                <span className="gate-progress">
-                  {words(gateStatusCopy(hud), language)}
-                </span>
-              )}
               <span className="elapsed-time">
                 ◷ {formatTime(Math.round(hud.time * 1000))}
               </span>
@@ -1167,13 +1161,6 @@ function App() {
                           : "按住 F · 修补纸张",
                     )}
                   </span>
-                  <div className="repair-track">
-                    <i
-                      style={{
-                        width: `${((local.repairProgress ?? 0) / REPAIR_SECONDS) * 100}%`,
-                      }}
-                    />
-                  </div>
                 </div>
               ) : (
                 <p className="repair-away">

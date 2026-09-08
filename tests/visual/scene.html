@@ -69,8 +69,31 @@
         </select></label
       >
       <button id="turn">转面</button>
+      <label
+        >互动
+        <select id="interaction">
+          <option value="idle">静置</option>
+          <option value="aligned">桥口对齐</option>
+          <option value="offset">桥口错位</option>
+          <option value="bridge">撑起纸桥</option>
+          <option value="release">踩住接桥板</option>
+          <option value="bridged">木桥已接通</option>
+          <option value="gate-wait">一人踩门踏板</option>
+          <option value="gate">全部踏板踩住</option>
+          <option value="opened">闸门已开</option>
+          <option value="repair">修补中</option>
+          <option value="repaired">修补完成</option>
+        </select></label
+      >
+      <label
+        >语言
+        <select id="language">
+          <option value="zh">中文</option>
+          <option value="en">English</option>
+        </select></label
+      >
       <p>
-        仅供本地视觉回归：使用真实地图与渲染器，固定角色位置，不运行物理或连接排行榜。此页不进入发布包。
+        本地视觉回归：使用真实地图与渲染器、固定互动状态，不连接排行榜。此页不进入发布包。
       </p>
     </header>
     <canvas aria-label="场景遮挡回归画面"></canvas>

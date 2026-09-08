@@ -114,12 +114,6 @@
 .compact .status-sidebar .journey-guide > p:not(.guide-warning) {
   display: none;
 }
-.compact .status-sidebar .guide-meter {
-  grid-column: 1;
-  grid-row: 3;
-  margin: 2px 0 0;
-  font-size: 10px;
-}
 .compact .status-sidebar .guide-warning {
   grid-column: 1 / -1;
   margin: 2px 0 0;

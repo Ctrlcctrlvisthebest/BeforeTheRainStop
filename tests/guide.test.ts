@@ -197,12 +197,12 @@ for (const mode of [2, 3, 6] as const)
     assert.deepEqual(holder.target, pads[0]);
     assert.equal(holder.direction, "stay");
     assert.match(words(holder.title, "en"), /Stay here/);
-    assert.match(words(holder.progressLabel!, "en"), /1\/2/);
+    assert.match(words(gateStatusCopy(g), "en"), /1\/2/);
     Object.assign(g.players[0], pads[1]);
     g.gateCharge = 2.5;
     const counting = guideFor(g, 0, newGuideTracker());
     assert.equal(counting.direction, "stay");
-    assert.match(words(counting.progressLabel!, "en"), /1\.5s/);
+    assert.match(words(gateStatusCopy(g), "en"), /1\.5s/);
     if (mode > 2) {
       const helper = guideFor(g, 2, newGuideTracker());
       assert.equal(helper.direction, "stay");
@@ -259,7 +259,7 @@ test("solo gate cue counts down on its visible plate even with the earlier bridg
   assert.equal(cue.kind, "pads");
   assert.equal(cue.direction, "stay");
   assert.match(words(cue.body, "en"), /everyone can leave/);
-  assert.match(words(cue.progressLabel!, "en"), /4\.0s/);
+  assert.match(words(gateStatusCopy(g), "en"), /4\.0s/);
   g.players[0].y += 0.5;
   assert.equal(
     gateState(g).occupied,

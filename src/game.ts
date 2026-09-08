@@ -6,7 +6,13 @@ import {
   bankCollectibles,
   dropCollectibles,
 } from "./collectibles";
-import { CROSSINGS, bankPoint, bridgePlank, dockBank } from "./bridges";
+import {
+  CROSSINGS,
+  bankPoint,
+  bridgePlank,
+  dockBank,
+  isOnBridgePlate,
+} from "./bridges";
 import {
   rainfall,
   underAwning,
@@ -770,16 +776,8 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
   const crossing = CROSSINGS[g.level];
   if (crossing && !g.bridgeLatched) {
     const holder = g.players.find((p) => p.bridgeDock && p.folded);
-    const far = bankPoint(crossing, crossing.near === -1 ? 1 : -1);
     // The far plate responds to whoever reaches it, regardless of their route.
-    const releasing = g.players.some(
-      (p) =>
-        !p.arrived &&
-        !p.bridgeDock &&
-        p.grounded &&
-        Math.hypot(p.x - far.x, p.z - far.z) < 0.7 &&
-        Math.abs(p.y - far.y) < 0.35,
-    );
+    const releasing = g.players.some((p) => isOnBridgePlate(crossing, p));
     g.bridgeCharge =
       releasing || (g.mode === 1 && holder)
         ? Math.min(2, g.bridgeCharge + dt)
