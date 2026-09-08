@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { ReplayRecorder, verifyReplay, type Replay } from "../src/replay";
 import { completeLevel } from "./journey";
 import { RANKING_VERSION, type LeaderboardData } from "../src/leaderboard";
-import { NAME_REJECTED } from "../src/name-policy";
+import { NAME_REJECTED } from "../src/player-name";
 
 const base = process.env.TEST_SERVER ?? "http://127.0.0.1:8788";
 // These tests create sample scores. They must never write to the public boards.

@@ -12,7 +12,7 @@ import {
 } from "../src/room";
 import { cleanInput, idleInput, stepGame, type Inputs } from "../src/game";
 import { boardName, validPlayerToken } from "../src/leaderboard";
-import { NamePolicyError } from "../src/name-policy";
+import { NamePolicyError } from "./name-policy";
 import type { VerifiedScore } from "./leaderboard";
 export { RainLeaderboard } from "./leaderboard";
 

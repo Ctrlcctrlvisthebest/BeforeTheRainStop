@@ -36,8 +36,8 @@ import {
   NAME_LIMIT,
   NAME_REJECTED,
   NAME_TOO_LONG,
-  reviewPlayerName,
-} from "./name-policy";
+  reviewNameFormat,
+} from "./player-name";
 import "./style.css";
 import "./mobile.css";
 import { TouchInput, mergeInput, type TouchField } from "./touch-input";
@@ -129,13 +129,29 @@ function App() {
     [help, setHelp] = useState(false);
   const nameInput = useRef<HTMLInputElement>(null);
   const [nameTouched, setNameTouched] = useState(false);
-  const nameReview = useMemo(() => reviewPlayerName(name), [name]);
+  const [rejectedName, setRejectedName] = useState<string | null>(null);
+  const nameReview = useMemo(
+    () =>
+      name === rejectedName
+        ? { ok: false as const, error: NAME_REJECTED }
+        : reviewNameFormat(name),
+    [name, rejectedName],
+  );
   function acceptName() {
     setNameTouched(true);
     if (nameReview.ok) return true;
     setError(nameReview.error);
     nameInput.current?.focus();
     return false;
+  }
+  function reportEntryError(error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message === NAME_REJECTED) {
+      // Associate the response with the submitted name, not a later edit.
+      setRejectedName(name);
+      nameInput.current?.focus();
+    }
+    setError(message);
   }
   const [guideEnabled, setGuideEnabled] = useState(
     () => stored<boolean>("local", "rain-guide") !== false,
@@ -453,7 +469,7 @@ function App() {
       });
       enter({ code: r.room.code, token: r.token!, slot: r.slot! });
     } catch (e) {
-      setError((e as Error).message);
+      reportEntryError(e);
     } finally {
       setBusy(false);
     }
@@ -472,7 +488,7 @@ function App() {
       const r = await api(`/rooms/${c}/join`, { name, playerToken });
       enter({ code: c, token: r.token!, slot: r.slot! });
     } catch (e) {
-      setError((e as Error).message);
+      reportEntryError(e);
     } finally {
       setBusy(false);
     }
@@ -796,6 +812,7 @@ function App() {
                 onBlur={() => setNameTouched(true)}
                 onChange={(e) => {
                   setName(e.target.value);
+                  setRejectedName(null);
                   if (error === NAME_REJECTED || error === NAME_TOO_LONG)
                     setError("");
                 }}
@@ -809,7 +826,7 @@ function App() {
               {t(
                 nameTouched && !nameReview.ok
                   ? nameReview.error
-                  : "昵称会显示在排行榜，请勿使用政治敏感或违规内容。",
+                  : "昵称会公开显示，请使用友善的名字。",
               )}
             </small>
             <label>{t("同行人数")}</label>

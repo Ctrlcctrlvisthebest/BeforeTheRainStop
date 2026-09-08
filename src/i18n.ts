@@ -6,8 +6,8 @@ const english: Record<string, string> = {
     "This nickname contains disallowed content. Please choose another name.",
   "昵称过长，请控制在 16 个字符以内。":
     "This nickname is too long. Please use up to 16 characters.",
-  "昵称会显示在排行榜，请勿使用政治敏感或违规内容。":
-    "Your nickname is public on the leaderboard. Avoid politically sensitive or prohibited content.",
+  "昵称会公开显示，请使用友善的名字。":
+    "Your nickname is public. Please choose a friendly name.",
   "昵称未通过审核，本地成绩已保留。可使用「旅人」重新上传。":
     "Your nickname was rejected. Your local record is kept. Retry as “Traveler”.",
   "使用「旅人」重新上传": "Retry as “Traveler”",

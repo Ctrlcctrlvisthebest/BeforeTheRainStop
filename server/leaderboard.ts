@@ -9,7 +9,7 @@ import {
   requirePlayerName,
   publicPlayerName,
   NamePolicyError,
-} from "../src/name-policy";
+} from "./name-policy";
 import type { Game, Mode } from "../src/game";
 
 export interface VerifiedScore extends RankingEntry {

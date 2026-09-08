@@ -7,7 +7,7 @@ import { type Room } from "../src/room";
 import { RANKING_VERSION } from "../src/leaderboard";
 import { ReplayRecorder } from "../src/replay";
 import { completeLevel } from "./journey";
-import { NAME_REJECTED } from "../src/name-policy";
+import { NAME_REJECTED } from "../src/player-name";
 
 // Exercise the actual Worker classes and real SQLite statements. Only the
 // Cloudflare lifecycle is replaced; this harness is never in the shipped bundle.

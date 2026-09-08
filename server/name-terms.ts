@@ -1,5 +1,6 @@
 // Game nickname policy. Add whole phrases here; avoid broad words such as
 // “中国”, “自由”, surnames, or short pinyin fragments that also occur in normal names.
+// Server-only moderation data. Never import this module into browser code.
 // Traditional forms are folded by name-policy.ts; aliases must be listed explicitly.
 export const BLOCKED_NAME_FRAGMENTS = [
   "习近平",

@@ -3,11 +3,14 @@ import assert from "node:assert/strict";
 import {
   NAME_REJECTED,
   NAME_TOO_LONG,
+  reviewNameFormat,
+} from "../src/player-name";
+import {
   NamePolicyError,
   reviewPlayerName,
   requirePlayerName,
   publicPlayerName,
-} from "../src/name-policy";
+} from "../server/name-policy";
 import { makeRoom, joinRoom, publicRoom } from "../src/room";
 import { translate } from "../src/i18n";
 
@@ -110,9 +113,25 @@ test("nickname validation and recovery messages have English translations", () =
   for (const message of [
     NAME_REJECTED,
     NAME_TOO_LONG,
-    "昵称会显示在排行榜，请勿使用政治敏感或违规内容。",
+    "昵称会公开显示，请使用友善的名字。",
     "昵称未通过审核，本地成绩已保留。可使用「旅人」重新上传。",
     "使用「旅人」重新上传",
   ])
     assert.doesNotMatch(translate("en", message), /\p{Script=Han}/u);
+});
+
+test("shared name formatting bounds work, cleans input and preserves complete Unicode characters", () => {
+  for (const [input, expected] of [
+    [" <Ｒａｉｎ>\u0000 ", "Rain"],
+    [" \u200b ", "旅人"],
+    [null, "旅人"],
+    ["a".repeat(15) + "🕊", "a".repeat(15)],
+    ["a".repeat(14) + "🕊", "a".repeat(14) + "🕊"],
+    ["a".repeat(256), "a".repeat(16)],
+  ])
+    assert.deepEqual(reviewNameFormat(input), { ok: true, name: expected });
+  assert.deepEqual(reviewNameFormat("a".repeat(257)), {
+    ok: false,
+    error: NAME_TOO_LONG,
+  });
 });

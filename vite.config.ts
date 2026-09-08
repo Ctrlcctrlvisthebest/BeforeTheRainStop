@@ -1,22 +1,24 @@
 import { defineConfig } from "vite";
+import { clientBoundary } from "./scripts/client-boundary.ts";
 export default defineConfig(({ mode }) => ({
   base: "./",
   // Toy serves the game below /toy/<slug>/. Keep its artifact separate from
   // the GitHub Pages / Worker build; the map editor stays on its own page there.
-  plugins:
-    mode === "toy"
+  plugins: [
+    clientBoundary(),
+    ...(mode === "toy"
       ? [
           {
             name: "toy-system-fonts",
             enforce: "pre",
-            transformIndexHtml(html) {
+            transformIndexHtml(html: string) {
               // Toy accepts PNG favicons but rejects .ico anywhere in the archive.
               return html.replace(
                 /<link\b(?=[^>]*\bhref=["'][^"']*favicon\.ico["'])[^>]*>/gi,
                 "",
               );
             },
-            transform(code, id) {
+            transform(code: string, id: string) {
               if (!id.endsWith(".css")) return;
               // The menu must not wait on Google Fonts in Bilibili's webview.
               return {
@@ -29,7 +31,8 @@ export default defineConfig(({ mode }) => ({
             },
           },
         ]
-      : [],
+      : []),
+  ],
   build: {
     outDir: mode === "toy" ? "dist-toy" : "dist",
     rolldownOptions: {

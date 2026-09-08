@@ -1,9 +1,9 @@
 import { BLOCKED_EXACT_NAMES, BLOCKED_NAME_FRAGMENTS } from "./name-terms";
-
-export const NAME_REJECTED = "昵称含有不允许的内容，请换一个名字。";
-export const NAME_TOO_LONG = "昵称过长，请控制在 16 个字符以内。";
-export const NAME_LIMIT = 16;
-const MAX_RAW_LENGTH = 256;
+import {
+  NAME_REJECTED,
+  reviewNameFormat,
+  type NameReview,
+} from "../src/player-name";
 const traditional: Record<string, string> = {
   習: "习",
   東: "东",
@@ -52,23 +52,14 @@ function blocked(value: string): boolean {
   return exact.has(key) || fragments.some((term) => key.includes(term));
 }
 
-type NameReview = { ok: true; name: string } | { ok: false; error: string };
 export function reviewPlayerName(value: unknown): NameReview {
-  if (typeof value !== "string") return { ok: true, name: "旅人" };
-  if (value.length > MAX_RAW_LENGTH) return { ok: false, error: NAME_TOO_LONG };
-  const name =
-    value
-      .normalize("NFKC")
-      .replace(/[\p{Cc}\p{Cf}\p{Default_Ignorable_Code_Point}<>]/gu, "")
-      .trim()
-      .slice(0, NAME_LIMIT)
-      .replace(/\p{Cs}/gu, "")
-      .trim() || "旅人";
+  const format = reviewNameFormat(value);
+  if (!format.ok || typeof value !== "string") return format;
   // Check both the complete input and the displayed name. Truncation must not
   // conceal a forbidden suffix or turn an allowed name into a forbidden one.
-  if (blocked(value) || blocked(name))
+  if (blocked(value) || blocked(format.name))
     return { ok: false, error: NAME_REJECTED };
-  return { ok: true, name };
+  return format;
 }
 
 export class NamePolicyError extends Error {

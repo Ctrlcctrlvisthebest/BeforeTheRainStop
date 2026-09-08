@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { Buffer } from "node:buffer";
 import { isMode, newGame, LEVELS, type Mode, type Game } from "./game";
-import { requirePlayerName, publicPlayerName } from "./name-policy";
+import { requirePlayerName, publicPlayerName } from "../server/name-policy";
 export interface Player {
   slot: number;
   name: string;
