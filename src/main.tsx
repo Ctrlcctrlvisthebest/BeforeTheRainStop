@@ -29,6 +29,9 @@ import {
   formatTime,
   type Completion,
 } from "./records";
+import { ReplayRecorder } from "./replay";
+import { playerIdentity } from "./ranking-client";
+import { Leaderboard, useScoreSubmission } from "./ranking-ui";
 import "./style.css";
 import "./mobile.css";
 import { TouchInput, mergeInput, type TouchField } from "./touch-input";
@@ -61,6 +64,11 @@ function App() {
   }, [language]);
   const [initialGame] = useState(() => newGame(1));
   const [records] = useState(() => new LocalRecords());
+  const [playerToken] = useState(playerIdentity);
+  const [replay] = useState(() => new ReplayRecorder());
+  const soloName = useRef("");
+  const ranking = useScoreSubmission();
+  const [retryingTeamScore, setRetryingTeamScore] = useState(false);
   const [bestTimes, setBestTimes] = useState(() => records.times);
   const [completion, setCompletion] = useState<Completion | null>(null);
   function recordWin(g: Game) {
@@ -68,6 +76,20 @@ function App() {
     if (result) {
       setBestTimes(records.times);
       setCompletion(result);
+      if (g.mode === 1) {
+        const trace = replay.snapshot(g);
+        void ranking.submit(
+          g.id,
+          trace
+            ? {
+                level: g.level,
+                name: soloName.current,
+                playerToken,
+                replay: trace,
+              }
+            : null,
+        );
+      }
     }
   }
   const [sceneStatus, setSceneStatus] = useState("idle");
@@ -279,6 +301,7 @@ function App() {
               while (acc >= 1 / 60) {
                 const before =
                   game.current.keys.length + game.current.stars.length;
+                replay.record(game.current, input.current);
                 stepGame(game.current, { 0: input.current });
                 if (
                   game.current.keys.length + game.current.stars.length >
@@ -392,6 +415,7 @@ function App() {
     setError("");
     save("local", "rain-name", name);
     if (mode === 1) {
+      soloName.current = name;
       connection.current?.close();
       currentSession.current = null;
       currentRoom.current = null;
@@ -404,7 +428,12 @@ function App() {
     }
     setBusy(true);
     try {
-      const r = await api("/rooms", { capacity: mode, level, name });
+      const r = await api("/rooms", {
+        capacity: mode,
+        level,
+        name,
+        playerToken,
+      });
       enter({ code: r.room.code, token: r.token!, slot: r.slot! });
     } catch (e) {
       setError((e as Error).message);
@@ -422,7 +451,7 @@ function App() {
     try {
       const c = code.toUpperCase().trim();
       if (!/^[A-HJ-NP-Z2-9]{8}$/.test(c)) throw new Error("请输入 8 位房间码");
-      const r = await api(`/rooms/${c}/join`, { name });
+      const r = await api(`/rooms/${c}/join`, { name, playerToken });
       enter({ code: c, token: r.token!, slot: r.slot! });
     } catch (e) {
       setError((e as Error).message);
@@ -490,6 +519,19 @@ function App() {
       setHud(structuredClone(game.current));
     }
   }
+  async function retryTeamScore() {
+    const s = currentSession.current;
+    if (!s || retryingTeamScore) return;
+    setRetryingTeamScore(true);
+    try {
+      const result = await api(`/rooms/${s.code}/score`, {}, s.token);
+      if (currentSession.current === s) receive(result.room, others.current);
+    } catch {
+      setError("成绩暂未上传，请稍后重试。");
+    } finally {
+      setRetryingTeamScore(false);
+    }
+  }
   async function copyInvite() {
     const u = new URL(location.href);
     u.search = `?room=${session?.code}`;
@@ -506,6 +548,11 @@ function App() {
     won = isPlaying && hud.status === "won";
   const selectedBest = bestTimeFor(bestTimes, level, mode);
   const finish = completion?.gameId === hud.id ? completion : null;
+  const rankingStatus = session
+    ? (room?.rankingStatus ?? "pending")
+    : ranking.result?.id === hud.id
+      ? ranking.result.status
+      : "pending";
   const restartBlocked =
     !!session &&
     (!connected ||
@@ -728,6 +775,9 @@ function App() {
                 onChange={(e) => setName(e.target.value)}
               />
             </label>
+            <small className="ranking-name-hint">
+              {t("通关后自动参与排行榜，昵称会公开显示。")}
+            </small>
             <label>{t("同行人数")}</label>
             <div className="modes">
               {MODES.map((m) => (
@@ -815,6 +865,7 @@ function App() {
             <p className="fine">
               {t("每人一只纸鹤 · 用房间码邀请好友 · 不需要注册")}
             </p>
+            <Leaderboard level={level} mode={mode} language={language} />
           </section>
           <footer>
             {t("把愿望系在檐下，把同伴带回家。")}
@@ -1426,6 +1477,35 @@ function App() {
                 </small>
               </div>
             )}
+            <div className="ranking-upload" role="status">
+              {t(
+                rankingStatus === "saved"
+                  ? "成绩已核验，榜单已更新。"
+                  : rankingStatus === "retry"
+                    ? "成绩暂未上传，请稍后重试。"
+                    : rankingStatus === "outdated"
+                      ? "玩法已更新，请刷新后重新挑战。本地成绩已保留。"
+                      : rankingStatus === "rejected"
+                        ? "成绩未通过核验，仅保留本地成绩。"
+                        : rankingStatus === "unavailable"
+                          ? "本次过程记录不完整，仅保留本地成绩。"
+                          : "正在核验并上传成绩…",
+              )}
+              {rankingStatus === "retry" && (
+                <button
+                  disabled={retryingTeamScore}
+                  onClick={session ? retryTeamScore : ranking.retry}
+                >
+                  {t("重试上传")}
+                </button>
+              )}
+            </div>
+            <Leaderboard
+              level={hud.level}
+              mode={hud.mode}
+              language={language}
+              refresh={`${hud.id}:${rankingStatus === "saved"}`}
+            />
             <div className="score">
               {"✦".repeat(hud.stars.length)}
               <span>

@@ -5,9 +5,15 @@
   "compatibility_date": "2026-09-05",
   "compatibility_flags": ["nodejs_compat"],
   "durable_objects": {
-    "bindings": [{ "name": "ROOMS", "class_name": "RainRoom" }],
+    "bindings": [
+      { "name": "ROOMS", "class_name": "RainRoom" },
+      { "name": "LEADERBOARDS", "class_name": "RainLeaderboard" },
+    ],
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RainRoom"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["RainRoom"] },
+    { "tag": "v2-leaderboards", "new_sqlite_classes": ["RainLeaderboard"] },
+  ],
   "observability": { "enabled": true },
   "assets": {
     "directory": "./dist",
@@ -15,6 +21,11 @@
     "run_worker_first": ["/api/*"],
   },
   "ratelimits": [
+    {
+      "name": "SCORE_SUBMISSION_LIMIT",
+      "namespace_id": "1003",
+      "simple": { "limit": 20, "period": 60 },
+    },
     {
       "name": "ROOM_CREATION_LIMIT",
       "namespace_id": "1001",

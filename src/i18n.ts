@@ -2,6 +2,29 @@ import { MAP_TRANSLATIONS } from "./challenge-maps";
 export type Language = "zh" | "en";
 const english: Record<string, string> = {
   ...MAP_TRANSLATIONS,
+  "玩法已更新，请刷新后重新挑战。本地成绩已保留。":
+    "The game has changed. Reload for a new attempt. Your local record is kept.",
+  "成绩未通过核验，仅保留本地成绩。":
+    "This clear could not be verified. Your local record is kept.",
+  全球前三名: "Global top 3",
+  刷新排行榜: "Refresh leaderboard",
+  刷新: "Refresh",
+  "用时越短，排名越高": "Fastest clears rank first",
+  "正在读取排行榜…": "Loading leaderboard\u2026",
+  "排行榜暂时不可用，点击刷新重试。":
+    "Leaderboard unavailable. Refresh to retry.",
+  同一玩家或队伍只保留最快成绩: "One best time per player or team",
+  "还没有通关成绩，来留下第一张祈愿签。":
+    "No clears yet. Leave the first wish.",
+  "通关后自动参与排行榜，昵称会公开显示。":
+    "Clears enter the leaderboard automatically. Your nickname is public.",
+  "成绩暂未上传，请稍后重试。": "Score upload failed. Please retry.",
+  "成绩已核验，榜单已更新。": "Score verified. Leaderboard updated.",
+  "本次过程记录不完整，仅保留本地成绩。":
+    "Incomplete replay. This clear is saved locally only.",
+  "正在核验并上传成绩…": "Verifying and uploading your clear\u2026",
+  重试上传: "Retry upload",
+
   "正在铺开雨中小径…": "Preparing the rainy path…",
   "场景加载失败，请重新加载。": "The scene could not load. Please reload.",
   重新加载: "Reload",

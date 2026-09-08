@@ -2123,3 +2123,82 @@ canvas[hidden] {
     linear-gradient(#23364733, #1e2e3e66),
     url("/menu-scene.webp") center / cover fixed;
 }
+
+.leaderboard {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid #9a825644;
+  text-align: left;
+  font-size: 13px;
+}
+.ranking-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ranking-heading > strong {
+  color: #7e4d37;
+  letter-spacing: 0.08em;
+}
+.ranking-heading button,
+.ranking-upload button {
+  padding: 5px 10px;
+  font-size: 12px;
+}
+.ranking-chapter,
+.ranking-state {
+  font-size: 11px;
+  line-height: 1.6;
+  opacity: 0.8;
+  margin: 8px 0;
+}
+.leaderboard ol {
+  list-style: none;
+  margin: 12px 0;
+  padding: 0;
+}
+.leaderboard li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #9a825622;
+}
+.ranking-place {
+  width: 23px;
+  height: 27px;
+  flex-shrink: 0;
+  background: #b3936255;
+  display: grid;
+  place-items: center;
+  color: #654724;
+}
+.leaderboard li:first-child .ranking-place {
+  background: #b28c4d;
+  color: #fff8e7;
+}
+.ranking-name {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.leaderboard li > strong {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ranking-name-hint {
+  display: block;
+  font-size: 10px;
+  opacity: 0.7;
+  line-height: 1.6;
+  margin: -10px 0 15px;
+}
+.ranking-upload {
+  font-size: 12px;
+  line-height: 1.6;
+  margin: 16px 0 0;
+}
+.ranking-upload button {
+  margin-left: 8px;
+}

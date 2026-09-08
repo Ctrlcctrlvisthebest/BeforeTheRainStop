@@ -6,7 +6,11 @@ import {
   type Input,
   type Game,
 } from "../src/game";
-export function completeExtraLevel(level: number, observe?: (g: Game) => void) {
+export function completeExtraLevel(
+  level: number,
+  observe?: (g: Game) => void,
+  beforeStep?: (g: Game, input: Input) => void,
+) {
   const g = newGame(1, level),
     b = g.players[0];
   const state = () => ({
@@ -26,7 +30,9 @@ export function completeExtraLevel(level: number, observe?: (g: Game) => void) {
   };
   const tick = (input: Partial<Input> = {}, n = 1) => {
     for (let i = 0; i < n; i++) {
-      stepGame(g, { 0: { ...idleInput(), ...input } });
+      const controls = { ...idleInput(), ...input };
+      beforeStep?.(g, controls);
+      stepGame(g, { 0: controls });
       observe?.(g);
       if (b.deaths)
         throw Error(

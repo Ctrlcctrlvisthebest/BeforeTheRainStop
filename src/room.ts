@@ -5,6 +5,7 @@ export interface Player {
   slot: number;
   name: string;
   token: string;
+  rankKey?: string;
   online: boolean;
   lastSeen: number;
 }
@@ -21,9 +22,10 @@ export interface Room {
   expiresAt: number;
   votes: number[];
   voteNext: boolean | null;
+  rankingStatus?: "pending" | "saved" | "retry";
 }
 export type PublicRoom = Omit<Room, "players"> & {
-  players: Omit<Player, "token">[];
+  players: Omit<Player, "token" | "rankKey">[];
 };
 export const LIFE = 24 * 60 * 60 * 1000;
 export class RoomError extends Error {
@@ -73,7 +75,9 @@ export function makeRoom(
 export function publicRoom(room: Room): PublicRoom {
   return {
     ...structuredClone(room),
-    players: room.players.map(({ token: _token, ...p }) => ({ ...p })),
+    players: room.players.map(({ token: _token, rankKey: _rankKey, ...p }) => ({
+      ...p,
+    })),
   };
 }
 export function authenticate(room: Room, token: string): Player {
@@ -143,6 +147,7 @@ export function command(
     if (r.votes.length === r.capacity) {
       r.level = next ? (r.level + 1) % LEVELS.length : r.level;
       r.game = newGame(r.capacity, r.level, id);
+      delete r.rankingStatus;
       r.votes = [];
       r.voteNext = null;
     }

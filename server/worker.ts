@@ -11,6 +11,20 @@ import {
   type PublicRoom,
 } from "../src/room";
 import { cleanInput, idleInput, stepGame, type Inputs } from "../src/game";
+import { boardName, validPlayerToken } from "../src/leaderboard";
+import type { VerifiedScore } from "./leaderboard";
+export { RainLeaderboard } from "./leaderboard";
+
+async function rankIdentity(token: unknown) {
+  if (!validPlayerToken(token)) throw new RoomError("玩家标识无效");
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(token.toLowerCase()),
+  );
+  return Array.from(new Uint8Array(digest), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("");
+}
 interface Reply {
   status: number;
   data: { room?: PublicRoom; token?: string; slot?: number; error?: string };
@@ -26,11 +40,15 @@ export class RainRoom extends DurableObject<Env> {
   private room: Room | null = null;
   private inputs: Inputs = {};
   private timer: ReturnType<typeof setInterval> | null = null;
+  private publishing: Promise<void> | null = null;
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     this.ctx.blockConcurrencyWhile(async () => {
       this.ctx.storage.sql.exec(
         "CREATE TABLE IF NOT EXISTS room(id INTEGER PRIMARY KEY CHECK(id=1),data TEXT NOT NULL)",
+      );
+      this.ctx.storage.sql.exec(
+        "CREATE TABLE IF NOT EXISTS score_outbox(id TEXT PRIMARY KEY,data TEXT NOT NULL)",
       );
       const rows = this.ctx.storage.sql
         .exec<{ data: string }>("SELECT data FROM room WHERE id=1")
@@ -52,9 +70,95 @@ export class RainRoom extends DurableObject<Env> {
         for (const player of this.room.players)
           player.online = online.has(player.slot);
       }
-      if ((await this.ctx.storage.getAlarm()) === null)
+      if (this.hasPendingScores())
+        await this.ctx.storage.setAlarm(Date.now() + 1000);
+      else if ((await this.ctx.storage.getAlarm()) === null)
         await this.ctx.storage.setAlarm(Date.now() + LIFE);
     });
+  }
+  private hasPendingScores() {
+    return (
+      this.ctx.storage.sql.exec("SELECT id FROM score_outbox LIMIT 1").toArray()
+        .length > 0
+    );
+  }
+  private enqueueScore(room: Room) {
+    const g = room.game;
+    if (!g || g.status !== "won" || room.rankingStatus) return;
+    // Credentials are never exposed in the public room or leaderboard response.
+    // Older rooms without persistent ranking identities use their private room tokens.
+    const score: VerifiedScore = {
+      id: g.id,
+      level: g.level,
+      mode: g.mode,
+      participant: `${g.mode}:${room.players
+        .map((p) => p.rankKey ?? p.token)
+        .sort()
+        .join(",")}`,
+      names: [...room.players]
+        .sort((a, b) => a.slot - b.slot)
+        .map((p) => p.name),
+      timeMs: Math.round(g.time * 1000),
+      achievedAt: Date.now(),
+    };
+    this.ctx.storage.sql.exec(
+      "INSERT OR IGNORE INTO score_outbox(id,data) VALUES(?,?)",
+      g.id,
+      JSON.stringify(score),
+    );
+    room.rankingStatus = "pending";
+    room.revision++;
+    this.save(room);
+    this.ctx.waitUntil(this.publishScores());
+  }
+  private publishScores(): Promise<void> {
+    return (this.publishing ??= this.flushScores().finally(() => {
+      this.publishing = null;
+    }));
+  }
+  private async flushScores() {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const row = this.ctx.storage.sql
+        .exec<{ id: string; data: string }>(
+          "SELECT id,data FROM score_outbox LIMIT 1",
+        )
+        .toArray()[0];
+      if (!row) break;
+      try {
+        const score = JSON.parse(row.data) as VerifiedScore;
+        await this.env.LEADERBOARDS.getByName(
+          boardName(score.level, score.mode),
+        ).submitVerified(score);
+        this.ctx.storage.sql.exec(
+          "DELETE FROM score_outbox WHERE id=?",
+          row.id,
+        );
+        if (this.room?.game?.id === row.id) {
+          this.room.rankingStatus = "saved";
+          this.room.revision++;
+          this.save(this.room);
+          this.broadcast();
+        }
+      } catch {
+        console.error(
+          JSON.stringify({ event: "leaderboard_publish_retry", runId: row.id }),
+        );
+        if (this.room?.game?.id === row.id) {
+          this.room.rankingStatus = "retry";
+          this.room.revision++;
+          this.save(this.room);
+          this.broadcast();
+        }
+        break;
+      }
+    }
+    // Share the room's single alarm between expiry and durable score retries.
+    const expiresAt = this.room?.expiresAt ?? Date.now() + LIFE;
+    await this.ctx.storage.setAlarm(
+      this.hasPendingScores()
+        ? Date.now() + 60000
+        : Math.max(Date.now() + 1000, expiresAt),
+    );
   }
   private save(room: Room): void {
     this.ctx.storage.sql.exec(
@@ -152,6 +256,7 @@ export class RainRoom extends DurableObject<Env> {
       }
       stepGame(r.game, this.inputs, 1 / 60);
       stepGame(r.game, this.inputs, 1 / 60);
+      if ((r.game.status as string) === "won") this.enqueueScore(r);
       if (r.game.tick % 4 === 0 || (r.game.status as string) === "won")
         this.broadcast();
       if (r.game.tick % 120 === 0 || (r.game.status as string) === "won")
@@ -167,11 +272,16 @@ export class RainRoom extends DurableObject<Env> {
   ): Promise<Reply> {
     try {
       const now = Date.now();
+      const secret =
+        kind === "create" || kind === "join" ? crypto.randomUUID() : "";
+      const rankKey = secret
+        ? await rankIdentity(body.playerToken ?? secret)
+        : undefined;
       let r = this.room;
       if (kind === "create") {
         if (r) return { status: 409, data: { error: "请重新创建房间" } };
-        const secret = crypto.randomUUID();
         r = makeRoom(code, body.capacity, body.level, body.name, secret, now);
+        r.players[0].rankKey = rankKey;
         this.save(r);
         await this.ctx.storage.setAlarm(now + LIFE);
         return {
@@ -182,8 +292,8 @@ export class RainRoom extends DurableObject<Env> {
       if (!r || r.version !== 2 || now >= r.expiresAt)
         throw new RoomError("房间不存在或已过期", 404);
       if (kind === "join") {
-        const secret = crypto.randomUUID();
         const slot = joinRoom(r, body.name, secret, now);
+        r.players.find((p) => p.slot === slot)!.rankKey = rankKey;
         this.save(r);
         this.broadcast();
         return {
@@ -192,6 +302,11 @@ export class RainRoom extends DurableObject<Env> {
         };
       }
       authenticate(r, token);
+      if (kind === "score") {
+        this.enqueueScore(r);
+        await this.publishScores();
+        r = this.room!;
+      }
       if (kind === "command") {
         r = this.applyCommand(token, body, now);
       }
@@ -344,8 +459,21 @@ export class RainRoom extends DurableObject<Env> {
     this.disconnected(ws);
   }
   async alarm(): Promise<void> {
+    if (this.hasPendingScores()) await this.publishScores();
+    if (this.room && Date.now() < this.room.expiresAt) {
+      await this.ctx.storage.setAlarm(
+        this.hasPendingScores()
+          ? Math.min(Date.now() + 60000, this.room.expiresAt)
+          : this.room.expiresAt,
+      );
+      return;
+    }
     this.stop();
     for (const ws of this.ctx.getWebSockets()) ws.close(1000, "房间到期");
+    if (this.hasPendingScores()) {
+      await this.ctx.storage.setAlarm(Date.now() + 60000);
+      return;
+    }
     this.room = null;
     await this.ctx.storage.deleteAll();
   }
@@ -357,7 +485,10 @@ function code(): string {
     (n) => alphabet[n % alphabet.length],
   ).join("");
 }
-async function boundedJson(request: Request): Promise<Record<string, unknown>> {
+async function boundedJson(
+  request: Request,
+  maxBytes = 8192,
+): Promise<Record<string, unknown>> {
   if (!request.headers.get("content-type")?.includes("application/json"))
     throw new RoomError("需要 JSON 格式");
   const reader = request.body?.getReader();
@@ -368,7 +499,7 @@ async function boundedJson(request: Request): Promise<Record<string, unknown>> {
     const { done, value } = await reader.read();
     if (done) break;
     length += value.byteLength;
-    if (length > 8192) {
+    if (length > maxBytes) {
       await reader.cancel();
       throw new RoomError("请求过大", 413);
     }
@@ -425,6 +556,47 @@ export default {
           { ok: true, game: "before-the-rain", version: 2 },
           { headers },
         );
+      if (url.pathname === "/api/leaderboard") {
+        if (request.method !== "GET" && request.method !== "POST")
+          throw new RoomError("请求方法无效", 405);
+        const ip = request.headers.get("CF-Connecting-IP") ?? "local";
+        const limiter =
+          request.method === "POST"
+            ? env.SCORE_SUBMISSION_LIMIT
+            : env.ROOM_REQUEST_LIMIT;
+        if (!(await limiter.limit({ key: ip })).success)
+          throw new RoomError("操作太频繁，请稍后重试", 429);
+        if (request.method === "POST") {
+          const body = await boundedJson(request, 512 * 1024);
+          const participant = await rankIdentity(body.playerToken);
+          if (typeof body.level !== "number")
+            throw new RoomError("关卡或人数无效");
+          let target: string;
+          try {
+            target = boardName(body.level, 1);
+          } catch {
+            throw new RoomError("关卡或人数无效");
+          }
+          const result = await env.LEADERBOARDS.getByName(target).submitSolo(
+            body,
+            participant,
+          );
+          return Response.json(result.data, { status: result.status, headers });
+        }
+        const levelValue = url.searchParams.get("level"),
+          modeValue = url.searchParams.get("mode");
+        if (!levelValue || !modeValue) throw new RoomError("关卡或人数无效");
+        const level = Number(levelValue),
+          mode = Number(modeValue) as import("../src/game").Mode;
+        let target: string;
+        try {
+          target = boardName(level, mode);
+        } catch {
+          throw new RoomError("关卡或人数无效");
+        }
+        const entries = await env.LEADERBOARDS.getByName(target).top();
+        return Response.json({ level, mode, entries }, { headers });
+      }
       let kind: string;
       let roomCode: string;
       if (url.pathname === "/api/rooms" && request.method === "POST") {
@@ -432,7 +604,7 @@ export default {
         roomCode = code();
       } else {
         const match =
-          /^\/api\/rooms\/([A-HJ-NP-Z2-9]{8})(?:\/(join|command|ws))?$/.exec(
+          /^\/api\/rooms\/([A-HJ-NP-Z2-9]{8})(?:\/(join|command|ws|score))?$/.exec(
             url.pathname,
           );
         if (!match) throw new RoomError("接口不存在", 404);
@@ -460,7 +632,7 @@ export default {
         kind === "create" ? env.ROOM_CREATION_LIMIT : env.ROOM_REQUEST_LIMIT;
       if (!(await limiter.limit({ key: ip })).success)
         throw new RoomError("操作太频繁，请稍后重试", 429);
-      if (kind === "state" || kind === "command") {
+      if (kind === "state" || kind === "command" || kind === "score") {
         if (!/^[a-f0-9-]{36}$/.test(token))
           throw new RoomError("请先加入房间", 401);
       }
