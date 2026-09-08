@@ -7,6 +7,7 @@ import { type Room } from "../src/room";
 import { RANKING_VERSION } from "../src/leaderboard";
 import { ReplayRecorder } from "../src/replay";
 import { completeLevel } from "./journey";
+import { NAME_REJECTED } from "../src/name-policy";
 
 // Exercise the actual Worker classes and real SQLite statements. Only the
 // Cloudflare lifecycle is replaced; this harness is never in the shipped bundle.
@@ -136,9 +137,86 @@ test("solo RPC derives time from the replay, ignores a claimed time, sanitizes n
   assert.equal(board.submitSolo({ ...body, mode: 2 }, "A").status, 400);
   assert.equal(board.submitSolo({ ...body, version: -1 }, "A").status, 409);
   assert.deepEqual(board.top(), []);
+  // A rejected name wins over an invalid replay and never reaches score storage.
+  assert.deepEqual(
+    board.submitSolo({ ...body, name: "習 近平", replay: null }, "A"),
+    {
+      status: 422,
+      data: { error: NAME_REJECTED },
+    },
+  );
+  for (const name of ["习近平", "Ｘｉ－Ｊｉｎｐｉｎｇ", "习\u200b近\u2060平"])
+    assert.equal(board.submitSolo({ ...body, name }, "A").status, 422);
+  assert.deepEqual(board.top(), []);
   assert.equal(board.submitSolo(body, "A").status, 200);
   assert.equal(board.top()[0].timeMs, Math.round(game.time * 1000));
   assert.deepEqual(board.top()[0].names, ["Rain"]);
+  ctx.db.close();
+});
+
+test("historical leaderboard names are masked on read and queued team scores retain safe teammates", () => {
+  const ctx = context(),
+    board = new RainLeaderboard(ctx, {});
+  ctx.db
+    .prepare("INSERT INTO scores VALUES(?,?,?,?,?)")
+    .run("old-player", "old-clear", JSON.stringify(["習近平"]), 5000, 100);
+  assert.deepEqual(board.top(), [
+    { id: "old-clear", names: ["旅人"], timeMs: 5000, achievedAt: 100 },
+  ]);
+  board.submitVerified({
+    participant: "old-team",
+    id: "queued-clear",
+    level: 0,
+    mode: 3,
+    names: ["习\u200b近平", "风铃", "Paper"],
+    timeMs: 4000,
+    achievedAt: 200,
+  });
+  assert.deepEqual(board.top()[0].names, ["旅人", "风铃", "Paper"]);
+  assert.deepEqual(
+    JSON.parse(
+      ctx.db
+        .prepare("SELECT names FROM scores WHERE participant=?")
+        .get("old-team")!.names as string,
+    ),
+    ["旅人", "风铃", "Paper"],
+  );
+  assert.deepEqual(new RainLeaderboard(ctx, {}).top(), board.top());
+  ctx.db.close();
+});
+
+test("actual room RPC rejects names without saving rooms or consuming guest seats", async () => {
+  const ctx = context(),
+    object = new RainRoom(ctx, {});
+  await ctx.ready();
+  const rejected = await object.operate("create", "ABCDEFGH", "", {
+    capacity: 2,
+    level: 0,
+    name: "習近平",
+  });
+  assert.deepEqual(rejected, { status: 422, data: { error: NAME_REJECTED } });
+  assert.equal(ctx.db.prepare("SELECT COUNT(*) n FROM room").get()!.n, 0);
+  const created = await object.operate("create", "ABCDEFGH", "", {
+    capacity: 2,
+    level: 0,
+    name: "风铃",
+  });
+  assert.equal(created.status, 201);
+  assert.equal(
+    (await object.operate("join", "ABCDEFGH", "", { name: "习 近平" })).status,
+    422,
+  );
+  const state = await object.operate(
+    "state",
+    "ABCDEFGH",
+    created.data.token,
+    {},
+  );
+  assert.equal(state.data.room.players.length, 1);
+  assert.equal(state.data.room.revision, created.data.room.revision);
+  const joined = await object.operate("join", "ABCDEFGH", "", { name: "纸鹤" });
+  assert.equal(joined.status, 200);
+  assert.equal(joined.data.slot, 1);
   ctx.db.close();
 });
 
@@ -169,6 +247,7 @@ for (const mode of [2, 3, 6] as Mode[])
       await roomObject.operate("join", "ABCDEFGH", "", { name: `guest${i}` });
     // A finished authoritative state isolates the persistence lifecycle from physics.
     const room = roomObject.room as Room;
+    room.players[0].name = "習近平"; // A legacy room must not poison the retry queue.
     room.phase = "game";
     room.game = newGame(mode, 0, "finished");
     room.game.status = "won";
@@ -190,6 +269,7 @@ for (const mode of [2, 3, 6] as Mode[])
     assert.equal(board.top().length, 1);
     assert.equal(board.top()[0].timeMs, 12345);
     assert.equal(board.top()[0].names.length, mode);
+    assert.equal(board.top()[0].names[0], "旅人");
     assert.equal(
       ctx.db.prepare("SELECT COUNT(*) n FROM score_outbox").get()!.n,
       0,

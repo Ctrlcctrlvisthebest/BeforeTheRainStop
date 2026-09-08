@@ -5,7 +5,11 @@ import {
   type RankingEntry,
 } from "../src/leaderboard";
 import { verifyReplay } from "../src/replay";
-import { playerName } from "../src/room";
+import {
+  requirePlayerName,
+  publicPlayerName,
+  NamePolicyError,
+} from "../src/name-policy";
 import type { Game, Mode } from "../src/game";
 
 export interface VerifiedScore extends RankingEntry {
@@ -34,7 +38,7 @@ export class RainLeaderboard extends DurableObject<Env> {
       .toArray()
       .map((row) => ({
         id: row.id,
-        names: JSON.parse(row.names) as string[],
+        names: (JSON.parse(row.names) as string[]).map(publicPlayerName),
         timeMs: row.time_ms,
         achievedAt: row.achieved_at,
       }));
@@ -54,7 +58,7 @@ export class RainLeaderboard extends DurableObject<Env> {
       WHERE excluded.time_ms < scores.time_ms`,
       score.participant,
       score.id,
-      JSON.stringify(score.names.map(playerName)),
+      JSON.stringify(score.names.map(publicPlayerName)),
       score.timeMs,
       score.achievedAt,
     );
@@ -62,6 +66,7 @@ export class RainLeaderboard extends DurableObject<Env> {
   }
   submitSolo(body: Record<string, unknown>, participant: string) {
     let game: Game;
+    let name: string;
     try {
       if (body.version !== RANKING_VERSION)
         return { status: 409, data: { error: "玩法已更新，请刷新后重新挑战" } };
@@ -71,10 +76,11 @@ export class RainLeaderboard extends DurableObject<Env> {
       )
         throw new Error("关卡或人数无效");
       boardName(body.level, 1);
+      name = requirePlayerName(body.name);
       game = verifyReplay(body.level, body.replay);
     } catch (error) {
       return {
-        status: 400,
+        status: error instanceof NamePolicyError ? error.status : 400,
         data: { error: error instanceof Error ? error.message : "成绩无效" },
       };
     }
@@ -83,7 +89,7 @@ export class RainLeaderboard extends DurableObject<Env> {
       level: game.level,
       mode: 1,
       participant: `1:${participant}`,
-      names: [playerName(body.name)],
+      names: [name],
       timeMs: Math.round(game.time * 1000),
       achievedAt: Date.now(),
     });

@@ -11,7 +11,13 @@ export function useScoreSubmission() {
   const [result, setResult] = useState<{
     id: string;
     status:
-      "pending" | "saved" | "retry" | "unavailable" | "outdated" | "rejected";
+      | "pending"
+      | "saved"
+      | "retry"
+      | "unavailable"
+      | "outdated"
+      | "rejected"
+      | "name-rejected";
   } | null>(null);
   const submit = useCallback(async (id: string, score: SoloScore | null) => {
     if (active.current.has(id)) return;
@@ -30,10 +36,12 @@ export function useScoreSubmission() {
       const status =
         error instanceof RankingError && error.status === 409
           ? "outdated"
-          : error instanceof RankingError &&
-              (error.status === 400 || error.status === 413)
-            ? "rejected"
-            : "retry";
+          : error instanceof RankingError && error.status === 422
+            ? "name-rejected"
+            : error instanceof RankingError &&
+                (error.status === 400 || error.status === 413)
+              ? "rejected"
+              : "retry";
       if (latest.current?.id === id) setResult({ id, status });
     } finally {
       active.current.delete(id);
@@ -44,6 +52,13 @@ export function useScoreSubmission() {
     submit,
     retry: () => {
       if (latest.current) void submit(latest.current.id, latest.current.score);
+    },
+    retryAsTraveler: () => {
+      if (latest.current)
+        void submit(latest.current.id, {
+          ...latest.current.score,
+          name: "旅人",
+        });
     },
   };
 }

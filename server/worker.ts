@@ -12,6 +12,7 @@ import {
 } from "../src/room";
 import { cleanInput, idleInput, stepGame, type Inputs } from "../src/game";
 import { boardName, validPlayerToken } from "../src/leaderboard";
+import { NamePolicyError } from "../src/name-policy";
 import type { VerifiedScore } from "./leaderboard";
 export { RainLeaderboard } from "./leaderboard";
 
@@ -312,7 +313,7 @@ export class RainRoom extends DurableObject<Env> {
       }
       return { status: 200, data: { room: publicRoom(r) } };
     } catch (e) {
-      if (e instanceof RoomError)
+      if (e instanceof RoomError || e instanceof NamePolicyError)
         return { status: e.status, data: { error: e.message } };
       throw e;
     }

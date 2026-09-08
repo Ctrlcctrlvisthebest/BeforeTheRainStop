@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { ReplayRecorder, verifyReplay, type Replay } from "../src/replay";
 import { completeLevel } from "./journey";
 import { RANKING_VERSION, type LeaderboardData } from "../src/leaderboard";
+import { NAME_REJECTED } from "../src/name-policy";
 
 const base = process.env.TEST_SERVER ?? "http://127.0.0.1:8788";
 // These tests create sample scores. They must never write to the public boards.
@@ -44,6 +45,16 @@ test("local Worker verifies clears, publishes top three, replaces faster times a
   assert.equal((await post({ ...body, version: -1 })).status, 409);
   assert.equal((await get("level=0&mode=4")).status, 400);
   const initial = (await (await get()).json()) as LeaderboardData;
+  for (const name of ["習 近平", "ＸＩ＿ＪＩＮＰＩＮＧ", "习\u200b近平"]) {
+    const denied = await post({ ...body, name });
+    assert.equal(denied.status, 422);
+    assert.deepEqual(await denied.json(), { error: NAME_REJECTED });
+  }
+  assert.deepEqual(
+    await (await get()).json(),
+    initial,
+    "rejected names never alter the board",
+  );
   const first = await post({ ...body, replay: slow, timeMs: 1 });
   assert.equal(first.status, 200, await first.text());
   const faster = await post(body);
@@ -110,6 +121,33 @@ test("local Worker verifies clears, publishes top three, replaces faster times a
     token: string;
   };
   assert.equal(room.status, 201);
+  for (const endpoint of [
+    "/api/rooms",
+    `/api/rooms/${created.room.code}/join`,
+  ]) {
+    const denied = await fetch(`${base}${endpoint}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        capacity: 2,
+        level: 0,
+        name: "習\u200b近平",
+        playerToken: body.playerToken,
+      }),
+    });
+    assert.equal(denied.status, 422);
+    assert.deepEqual(await denied.json(), { error: NAME_REJECTED });
+  }
+  const joined = await fetch(`${base}/api/rooms/${created.room.code}/join`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "同伴", playerToken: crypto.randomUUID() }),
+  });
+  assert.equal(
+    joined.status,
+    200,
+    "a rejected name must not consume the remaining seat",
+  );
   const unauthorized = await fetch(
     `${base}/api/rooms/${created.room.code}/score`,
     {

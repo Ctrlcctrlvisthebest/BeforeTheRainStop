@@ -2,6 +2,15 @@ import { MAP_TRANSLATIONS } from "./challenge-maps";
 export type Language = "zh" | "en";
 const english: Record<string, string> = {
   ...MAP_TRANSLATIONS,
+  "昵称含有不允许的内容，请换一个名字。":
+    "This nickname contains disallowed content. Please choose another name.",
+  "昵称过长，请控制在 16 个字符以内。":
+    "This nickname is too long. Please use up to 16 characters.",
+  "昵称会显示在排行榜，请勿使用政治敏感或违规内容。":
+    "Your nickname is public on the leaderboard. Avoid politically sensitive or prohibited content.",
+  "昵称未通过审核，本地成绩已保留。可使用「旅人」重新上传。":
+    "Your nickname was rejected. Your local record is kept. Retry as “Traveler”.",
+  "使用「旅人」重新上传": "Retry as “Traveler”",
   "玩法已更新，请刷新后重新挑战。本地成绩已保留。":
     "The game has changed. Reload for a new attempt. Your local record is kept.",
   "成绩未通过核验，仅保留本地成绩。":
@@ -16,8 +25,6 @@ const english: Record<string, string> = {
   同一玩家或队伍只保留最快成绩: "One best time per player or team",
   "还没有通关成绩，来留下第一张祈愿签。":
     "No clears yet. Leave the first wish.",
-  "通关后自动参与排行榜，昵称会公开显示。":
-    "Clears enter the leaderboard automatically. Your nickname is public.",
   "成绩暂未上传，请稍后重试。": "Score upload failed. Please retry.",
   "成绩已核验，榜单已更新。": "Score verified. Leaderboard updated.",
   "本次过程记录不完整，仅保留本地成绩。":

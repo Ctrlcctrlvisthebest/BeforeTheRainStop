@@ -2199,6 +2199,13 @@ canvas[hidden] {
   line-height: 1.6;
   margin: 16px 0 0;
 }
+.name-error {
+  color: #a53728;
+  opacity: 1;
+}
+input[aria-invalid="true"] {
+  border-color: #a53728;
+}
 .ranking-upload button {
   margin-left: 8px;
 }

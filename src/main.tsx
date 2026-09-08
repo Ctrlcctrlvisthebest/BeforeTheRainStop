@@ -32,6 +32,12 @@ import {
 import { ReplayRecorder } from "./replay";
 import { playerIdentity } from "./ranking-client";
 import { Leaderboard, useScoreSubmission } from "./ranking-ui";
+import {
+  NAME_LIMIT,
+  NAME_REJECTED,
+  NAME_TOO_LONG,
+  reviewPlayerName,
+} from "./name-policy";
 import "./style.css";
 import "./mobile.css";
 import { TouchInput, mergeInput, type TouchField } from "./touch-input";
@@ -121,6 +127,16 @@ function App() {
     [error, setError] = useState(""),
     [hud, setHud] = useState<Game>(() => structuredClone(initialGame)),
     [help, setHelp] = useState(false);
+  const nameInput = useRef<HTMLInputElement>(null);
+  const [nameTouched, setNameTouched] = useState(false);
+  const nameReview = useMemo(() => reviewPlayerName(name), [name]);
+  function acceptName() {
+    setNameTouched(true);
+    if (nameReview.ok) return true;
+    setError(nameReview.error);
+    nameInput.current?.focus();
+    return false;
+  }
   const [guideEnabled, setGuideEnabled] = useState(
     () => stored<boolean>("local", "rain-guide") !== false,
   );
@@ -409,13 +425,14 @@ function App() {
     [],
   );
   async function create() {
+    if (!acceptName()) return;
     sessionAttempt.current++;
     warmScene();
     void audio.start();
     setError("");
     save("local", "rain-name", name);
     if (mode === 1) {
-      soloName.current = name;
+      soloName.current = nameReview.ok ? nameReview.name : "旅人";
       connection.current?.close();
       currentSession.current = null;
       currentRoom.current = null;
@@ -442,6 +459,7 @@ function App() {
     }
   }
   async function join() {
+    if (!acceptName()) return;
     sessionAttempt.current++;
     warmScene();
     void audio.start();
@@ -769,14 +787,30 @@ function App() {
             <label>
               {t("你的名字")}
               <input
+                ref={nameInput}
                 value={name}
-                maxLength={16}
+                maxLength={NAME_LIMIT}
                 placeholder={t("旅人")}
-                onChange={(e) => setName(e.target.value)}
+                aria-invalid={nameTouched && !nameReview.ok}
+                aria-describedby="nickname-hint"
+                onBlur={() => setNameTouched(true)}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (error === NAME_REJECTED || error === NAME_TOO_LONG)
+                    setError("");
+                }}
               />
             </label>
-            <small className="ranking-name-hint">
-              {t("通关后自动参与排行榜，昵称会公开显示。")}
+            <small
+              id="nickname-hint"
+              className={`ranking-name-hint${nameTouched && !nameReview.ok ? " name-error" : ""}`}
+              role="status"
+            >
+              {t(
+                nameTouched && !nameReview.ok
+                  ? nameReview.error
+                  : "昵称会显示在排行榜，请勿使用政治敏感或违规内容。",
+              )}
             </small>
             <label>{t("同行人数")}</label>
             <div className="modes">
@@ -1485,11 +1519,13 @@ function App() {
                     ? "成绩暂未上传，请稍后重试。"
                     : rankingStatus === "outdated"
                       ? "玩法已更新，请刷新后重新挑战。本地成绩已保留。"
-                      : rankingStatus === "rejected"
-                        ? "成绩未通过核验，仅保留本地成绩。"
-                        : rankingStatus === "unavailable"
-                          ? "本次过程记录不完整，仅保留本地成绩。"
-                          : "正在核验并上传成绩…",
+                      : rankingStatus === "name-rejected"
+                        ? "昵称未通过审核，本地成绩已保留。可使用「旅人」重新上传。"
+                        : rankingStatus === "rejected"
+                          ? "成绩未通过核验，仅保留本地成绩。"
+                          : rankingStatus === "unavailable"
+                            ? "本次过程记录不完整，仅保留本地成绩。"
+                            : "正在核验并上传成绩…",
               )}
               {rankingStatus === "retry" && (
                 <button
@@ -1497,6 +1533,18 @@ function App() {
                   onClick={session ? retryTeamScore : ranking.retry}
                 >
                   {t("重试上传")}
+                </button>
+              )}
+              {rankingStatus === "name-rejected" && (
+                <button
+                  onClick={() => {
+                    soloName.current = "旅人";
+                    setName("旅人");
+                    save("local", "rain-name", "旅人");
+                    ranking.retryAsTraveler();
+                  }}
+                >
+                  {t("使用「旅人」重新上传")}
                 </button>
               )}
             </div>

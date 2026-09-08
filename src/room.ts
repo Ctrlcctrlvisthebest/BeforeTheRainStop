@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { Buffer } from "node:buffer";
 import { isMode, newGame, LEVELS, type Mode, type Game } from "./game";
+import { requirePlayerName, publicPlayerName } from "./name-policy";
 export interface Player {
   slot: number;
   name: string;
@@ -36,13 +37,6 @@ export class RoomError extends Error {
     super(message);
   }
 }
-export const playerName = (v: unknown) =>
-  typeof v === "string"
-    ? v
-        .trim()
-        .replace(/[\u0000-\u001f<>]/g, "")
-        .slice(0, 16) || "旅人"
-    : "旅人";
 export function makeRoom(
   code: string,
   capacity: unknown,
@@ -62,7 +56,13 @@ export function makeRoom(
     level,
     host: 0,
     players: [
-      { slot: 0, name: playerName(name), token, online: false, lastSeen: now },
+      {
+        slot: 0,
+        name: requirePlayerName(name),
+        token,
+        online: false,
+        lastSeen: now,
+      },
     ],
     phase: "lobby",
     game: null,
@@ -77,6 +77,7 @@ export function publicRoom(room: Room): PublicRoom {
     ...structuredClone(room),
     players: room.players.map(({ token: _token, rankKey: _rankKey, ...p }) => ({
       ...p,
+      name: publicPlayerName(p.name),
     })),
   };
 }
@@ -106,7 +107,7 @@ export function joinRoom(
   )!;
   room.players.push({
     slot,
-    name: playerName(name),
+    name: requirePlayerName(name),
     token,
     online: false,
     lastSeen: now,
