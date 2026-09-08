@@ -149,6 +149,14 @@ npm run test:leaderboard
 
 ## 本地开发
 
+### 哔哩哔哩 Toy 构建
+
+`npm run build:toy` 生成独立的 `dist-toy/`，只含游戏前端。保持 17 关、1 / 2 / 3 / 6 人玩法、音乐、手机操作、中英文与昵称审核；编辑器仍单独位于 GitHub Pages 的 `editor.html`。Toy 使用随包的 PNG 图标、音乐与背景资源，以及系统字体，避免等待外部字体站。所有包内路径相对当前目录，可部署到 `/toy/<slug>/index.html`。
+
+Toy 的 API / WebSocket 固定连接现有 `https://before-the-rain-rooms.zoeli2010xl.workers.dev`。房间、全球榜及服务器审核复用当前 Cloudflare Durable Objects，不重建数据库、不清空成绩。`wrangler.jsonc` 的 `ALLOWED_ORIGINS` 加入 `https://www.bilibili.com`，仍逐个精确匹配来源。不同网站的浏览器本地记录 / 匿名玩家标识不会自动互通；共享房间码与全球榜服务可以互通。
+
+发布：使用官方 Toy CLI 上传 `dist-toy/`，分类 `GAME`，标题「雨停之前」，slug `before-the-rain-stop`，图标和封面使用 `public/icons/icon-512.png`。先检查包，再创建预览，检查后才提交审核。Toy 不接受 `.ico`，构建脚本会从 Toy 的 HTML 和产物中移除它；普通网页构建仍保留。更新服务端允许来源后需重新部署 Worker。`npm run build` 继续生成 GitHub Pages / Worker 的 `dist/`，两种产物互不覆盖。
+
 需要 Node.js 24：
 
 ```sh

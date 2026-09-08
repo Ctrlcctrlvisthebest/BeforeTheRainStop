@@ -9,4 +9,10 @@ async function clean(directory) {
     else if (entry.isDirectory()) await clean(path);
   }
 }
-await clean(fileURLToPath(new URL("../dist", import.meta.url)));
+const output = process.argv[2] ?? "dist";
+if (!["dist", "dist-toy"].includes(output))
+  throw new Error("Unknown build directory");
+const directory = fileURLToPath(new URL(`../${output}`, import.meta.url));
+await clean(directory);
+if (output === "dist-toy")
+  await rm(join(directory, "favicon.ico"), { force: true });

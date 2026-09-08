@@ -1,5 +1,7 @@
 node_modules/
 dist/
+dist-toy/
+releases/
 .wrangler/
 .env
 .env.local

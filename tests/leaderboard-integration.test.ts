@@ -106,6 +106,26 @@ test("local Worker verifies clears, publishes top three, replaces faster times a
     headers: { Origin: "https://untrusted.example" },
   });
   assert.equal(forbidden.status, 403);
+  const toyOrigin = "https://www.bilibili.com";
+  const preflight = await fetch(`${base}/api/rooms`, {
+    method: "OPTIONS",
+    headers: {
+      Origin: toyOrigin,
+      "Access-Control-Request-Method": "POST",
+      "Access-Control-Request-Headers": "content-type,authorization",
+    },
+  });
+  assert.equal(preflight.status, 204);
+  assert.equal(preflight.headers.get("Access-Control-Allow-Origin"), toyOrigin);
+  const toyBoard = await fetch(`${base}/api/leaderboard?level=0&mode=1`, {
+    headers: { Origin: toyOrigin },
+  });
+  assert.equal(toyBoard.status, 200);
+  assert.equal(toyBoard.headers.get("Access-Control-Allow-Origin"), toyOrigin);
+  const lookalike = await fetch(`${base}/api/leaderboard?level=0&mode=1`, {
+    headers: { Origin: "https://www.bilibili.com.attacker.example" },
+  });
+  assert.equal(lookalike.status, 403);
   const room = await fetch(`${base}/api/rooms`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

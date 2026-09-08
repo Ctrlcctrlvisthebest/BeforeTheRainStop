@@ -12,7 +12,8 @@
     "test:integration": "tsx --test tests/integration.test.ts",
     "deploy:server": "wrangler deploy",
     "types": "wrangler types",
-    "test:leaderboard": "tsx --test tests/leaderboard-integration.test.ts"
+    "test:leaderboard": "tsx --test tests/leaderboard-integration.test.ts",
+    "build:toy": "tsc --noEmit && VITE_ROOM_SERVER_URL=https://before-the-rain-rooms.zoeli2010xl.workers.dev vite build --mode toy && node scripts/clean-build.mjs dist-toy"
   },
   "dependencies": {
     "react": "^19.2.8",
