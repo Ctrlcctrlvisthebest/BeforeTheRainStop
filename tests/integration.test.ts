@@ -369,10 +369,9 @@ for (const capacity of [2, 3, 6])
       ).catch((error) => {
         const g = peers[0].room!.game!;
         throw Error(
-          `${error}; ${JSON.stringify({ charge: g.bridgeCharge, crossed: g.bridgeCrossed, players: g.players.map((p) => ({ id: p.id, x: p.x, y: p.y, z: p.z, bridge: p.bridgeDock, deaths: p.deaths })) })}`,
+          `${error}; ${JSON.stringify({ charge: g.bridgeCharge, players: g.players.map((p) => ({ id: p.id, x: p.x, y: p.y, z: p.z, bridge: p.bridgeDock, deaths: p.deaths })) })}`,
         );
       });
-      assert.ok(peers.every((p) => p.room!.game!.bridgeCrossed.includes(1)));
       for (let id = 0; id < capacity; id++)
         if (id !== 1) send(id, { ...idleInput(), axis: 1 });
       await until(

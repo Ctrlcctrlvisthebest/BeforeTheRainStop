@@ -40,6 +40,26 @@ function controls(g: Game) {
   return { inputs, tick, move };
 }
 for (const level of Object.keys(CROSSINGS).map(Number)) {
+  test(`chapter ${level + 1}: the far bridge plate works for any arrival route and needs no bridge holder`, () => {
+    const c = CROSSINGS[level];
+    const far = bankPoint(c, c.near === -1 ? 1 : -1);
+    for (const mode of [1, 2, 3, 6] as const) {
+      const g = newGame(mode, level);
+      Object.assign(g.players[mode - 1], far);
+      const inputs = Object.fromEntries(
+        g.players.map((p) => [p.id, { ...idleInput(), shelter: true }]),
+      );
+      for (let i = 0; i < 60; i++) stepGame(g, inputs);
+      assert.equal(
+        g.bridgeLatched,
+        false,
+        "still requires a visible two-second hold",
+      );
+      for (let i = 0; i < 65; i++) stepGame(g, inputs);
+      assert.equal(g.bridgeLatched, true);
+      assert.ok(g.players.every((p) => !p.bridgeDock));
+    }
+  });
   test(`chapter ${level + 1}: low corridor defeats running, jumping and held gliding across the gap`, () => {
     const c = CROSSINGS[level],
       near = bankPoint(c, c.near),
@@ -133,10 +153,6 @@ for (const level of Object.keys(CROSSINGS).map(Number)) {
       assert.equal(g.players[0].foldsLeft, MAX_FOLDS - 1);
       const far = bankPoint(c, c.near === -1 ? 1 : -1);
       move(1, far[c.axis]);
-      assert.ok(
-        g.bridgeCrossed.includes(1),
-        "receiver actually walked on paper",
-      );
       tick(125);
       assert.equal(g.bridgeLatched, true);
       for (let i = 2; i < mode; i++) move(i, far[c.axis]);
@@ -150,14 +166,14 @@ for (const level of Object.keys(CROSSINGS).map(Number)) {
       );
     });
 }
-test("changing view does not rotate a docked bridge or let one player use a far pad without crossing", () => {
+test("changing view does not rotate a docked paper bridge", () => {
   const g = newGame(2, 1),
     { inputs, tick } = controls(g);
   Object.assign(g.players[0], { x: 3.4 });
   inputs[0].fold = true;
   tick();
   Object.assign(g.players[1], { x: 7 });
-  tick(180);
+  tick(30);
   assert.equal(g.bridgeLatched, false);
   inputs[1].turn = true;
   tick(60);
@@ -166,24 +182,23 @@ test("changing view does not rotate a docked bridge or let one player use a far 
   assert.equal(g.players[0].x, 5.2);
   assert.equal(g.players[0].deaths, 0);
 });
-test("unrepaired crossing leaves the visible final gate locked", () => {
+test("unrepaired crossing does not lock the final gate plates", () => {
   const g = newGame(1, 1),
     p = g.players[0];
   Object.assign(p, { x: 16, y: 0, z: -7 });
   const { inputs, tick } = controls(g);
   inputs[0].shelter = true;
   tick(250);
-  assert.equal(g.gateOpen, false);
-  assert.equal(g.gateCharge, 0);
+  assert.equal(g.gateOpen, true);
+  assert.equal(g.gateCharge, 4);
+  assert.equal(g.bridgeLatched, false);
 });
 test("older room snapshots acquire bridge state without interrupting play", () => {
   const g = newGame(1, 1);
-  for (const k of ["bridgeLatched", "bridgeCharge", "bridgeCrossed"])
-    delete (g as any)[k];
+  for (const k of ["bridgeLatched", "bridgeCharge"]) delete (g as any)[k];
   for (const k of ["bridgeDock", "bridgeFrom", "bridgeAxis"])
     delete (g.players[0] as any)[k];
   stepGame(g, {});
   assert.equal(g.bridgeLatched, false);
-  assert.deepEqual(g.bridgeCrossed, []);
   assert.equal(g.players[0].bridgeDock, false);
 });

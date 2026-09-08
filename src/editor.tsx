@@ -1199,8 +1199,8 @@ function App() {
                   <div className="help-note compact">
                     <strong>桥钉不用另加，单人也一样</strong>
                     <p>
-                      单人：岸边按住 Shift 2
-                      秒自动接桥。多人：队友走过纸面、在对岸木踏板站住 2 秒。
+                      单人：岸边按住 Shift 2 秒自动接桥。任何人到对岸木踏板站住
+                      2 秒也能接桥，走哪条路都可以。
                     </p>
                     <button onClick={() => setHelp("bridge")}>
                       看完整纸桥示意 ↗

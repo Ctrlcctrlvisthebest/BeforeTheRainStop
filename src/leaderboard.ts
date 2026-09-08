@@ -1,7 +1,10 @@
 import { LEVELS, isMode, type Mode } from "./game";
 
-// Bump when chapter layouts or physics change in ways that affect race times.
-export const RANKING_VERSION = 1;
+// Replay protocol: old clients must refresh after gameplay rules change.
+export const RANKING_VERSION = 2;
+// These rules only relax route restrictions; previous achievements stay valid.
+// Keep their existing boards and allow faster new routes to replace old times.
+const BOARD_STORAGE_VERSION = 1;
 export interface RankingEntry {
   id: string;
   names: string[];
@@ -19,5 +22,5 @@ export const validPlayerToken = (value: unknown): value is string =>
 export function boardName(level: number, mode: Mode) {
   if (!Number.isInteger(level) || !LEVELS[level] || !isMode(mode))
     throw new Error("关卡或人数无效");
-  return `v${RANKING_VERSION}:${mode}:${LEVELS[level].name}`;
+  return `v${BOARD_STORAGE_VERSION}:${mode}:${LEVELS[level].name}`;
 }

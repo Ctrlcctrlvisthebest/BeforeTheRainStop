@@ -148,18 +148,15 @@ const english: Record<string, string> = {
     "Paper soaked through · back at the wishing rack",
   "屋檐和同伴只能挡雨，靠近小火堆才能烤干；F 只修补耐折。烘烤程度到 65 时尽快离开，到 100 会脆裂失败。旺火碰到就烧毁，必须跳过；湿透或烧毁后回到许愿架。":
     "Roofs and friends only block rain. Small fires dry paper; F only mends folds. Leave when heat reaches 65; at 100 the crane becomes brittle and shatters. Blazing fires burn on contact: jump over them. Soaking or burning returns you to your wishing rack.",
-  "找齐钥匙，全员到灯门过关。机关连续踩住 4 秒：单人一块，多人两块。先接通木桥，再踩开门机关。":
-    "Collect all keys and bring everyone to the lantern gate. Hold pads for 4 seconds: one in solo, two in multiplayer. Repair a broken bridge before powering the gate pads.",
   断桥机关: "Bridge mechanism",
   接桥进度: "Bridge progress",
-  先接通木桥: "Repair bridge first",
   "低檐断桥 · 需要一张纸": "Broken crossing · lend your paper",
   "木桥已接通 · 所有人都能过了": "Wooden bridge ready · everyone can cross",
   "保持住！正在放下木桥…": "Hold steady! Lowering the wooden bridge…",
   "保持纸桥 2 秒，木桥会自动接通":
     "Hold your paper bridge for 2s to lower the deck",
   "同伴从纸桥上走到对岸，踩住金色踏板 2 秒":
-    "A friend must walk across your paper, then hold the gold pad for 2s",
+    "A friend can reach the far bank by any route and hold the gold pad for 2s",
   "先按 Q 转到侧面，再靠近金色桥钉":
     "Press Q for the side view, then approach the gold bridge pins",
   "走到断口前的金色桥钉，按住 Shift 搭桥":

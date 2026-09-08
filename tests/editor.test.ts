@@ -225,7 +225,6 @@ for (const level of [10, 11, 12, 13, 14, 15, 16])
       const g = newGame(mode, level);
       g.keys = LEVELS[level].keys.map((_, i) => i);
       g.savedKeys = [...g.keys];
-      g.bridgeLatched = true;
       const pads = LEVELS[level].pads;
       g.players.forEach((p, i) =>
         Object.assign(p, pads[i % Math.min(mode, pads.length)], {

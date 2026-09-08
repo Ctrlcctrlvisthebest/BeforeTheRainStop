@@ -70,7 +70,7 @@
 | rack / key  | `id` 对应 checkpoints / keys 的数组下标                                           |
 | bridge      | 必须有 crossing，target 是对岸                                                    |
 | wind        | `from: {x,y,z}` 是风柱底部，target 是上方落脚平台                                 |
-| ferry       | `id` 指向有 motion 的平台，target 是对岸；可选 requiredKey 指向必须乘船拿到的钥匙 |
+| ferry       | `id` 指向有 motion 的平台，target 是对岸；可选 requiredKey 提醒取走途中钥匙，不要求必须乘船 |
 | pads        | 必须存在开门踏板                                                                  |
 | exit        | 指向终点                                                                          |
 

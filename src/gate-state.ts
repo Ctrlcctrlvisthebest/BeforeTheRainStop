@@ -1,5 +1,4 @@
 import { LEVELS, type Bird, type Game, type Point } from "./game";
-import { CROSSINGS } from "./bridges";
 
 // Match the simulation's pressure-plate bounds when explaining its current state.
 export function isOnGatePad(player: Bird, pad: Point): boolean {
@@ -23,7 +22,6 @@ export function gateState(g: Game) {
     pressed,
     required: pads.length,
     occupied: pressed.filter(Boolean).length,
-    powered: !CROSSINGS[g.level] || g.bridgeLatched,
     remaining: (Math.ceil(Math.max(0, 4 - g.gateCharge) * 10) / 10).toFixed(1),
   };
 }
@@ -32,11 +30,6 @@ export function gateStatusCopy(g: Game): readonly [string, string] {
   if (g.gateOpen)
     return ["闸门已开 · 可以离开踏板", "Gate open · Leave the plates"];
   const state = gateState(g);
-  if (!state.powered)
-    return [
-      "先接通木桥，再踩踏板开门",
-      "Repair the bridge before opening the gate",
-    ];
   if (state.occupied < state.required)
     return [
       `开门踏板 ${state.occupied}/${state.required} · 还差 ${state.required - state.occupied} 人`,

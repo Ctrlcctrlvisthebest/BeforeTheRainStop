@@ -73,8 +73,8 @@ export const LESSONS: Record<Lesson, LessonData> = {
         "Low eaves prevent jumping. Align with the gold pins and hold Shift to become a bridge.",
       ],
       [
-        "搭桥者持续按住。队友从纸面走过去，站上对岸的金色方板 2 秒。",
-        "The bridge maker keeps holding. A friend walks across the paper and stands on the far square plate for 2 seconds.",
+        "同伴到达对岸后，在金色方板上站稳 2 秒可放下木桥。可以走纸桥，也可以用其他方式过去。",
+        "Anyone who reaches the far bank can hold its gold plate for 2 seconds to lower the wooden deck. Use the paper bridge or find another route.",
       ],
       [
         "看到「木桥接通」后，搭桥者松开 Shift，跟上队友。提前松手会退回原岸。",
@@ -82,8 +82,8 @@ export const LESSONS: Record<Lesson, LessonData> = {
       ],
     ],
     note: [
-      "单人模式：按住 Shift 满 2 秒就会自动接通，不需要队友。每次折桥消耗耐折。",
-      "Solo: hold Shift for 2 seconds to lower the deck automatically. Each bridge transformation uses folds.",
+      "单人还可以按住 Shift 满 2 秒自动接桥。木桥是方便通行的选择；如果能直接过去，就继续前进。每次折桥消耗耐折。",
+      "Solo players can also hold Shift for 2 seconds to lower the deck. The wooden bridge is optional: if you can get across another way, keep going. Each fold uses durability.",
     ],
   },
   rain: {
@@ -173,16 +173,16 @@ export const LESSONS: Record<Lesson, LessonData> = {
     keys: [],
     steps: [
       [
-        "带齐钥匙，沿金色路标前进。有闸门挡路时，找门形标记的石踏板；有断桥的关卡要先接通木桥。",
-        "Collect every key and follow the gold marker. If a barrier blocks the path, find the doorway-marked stone plates. Repair any broken bridge first.",
+        "带齐钥匙，向终点前进。遇到挡路闸门，可以找门形标记的石踏板开门，也可以尝试绕过去。",
+        "Collect every key and head to the exit. If a barrier blocks the path, use its doorway-marked stone plates or find a way around it.",
       ],
       [
         "单人站一块；联机任选两人，每人站一块不同的踏板。保持 4 秒，前方挡路闸门就会移开。提前离开会重新计时。",
         "Solo: stand on one plate. Multiplayer: any two players each hold a different plate for 4 seconds. This removes the barrier ahead. Leaving early resets the countdown.",
       ],
       [
-        "闸门打开后，本轮会一直保持打开。踩踏板的人也可以离开，所有人跟着路标继续走到金色终点灯门，才算通关。",
-        "The barrier stays open for this run. Plate holders can leave too. Follow the marker onward: everyone must reach the golden lantern exit to finish.",
+        "闸门一旦打开就会保持打开，踩踏板的人也可以离开。无论走哪条路，只要钥匙齐、所有人到金色终点灯门，就能通关。",
+        "An opened barrier stays open, so plate holders can leave. Any route is valid: collect all keys and bring everyone to the golden lantern exit to finish.",
       ],
     ],
     note: [

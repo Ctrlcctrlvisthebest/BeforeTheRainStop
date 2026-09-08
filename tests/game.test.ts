@@ -11,9 +11,60 @@ import {
   type Input,
 } from "../src/game";
 import { completeLevel } from "./journey";
+import { CROSSINGS } from "../src/bridges";
 function tick(g: Game, i: Partial<Input> = {}, n = 1) {
   for (let t = 0; t < n; t++) stepGame(g, { 0: { ...idleInput(), ...i } });
 }
+
+for (let level = 0; level < LEVELS.length; level++)
+  test(`chapter ${level + 1}: any route to the exit is valid in every mode, but keys and all players are still required`, () => {
+    const l = LEVELS[level];
+    for (const mode of [1, 2, 3, 6] as const) {
+      const g = newGame(mode, level);
+      Object.assign(g.players[0], l.exit);
+      stepGame(g, {});
+      assert.equal(
+        g.players[0].arrived,
+        false,
+        "missing keys still prevent a clear",
+      );
+      g.keys = g.savedKeys = l.keys.map((_, i) => i);
+      stepGame(g, {});
+      assert.equal(g.players[0].arrived, true);
+      assert.equal(g.status, mode === 1 ? "won" : "playing");
+      for (const p of g.players) Object.assign(p, l.exit);
+      stepGame(g, {});
+      assert.equal(g.status, "won");
+      assert.equal(
+        g.gateOpen,
+        false,
+        "opening the physical barrier is not a finish flag",
+      );
+      assert.equal(
+        g.bridgeLatched,
+        false,
+        "bridge repair is not a finish flag",
+      );
+    }
+  });
+
+for (const level of Object.keys(CROSSINGS)
+  .map(Number)
+  .filter((i) => LEVELS[i].gate))
+  test(`chapter ${level + 1}: all modes can open gate plates without repairing the earlier bridge`, () => {
+    const l = LEVELS[level];
+    for (const mode of [1, 2, 3, 6] as const) {
+      const g = newGame(mode, level);
+      for (let i = 0; i < Math.min(mode, l.pads.length); i++)
+        Object.assign(g.players[i], l.pads[i]);
+      const inputs = Object.fromEntries(
+        g.players.map((p) => [p.id, { ...idleInput(), shelter: true }]),
+      );
+      for (let i = 0; i < 245; i++) stepGame(g, inputs);
+      assert.equal(g.gateOpen, true);
+      assert.equal(g.bridgeLatched, false);
+    }
+  });
 for (let i = 0; i < LEVELS.length; i++)
   test(`level ${i + 1}: run, jump, turn, collect keys and finish without teleporting`, () => {
     const g = completeLevel(i);
@@ -85,7 +136,6 @@ test("falling restores individual checkpoint and preserves team collectibles", (
 for (const mode of [1, 2, 3, 6] as const)
   test(`${mode} players: pressure pad requirement and every bird must arrive`, () => {
     const g = newGame(mode, 1);
-    g.bridgeLatched = true; // Isolate the final pressure pads from the earlier crossing.
     g.keys = g.savedKeys = [0];
     Object.assign(g.players[0], { x: 16, y: 0, z: -7 });
     tick(g);
@@ -212,7 +262,6 @@ test("new rain fields and optional shelter input preserve existing room saves", 
 });
 test("pressure pads need continuous shelter time; stepping away cancels charge", () => {
   const g = newGame(1, 1);
-  g.bridgeLatched = true;
   Object.assign(g.players[0], { x: 16, y: 0, z: -7 });
   tick(g, { shelter: true }, 120);
   assert.ok(g.gateCharge > 1.9 && g.gateCharge < 2.1);
@@ -357,7 +406,6 @@ for (const level of [4, 5, 6, 7])
     test(`new chapter ${level + 1}, ${mode} players: pads are physically reachable and the entire team can finish`, () => {
       const g = newGame(mode, level),
         l = LEVELS[level];
-      g.bridgeLatched = true;
       g.keys = g.savedKeys = l.keys.map((_, i) => i);
       if (l.gate) {
         for (let i = 0; i < Math.min(mode, l.pads.length); i++)

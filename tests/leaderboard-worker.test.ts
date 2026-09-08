@@ -136,6 +136,7 @@ test("solo RPC derives time from the replay, ignores a claimed time, sanitizes n
   );
   assert.equal(board.submitSolo({ ...body, mode: 2 }, "A").status, 400);
   assert.equal(board.submitSolo({ ...body, version: -1 }, "A").status, 409);
+  assert.equal(board.submitSolo({ ...body, version: 1 }, "A").status, 409);
   assert.deepEqual(board.top(), []);
   // A rejected name wins over an invalid replay and never reaches score storage.
   assert.deepEqual(

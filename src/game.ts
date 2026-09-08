@@ -331,7 +331,6 @@ export interface Game {
   gateCharge: number;
   bridgeLatched: boolean;
   bridgeCharge: number;
-  bridgeCrossed: number[];
   status: "playing" | "won";
 }
 export type Inputs = Record<number, Input>;
@@ -358,7 +357,6 @@ export function newGame(mode: Mode, level = 0, id = "solo"): Game {
     gateCharge: 0,
     bridgeLatched: false,
     bridgeCharge: 0,
-    bridgeCrossed: [],
     status: "playing",
     players: Array.from({ length: mode }, (_, i) => ({
       id: i,
@@ -487,7 +485,6 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
   g.gateCharge ??= 0;
   g.bridgeLatched ??= false;
   g.bridgeCharge ??= 0;
-  g.bridgeCrossed ??= [];
   g.tick++;
   g.time += dt;
   for (const p of g.players) {
@@ -702,16 +699,6 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
       p.grounded = true;
       p.support = -100;
     }
-    if (crossing && p.support <= -2 && p.support > -100) {
-      const carrier = g.players[-p.support - 2];
-      if (
-        carrier?.bridgeDock &&
-        Math.abs(p[crossing.axis] - crossing[crossing.axis]) <
-          crossing.span / 2 - 0.25 &&
-        !g.bridgeCrossed.includes(p.id)
-      )
-        g.bridgeCrossed.push(p.id);
-    }
     // Folded wings need support beneath the body, not only the tips; they cannot fly across gaps.
     if (p.folded && !p.grounded) p.folded = false;
     if (!p.grounded) p.sheltering = false;
@@ -766,7 +753,6 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
     if (reachedCheckpoint) bankCollectibles(g, p);
     if (
       g.keys.length === l.keys.length &&
-      (!l.gate || g.gateOpen) &&
       Math.hypot(l.exit.x - p.x, l.exit.z - p.z) < 1 &&
       Math.abs(l.exit.y - p.y) < 1.2
     ) {
@@ -785,18 +771,19 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
   if (crossing && !g.bridgeLatched) {
     const holder = g.players.find((p) => p.bridgeDock && p.folded);
     const far = bankPoint(crossing, crossing.near === -1 ? 1 : -1);
-    const releasing =
-      g.mode === 1
-        ? !!holder
-        : g.players.some(
-            (p) =>
-              g.bridgeCrossed.includes(p.id) &&
-              !p.bridgeDock &&
-              p.grounded &&
-              Math.hypot(p.x - far.x, p.z - far.z) < 0.7 &&
-              Math.abs(p.y - far.y) < 0.35,
-          );
-    g.bridgeCharge = holder && releasing ? Math.min(2, g.bridgeCharge + dt) : 0;
+    // The far plate responds to whoever reaches it, regardless of their route.
+    const releasing = g.players.some(
+      (p) =>
+        !p.arrived &&
+        !p.bridgeDock &&
+        p.grounded &&
+        Math.hypot(p.x - far.x, p.z - far.z) < 0.7 &&
+        Math.abs(p.y - far.y) < 0.35,
+    );
+    g.bridgeCharge =
+      releasing || (g.mode === 1 && holder)
+        ? Math.min(2, g.bridgeCharge + dt)
+        : 0;
     if (g.bridgeCharge >= 2) g.bridgeLatched = true;
   }
   applyRain(g, dt);
@@ -813,10 +800,7 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
             Math.abs(pad.y - p.y) < 0.4,
         ),
       );
-    g.gateCharge =
-      (!CROSSINGS[g.level] || g.bridgeLatched) && lit.length === required
-        ? Math.min(4, g.gateCharge + dt)
-        : 0;
+    g.gateCharge = lit.length === required ? Math.min(4, g.gateCharge + dt) : 0;
     if (g.gateCharge >= 4) g.gateOpen = true;
   }
   if (g.players.every((p) => p.arrived) && g.keys.length === l.keys.length)

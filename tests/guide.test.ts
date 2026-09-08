@@ -5,6 +5,36 @@ import { newGame, LEVELS, stepGame, idleInput } from "../src/game";
 import { bankPoint, CROSSINGS } from "../src/bridges";
 import { completeLevel } from "./journey";
 import { gateState, gateStatusCopy } from "../src/gate-state";
+test("guidance rejoins later landmarks after shortcuts, while still pointing out missing keys", () => {
+  const g = newGame(2, 1),
+    p = g.players[0];
+  g.keys = [0];
+  Object.assign(p, bankPoint(CROSSINGS[1], 1));
+  assert.notEqual(guideFor(g, 0, newGuideTracker()).kind, "bridge");
+  Object.assign(p, LEVELS[1].pads[0]);
+  const tracker = newGuideTracker();
+  assert.equal(guideFor(g, 0, tracker).kind, "pads");
+  p.x = LEVELS[1].gate!.x + 1;
+  assert.equal(
+    guideFor(g, 0, tracker).kind,
+    "jump",
+    "bypassing the gate does not send a player back to its plates",
+  );
+  Object.assign(p, LEVELS[1].exit);
+  assert.equal(guideFor(g, 0, newGuideTracker()).kind, "exit");
+  g.keys = [];
+  assert.equal(guideFor(g, 0, newGuideTracker()).kind, "key");
+});
+
+test("a receiver standing on the far bridge plate is still shown how to help a waiting bridge maker", () => {
+  const g = newGame(2, 1),
+    c = CROSSINGS[1];
+  Object.assign(g.players[0], c, { bridgeDock: true, folded: true });
+  Object.assign(g.players[1], bankPoint(c, 1));
+  const guide = guideFor(g, 1, newGuideTracker());
+  assert.equal(guide.kind, "bridge");
+  assert.match(words(guide.title, "en"), /Hold the far square plate/);
+});
 for (let level = 0; level < LEVELS.length; level++)
   test(`chapter ${level + 1}: guidance follows the playable route through to the exit`, () => {
     const tracker = newGuideTracker();
@@ -61,7 +91,7 @@ for (const mode of [2, 3, 6] as const)
     stepGame(g, { 0: { ...idleInput(), fold: true } });
     const holder = guideFor(g, 0, newGuideTracker());
     assert.equal(holder.lesson, "bridge");
-    assert.match(words(holder.body, "en"), /friend must walk/);
+    assert.match(words(holder.body, "en"), /any route/);
     Object.assign(g.players[1], bankPoint(c, c.near));
     const receiver = guideFor(g, 1, newGuideTracker());
     assert.equal(receiver.lesson, "bridge");
@@ -219,11 +249,10 @@ test("gate feedback agrees with real counting, early departure resets and the ga
   assert.match(words(gateStatusCopy(g), "en"), /Leave the plates/);
 });
 
-test("solo gate cue requires only its visible plate; an unrepaired bridge explains why charging is blocked", () => {
+test("solo gate cue counts down on its visible plate even with the earlier bridge unrepaired", () => {
   const g = newGame(1, 1);
   assert.equal(gateState(g).required, 1);
-  assert.match(words(gateStatusCopy(g), "en"), /Repair the bridge/);
-  g.bridgeLatched = true;
+  assert.match(words(gateStatusCopy(g), "en"), /0\/1/);
   Object.assign(g.players[0], LEVELS[1].pads[0], { checkpoint: 1 });
   g.keys = [0];
   const cue = guideFor(g, 0, newGuideTracker());

@@ -1285,7 +1285,7 @@ export class PaperScene {
     });
     const glow = this.portal.getObjectByName("glow") as THREE.Mesh;
     const pm = glow.material as THREE.MeshBasicMaterial;
-    const opened = g.keys.length === l.keys.length && (!l.gate || g.gateOpen);
+    const opened = g.keys.length === l.keys.length;
     pm.opacity = opened ? 0.52 + Math.sin(this.clock * 2) * 0.12 : 0.12;
     if (this.rain) {
       const pos = this.rain.geometry.getAttribute(

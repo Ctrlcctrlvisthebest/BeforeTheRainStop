@@ -261,9 +261,28 @@ function reached(g: Game, p: Bird, s: RouteStep, previous: Point): boolean {
   if (s.requiredKey !== undefined && !g.keys.includes(s.requiredKey))
     return false;
   if (s.kind === "rack") return p.checkpoint >= s.id!;
-  if (s.kind === "pads") return g.gateOpen;
+  if (s.kind === "pads") {
+    if (g.gateOpen) return true;
+    const l = LEVELS[g.level],
+      gate = l.gate;
+    if (!gate) return true;
+    const axis = gate.w < gate.d ? "x" : "z";
+    const direction = Math.sign(l.exit[axis] - gate[axis]);
+    // A player who gets around the physical barrier need not operate its plates.
+    return (
+      (p[axis] - gate[axis]) * direction >
+      (axis === "x" ? gate.w : gate.d) / 2 + 0.25
+    );
+  }
   if (s.kind === "exit") return p.arrived;
-  if (s.kind === "bridge" && !g.bridgeLatched) return false;
+  if (
+    s.kind === "bridge" &&
+    !g.bridgeLatched &&
+    g.players.some((q) => q.bridgeDock) &&
+    distance(p, s.target) < 0.7 &&
+    Math.abs(p.y - s.target.y) < 0.35
+  )
+    return false; // Suggest holding the nearby plate to help the bridge maker; walking on is allowed.
   if (s.kind === "wind")
     return distance(p, s.target) < 1.1 && p.y >= s.target.y - 0.35;
   const a = s.view === 0 ? "x" : "z",
@@ -307,6 +326,19 @@ export function guideFor(
       deaths: p.deaths,
       index: checkpointIndex(g, p),
     });
+  }
+  // Route markers suggest a path. Rejoin a later landmark after a shortcut,
+  // without demanding that the player visit every earlier rack or platform.
+  if (p.grounded && !p.bridgeDock) {
+    for (let i = route.length - 1; i > tracker.index; i--) {
+      if (
+        distance(p, route[i].target) < 0.65 &&
+        Math.abs(p.y - route[i].target.y) < 0.6
+      ) {
+        tracker.index = i;
+        break;
+      }
+    }
   }
   while (
     tracker.index < route.length - 1 &&
@@ -437,19 +469,20 @@ export function guideFor(
               "Solo: hold Shift for 2 seconds to lower the wooden deck.",
             ]
           : [
-              "队友要从你的纸面走到对岸，再踩金色方板 2 秒来接应你。",
-              "A friend must walk across your paper, then hold the far gold plate for 2 seconds.",
+              "同伴到达对岸后，踩住金色方板 2 秒就能放下木桥。任何走法都可以。",
+              "A friend can reach the far bank by any route, then hold the gold plate for 2 seconds to lower the deck.",
             ];
       keys = ["Shift"];
       progress = g.bridgeCharge / 2;
     } else if (holder) {
       target = far;
-      title = g.bridgeCrossed.includes(p.id)
-        ? ["在对岸方板上站住 2 秒", "Hold the far square plate for 2 seconds"]
-        : ["从同伴的纸桥走过去", "Walk across your friend’s paper bridge"];
+      title =
+        distance(p, far) < 0.7 && Math.abs(p.y - far.y) < 0.35
+          ? ["在对岸方板上站住 2 秒", "Hold the far square plate for 2 seconds"]
+          : ["从同伴的纸桥走过去", "Walk across your friend’s paper bridge"];
       body = [
-        "先走过纸面，再站稳对岸金色方板；木桥放下后搭桥者才能跟上。",
-        "Walk over the paper, then stand on the far gold plate so the bridge maker can follow.",
+        "站稳对岸金色方板 2 秒可放下木桥。可以走纸桥，也可以用其他方式到达。",
+        "Hold the far gold plate for 2 seconds to lower the deck. Cross the paper bridge or find another way there.",
       ];
       progress = g.bridgeCharge / 2;
     } else {

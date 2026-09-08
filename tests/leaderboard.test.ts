@@ -16,9 +16,19 @@ import {
   MAX_REPLAY_TICKS,
   MAX_REPLAY_SEGMENTS,
 } from "../src/replay";
-import { boardName, validPlayerToken } from "../src/leaderboard";
+import {
+  boardName,
+  validPlayerToken,
+  RANKING_VERSION,
+} from "../src/leaderboard";
 import { makeRoom, publicRoom, command, joinRoom } from "../src/room";
 import { completeLevel } from "./journey";
+test("relaxed route rules update replay validation while preserving existing leaderboard storage", () => {
+  assert.equal(RANKING_VERSION, 2);
+  for (let level = 0; level < LEVELS.length; level++)
+    for (const mode of MODES)
+      assert.equal(boardName(level, mode), `v1:${mode}:${LEVELS[level].name}`);
+});
 
 test("every legal combination of gameplay inputs survives replay encoding", () => {
   for (let mask = 0; mask < 256; mask++) {
