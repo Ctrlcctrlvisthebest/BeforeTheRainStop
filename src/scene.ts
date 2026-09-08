@@ -18,6 +18,7 @@ import {
 } from "./weather";
 import { campfire, animateFire } from "./fire-scene";
 import { gatePad, gateMark, animateGatePad } from "./gate-scene";
+import { SceneryOcclusion, prepareBackdrop } from "./scenery-occlusion";
 import { isOnGatePad } from "./gate-state";
 import * as THREE from "three";
 import {
@@ -453,6 +454,8 @@ export class PaperScene {
   private scene = new THREE.Scene();
   private root = new THREE.Group();
   private backdrop = new THREE.Group();
+  private sceneryOcclusion = new SceneryOcclusion();
+  private visibilitySubjects: THREE.Vector3[] = [];
   private camera = new THREE.OrthographicCamera();
   private birds: THREE.Group[] = [];
   private rain: THREE.LineSegments | null = null;
@@ -548,6 +551,7 @@ export class PaperScene {
   private build(g: Game) {
     disposeObjectTree(this.root);
     this.root.clear();
+    this.sceneryOcclusion.clear();
     this.guideMarker = new THREE.Group();
     const guideMaterial = new THREE.MeshBasicMaterial({
       color: "#ffe6ab",
@@ -744,6 +748,7 @@ export class PaperScene {
       title.position.set(k.x, k.y + 2.25, k.z - 1.05);
       title.name = "awning-label";
       this.root.add(group, title);
+      this.sceneryOcclusion.add(group);
     });
     l.hazards.forEach((k) => {
       const group = campfire(k.w, k.d, true);
@@ -877,6 +882,7 @@ export class PaperScene {
         )
       )
         return;
+      const canopy = new THREE.Group();
       for (const side of [-1, 1]) {
         const roof = box(
           a.w + 0.25,
@@ -888,10 +894,10 @@ export class PaperScene {
           a.z + (side * a.d) / 4,
         );
         roof.rotation.x = side * 0.085;
-        this.root.add(roof);
+        canopy.add(roof);
       }
       for (const side of [-1, 1])
-        this.root.add(
+        canopy.add(
           box(
             0.12,
             3.4,
@@ -902,11 +908,14 @@ export class PaperScene {
             a.z - a.d / 2,
           ),
         );
+      this.root.add(canopy);
+      this.sceneryOcclusion.add(canopy);
     });
     WEATHER[g.level].awnings.forEach((a, index) => {
+      const canopy = new THREE.Group();
       const rack = wishingRack(a.w, 3.4, index);
       rack.position.set(a.x, a.y - 3.4, a.z - a.d / 2 + 0.12);
-      this.root.add(rack);
+      canopy.add(rack);
       for (const side of [-1, 1]) {
         const roof = box(
           a.w + 0.3,
@@ -918,7 +927,7 @@ export class PaperScene {
           a.z + (side * a.d) / 4,
         );
         roof.rotation.x = side * 0.085;
-        this.root.add(roof);
+        canopy.add(roof);
       }
       const lantern = new THREE.Mesh(
         new THREE.SphereGeometry(0.18, 10, 8),
@@ -928,7 +937,9 @@ export class PaperScene {
       lantern.position.set(a.x + a.w / 2 - 0.3, a.y - 0.4, a.z + 0.8);
       (lantern.material as THREE.MeshStandardMaterial).emissive.set("#e6a354");
       (lantern.material as THREE.MeshStandardMaterial).emissiveIntensity = 1.2;
-      this.root.add(lantern);
+      canopy.add(lantern);
+      this.root.add(canopy);
+      this.sceneryOcclusion.add(canopy);
       const title = textSprite(
         translate(this.language, "小火烤干 · 勿久留"),
         "#bcc9d7",
@@ -964,10 +975,9 @@ export class PaperScene {
     }
     temple.position.set(11, 0, -29);
     this.backdrop.add(temple);
+    prepareBackdrop(this.backdrop);
     this.backdrop.traverse((o) => {
       if (!(o instanceof THREE.Mesh)) return;
-      o.castShadow = false;
-      o.receiveShadow = false;
       const m = o.material as THREE.MeshStandardMaterial;
       m.color.multiply(new THREE.Color("#718497"));
     });
@@ -1388,6 +1398,38 @@ export class PaperScene {
       (this.rain.material as THREE.LineBasicMaterial).opacity =
         rainStrength(g.level, g.motionTime) > 1 ? 0.53 : 0.3;
     }
+    let subjectCount = 0;
+    const addSubject = (x: number, y: number, z: number) => {
+      this.visibilitySubjects[subjectCount] ??= new THREE.Vector3();
+      this.visibilitySubjects[subjectCount++].set(x, y, z);
+    };
+    if (!preview) {
+      g.players.forEach((p, i) => {
+        if (p.arrived || Math.hypot(p.x - player.x, p.z - player.z) >= 12)
+          return;
+        const at = this.birds[i].position;
+        // Protect the rendered silhouette and its landing edge, including
+        // interpolation of a teammate's network position.
+        addSubject(at.x, at.y + 0.05, at.z);
+        addSubject(at.x, at.y + 0.6, at.z);
+        addSubject(at.x, at.y + 1.35, at.z);
+      });
+      addSubject(
+        player.x + (g.view === 0 ? player.facing * 1.5 : 0),
+        player.y + 0.2,
+        player.z - (g.view === 1 ? player.facing * 1.5 : 0),
+      );
+      if (
+        guideTarget &&
+        Math.hypot(guideTarget.x - player.x, guideTarget.z - player.z) < 8
+      )
+        addSubject(guideTarget.x, guideTarget.y + 0.1, guideTarget.z);
+    }
+    this.visibilitySubjects.length = subjectCount;
+    this.sceneryOcclusion.update(
+      this.visibilitySubjects,
+      this.scratch.subVectors(this.camera.position, this.target),
+    );
     this.renderer.render(this.scene, this.camera);
   }
   dispose() {

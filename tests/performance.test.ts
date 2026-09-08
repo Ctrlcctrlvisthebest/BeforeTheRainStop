@@ -6,11 +6,91 @@ import { colorSlab, mergeDecorations } from "../src/render-geometry";
 import { rainFloorAt } from "../src/rain-occlusion";
 import { LEVELS, platformAt } from "../src/game";
 import { WEATHER, BLAZE_ROOFS, SHIELD_RADIUS } from "../src/weather";
+import { prepareBackdrop, SceneryOcclusion } from "../src/scenery-occlusion";
 import {
   disposeObjectTree,
   platformLayer,
   landingHeight,
 } from "../src/scene-resources";
+
+test("background art cannot cover the playable map or cast shadows on it", () => {
+  const backdrop = new THREE.Group();
+  const nested = new THREE.Group();
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(), [
+    new THREE.MeshBasicMaterial({ transparent: true }),
+    new THREE.MeshBasicMaterial(),
+  ]);
+  mesh.castShadow = mesh.receiveShadow = true;
+  nested.add(mesh);
+  backdrop.add(nested);
+  prepareBackdrop(backdrop);
+  assert.equal(mesh.renderOrder, -100);
+  assert.equal(mesh.castShadow, false);
+  assert.equal(mesh.receiveShadow, false);
+  for (const m of mesh.material) {
+    assert.equal(m.transparent, false);
+    assert.equal(m.depthWrite, false);
+    assert.equal(m.depthTest, false);
+  }
+  disposeObjectTree(backdrop);
+});
+
+test("blocking scenery fades for either teammate in both views and during a turn", () => {
+  const scenery = new SceneryOcclusion();
+  const root = new THREE.Group();
+  const material = new THREE.MeshStandardMaterial();
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(4, 0.4, 4), material);
+  roof.position.y = 3.4;
+  roof.castShadow = true;
+  root.add(roof);
+  scenery.add(root);
+  const clearPlayer = new THREE.Vector3(20, 0.5, 20);
+  for (const yaw of [0, Math.PI / 4, Math.PI / 2]) {
+    const direction = new THREE.Vector3(
+      Math.sin(yaw) * 32,
+      7.5,
+      Math.cos(yaw) * 32,
+    );
+    const blockedPlayer = roof.position
+      .clone()
+      .addScaledVector(direction, -0.3);
+    // One player can be in the clear while the other is behind a roof.
+    scenery.update([clearPlayer, blockedPlayer], direction);
+    assert.equal(material.opacity, 0.1);
+    assert.equal(material.transparent, true);
+    assert.equal(material.depthWrite, false);
+    assert.equal(roof.castShadow, false);
+    // A decoration behind the crane must regain its normal appearance.
+    scenery.update([roof.position.clone().add(direction)], direction);
+    assert.equal(material.opacity, 1);
+    assert.equal(material.transparent, false);
+    assert.equal(material.depthWrite, true);
+    assert.equal(roof.castShadow, true);
+  }
+  disposeObjectTree(root);
+});
+
+test("scenery fade restores existing transparency and clears between maps", () => {
+  const scenery = new SceneryOcclusion();
+  const root = new THREE.Group();
+  const material = new THREE.MeshBasicMaterial({
+    transparent: true,
+    opacity: 0.6,
+    depthWrite: false,
+  });
+  root.add(new THREE.Mesh(new THREE.BoxGeometry(), material));
+  scenery.add(root);
+  scenery.update([new THREE.Vector3(0, 0, -2)], new THREE.Vector3(0, 0, 1));
+  assert.equal(material.opacity, 0.06);
+  scenery.update([], new THREE.Vector3(0, 0, 1));
+  assert.equal(material.opacity, 0.6);
+  assert.equal(material.transparent, true);
+  assert.equal(material.depthWrite, false);
+  scenery.clear();
+  scenery.update([new THREE.Vector3(0, 0, -2)], new THREE.Vector3(0, 0, 1));
+  assert.equal(material.opacity, 0.6);
+  disposeObjectTree(root);
+});
 
 test("depth styling distinguishes front and back lanes in both camera views", () => {
   const tile = { x: 0, y: 0, z: 0, w: 10, h: 1, d: 2 };

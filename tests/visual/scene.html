@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="zh">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>场景遮挡回归检查</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #182835;
+        color: #eee6d4;
+        font: 14px system-ui;
+      }
+      header {
+        height: 100px;
+        padding: 12px 20px;
+      }
+      label {
+        margin-right: 18px;
+      }
+      select,
+      button {
+        font: inherit;
+        padding: 4px;
+      }
+      p {
+        margin: 10px 0;
+        color: #a9bdce;
+      }
+      canvas {
+        display: block;
+        width: 100vw;
+        height: calc(100dvh - 100px);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <label
+        >关卡
+        <select id="chapter"></select
+      ></label>
+      <label
+        >人数
+        <select id="mode">
+          <option value="1">单人</option>
+          <option value="2">双人</option>
+        </select></label
+      >
+      <label
+        >位置
+        <select id="location"></select
+      ></label>
+      <label
+        >视角
+        <select id="view">
+          <option value="0">正面</option>
+          <option value="1">侧面</option>
+        </select></label
+      >
+      <label
+        >跟随
+        <select id="local">
+          <option value="0">玩家 1</option>
+          <option value="1">玩家 2</option>
+        </select></label
+      >
+      <button id="turn">转面</button>
+      <p>
+        仅供本地视觉回归：使用真实地图与渲染器，固定角色位置，不运行物理或连接排行榜。此页不进入发布包。
+      </p>
+    </header>
+    <canvas aria-label="场景遮挡回归画面"></canvas>
+    <script type="module" src="./scene.ts"></script>
+  </body>
+</html>
