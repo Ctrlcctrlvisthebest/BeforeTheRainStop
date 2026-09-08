@@ -39,7 +39,7 @@ function controls(g: Game) {
   };
   return { inputs, tick, move };
 }
-for (const level of [1, 3, 6, 10]) {
+for (const level of Object.keys(CROSSINGS).map(Number)) {
   test(`chapter ${level + 1}: low corridor defeats running, jumping and held gliding across the gap`, () => {
     const c = CROSSINGS[level],
       near = bankPoint(c, c.near),
@@ -53,9 +53,17 @@ for (const level of [1, 3, 6, 10]) {
         let crossed = false;
         for (let n = 0; n < 100; n++) {
           stepGame(g, {
-            0: { ...idleInput(), axis: 1, jump: held ? n >= 1 : n === 1 },
+            0: {
+              ...idleInput(),
+              axis: -c.near * (g.view === 0 ? 1 : -1),
+              jump: held ? n >= 1 : n === 1,
+            },
           });
-          if ((p[c.axis] - far[c.axis]) * -c.near > -0.35 && p.y >= -0.05)
+          if (
+            p.deaths === 0 &&
+            (p[c.axis] - far[c.axis]) * -c.near > -0.35 &&
+            p.y >= c.y - 0.05
+          )
             crossed = true;
         }
         assert.equal(crossed, false, `jump from ${jumpStart}, glide ${held}`);
@@ -106,6 +114,13 @@ for (const level of [1, 3, 6, 10]) {
         g.players.forEach((p, i) =>
           Object.assign(p, { x: 11.5 - i * 0.1, y: 0, z: 6 }),
         );
+      if (level >= 12) {
+        g.view = c.axis === "x" ? 0 : 1;
+        const near = bankPoint(c, c.near);
+        g.players.forEach((p, i) =>
+          Object.assign(p, near, { [c.axis]: near[c.axis] + i * 0.2 * c.near }),
+        );
+      }
       const { inputs, tick, move } = controls(g);
       move(0, bankPoint(c, c.near)[c.axis]);
       inputs[0].fold = true;

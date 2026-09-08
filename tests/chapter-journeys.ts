@@ -6,11 +6,13 @@ import {
   type Input,
   type Game,
 } from "../src/game";
+import { completeStormLevel } from "./storm-journeys";
 export function completeExtraLevel(
   level: number,
   observe?: (g: Game) => void,
   beforeStep?: (g: Game, input: Input) => void,
 ) {
+  if (level >= 12) return completeStormLevel(level, observe, beforeStep);
   const g = newGame(1, level),
     b = g.players[0];
   const state = () => ({

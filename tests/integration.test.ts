@@ -155,6 +155,9 @@ for (const [n, level] of [
   [2, 8],
   [3, 10],
   [6, 11],
+  [2, 12],
+  [3, 14],
+  [6, 16],
 ])
   test(`${n} real WebSockets, chapter ${level + 1}: shared state, seat ownership, turn sync and reconnect`, async () => {
     const created = await post("/rooms", {

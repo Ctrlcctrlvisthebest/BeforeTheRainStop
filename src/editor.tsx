@@ -669,7 +669,8 @@ function App() {
             </select>
             <button onClick={() => load(templates[template])}>载入模板</button>
             <p className="muted">
-              所有 12 关都能拆开看、修改与导出。载入操作也可以撤销。
+              所有 {LEVELS.length}{" "}
+              关都能拆开看、修改与导出。载入操作也可以撤销。
             </p>
           </div>
           <div className="legend">

@@ -2,7 +2,7 @@
 
 游戏：`/BeforeTheRainStop/`；独立编辑器：`/BeforeTheRainStop/editor.html`。
 
-编辑器可以从空白小径或现有 12 关开始，在俯视、正面、侧面三种视图中放置和拖动物件。支持精确属性、网格吸附、平移缩放、复制删除、80 步撤销重做、草稿自动保存、导入 JSON、导出 JSON 和单人试玩。试玩共用游戏的物理、天气、纸桥、耐折、存档和引导代码。
+编辑器可以从空白小径或现有 17 关开始，在俯视、正面、侧面三种视图中放置和拖动物件。支持精确属性、网格吸附、平移缩放、复制删除、80 步撤销重做、草稿自动保存、导入 JSON、导出 JSON 和单人试玩。试玩共用游戏的物理、天气、纸桥、耐折、存档和引导代码。
 
 草稿保存在当前浏览器的 `rain-map-editor-v1` 中。结构存在错误时保留上一次有效草稿，界面会提示修复。请导出文件作为可迁移的备份。导入失败不会替换当前地图。地图文件不包含脚本、账号或联机房间。
 
@@ -23,18 +23,24 @@
     "spawn": { "x": -1, "y": 0, "z": 0 },
     "exit": { "x": 9, "y": 0, "z": 0 },
     "platforms": [{ "x": 4, "y": 0, "z": 0, "w": 14, "d": 4, "h": 1 }],
-    "keys": [], "stars": [], "checkpoints": [], "signs": [],
-    "pads": [], "winds": [], "hazards": []
+    "keys": [],
+    "stars": [],
+    "checkpoints": [],
+    "signs": [],
+    "pads": [],
+    "winds": [],
+    "hazards": []
   },
   "weather": {
-    "period": 10, "zones": [],
+    "period": 10,
+    "zones": [],
     "awnings": [{ "x": 0.5, "y": 3.4, "z": 0, "w": 7, "d": 3.8 }]
   },
   "route": [{ "kind": "exit", "target": { "x": 9, "y": 0, "z": 0 }, "view": 0 }]
 }
 ```
 
-正式第 9–12 关在 `src/maps/*.json` 中，直接消费这个格式。编辑器导出的文件无需再转换地形、天气或引导。
+正式第 9–17 关在 `src/maps/*.json` 中，直接消费这个格式。编辑器导出的文件无需再转换地形、天气或引导。
 
 ## 坐标与对象
 
@@ -58,15 +64,15 @@
 
 `route` 按玩家行进顺序排列，最后一项必须是 exit。每步含 `kind`、`target: {x,y,z}`、`view: 0 | 1`。
 
-| kind | 用途与额外字段 |
-| --- | --- |
-| walk / jump | 走到或跳到 target |
-| rack / key | `id` 对应 checkpoints / keys 的数组下标 |
-| bridge | 必须有 crossing，target 是对岸 |
-| wind | `from: {x,y,z}` 是风柱底部，target 是上方落脚平台 |
-| ferry | `id` 指向有 motion 的平台，target 是对岸；可选 requiredKey 指向必须乘船拿到的钥匙 |
-| pads | 必须存在开门踏板 |
-| exit | 指向终点 |
+| kind        | 用途与额外字段                                                                    |
+| ----------- | --------------------------------------------------------------------------------- |
+| walk / jump | 走到或跳到 target                                                                 |
+| rack / key  | `id` 对应 checkpoints / keys 的数组下标                                           |
+| bridge      | 必须有 crossing，target 是对岸                                                    |
+| wind        | `from: {x,y,z}` 是风柱底部，target 是上方落脚平台                                 |
+| ferry       | `id` 指向有 motion 的平台，target 是对岸；可选 requiredKey 指向必须乘船拿到的钥匙 |
+| pads        | 必须存在开门踏板                                                                  |
+| exit        | 指向终点                                                                          |
 
 编辑器会自动维护钥匙、存档架、纸桥、踏板、终点的引导坐标，并在删除对象时修正索引。走路、跳跃、转弯的中间点需要手动安排。正面与侧面引导决定玩家何时换轴。
 
@@ -75,7 +81,7 @@
 ## 加入正式游戏
 
 1. 在编辑器试玩并导出，把 JSON 放入 `src/maps/`。
-2. 在 `src/challenge-maps.ts` 导入文件，并追加到 `CHALLENGE_MAPS` 的原始文件数组中，例如 `import custom from "./maps/13-custom.rain-map.json"`。保持已有文件的顺序，房间用关卡索引保存进度。
+2. 在 `src/challenge-maps.ts` 导入文件，并追加到 `CHALLENGE_MAPS` 的原始文件数组中，例如 `import custom from "./maps/18-custom.rain-map.json"`。保持已有文件的顺序，房间用关卡索引保存进度。
 3. `LEVELS`、天气、纸桥、引导、翻译会自动从文件注册。无需分别改五处数据。
 4. 为地图补充正常输入通关路线与测试，运行 `npm test`、`npm run build`。多人地图还需验证桥的接应、开门踏板、六人起点及等待区。
 5. 同步发布 GitHub Pages 和联机 Worker，让前端与服务端拥有相同关卡表。
