@@ -106,26 +106,48 @@ test("local Worker verifies clears, publishes top three, replaces faster times a
     headers: { Origin: "https://untrusted.example" },
   });
   assert.equal(forbidden.status, 403);
-  const toyOrigin = "https://www.bilibili.com";
-  const preflight = await fetch(`${base}/api/rooms`, {
-    method: "OPTIONS",
-    headers: {
-      Origin: toyOrigin,
-      "Access-Control-Request-Method": "POST",
-      "Access-Control-Request-Headers": "content-type,authorization",
-    },
-  });
-  assert.equal(preflight.status, 204);
-  assert.equal(preflight.headers.get("Access-Control-Allow-Origin"), toyOrigin);
-  const toyBoard = await fetch(`${base}/api/leaderboard?level=12&mode=1`, {
-    headers: { Origin: toyOrigin },
-  });
-  assert.equal(toyBoard.status, 200);
-  assert.equal(toyBoard.headers.get("Access-Control-Allow-Origin"), toyOrigin);
-  const lookalike = await fetch(`${base}/api/leaderboard?level=12&mode=1`, {
-    headers: { Origin: "https://www.bilibili.com.attacker.example" },
-  });
-  assert.equal(lookalike.status, 403);
+  for (const toyOrigin of [
+    "https://www.bilibili.com",
+    "https://www.bilibilitoy.com",
+  ]) {
+    for (const path of ["/api/rooms", "/api/leaderboard"]) {
+      const preflight = await fetch(`${base}${path}`, {
+        method: "OPTIONS",
+        headers: {
+          Origin: toyOrigin,
+          "Access-Control-Request-Method": "POST",
+          "Access-Control-Request-Headers": "content-type,authorization",
+        },
+      });
+      assert.equal(preflight.status, 204);
+      assert.equal(
+        preflight.headers.get("Access-Control-Allow-Origin"),
+        toyOrigin,
+      );
+    }
+    const toyBoard = await fetch(`${base}/api/leaderboard?level=12&mode=1`, {
+      headers: { Origin: toyOrigin },
+    });
+    assert.equal(toyBoard.status, 200);
+    assert.equal(
+      toyBoard.headers.get("Access-Control-Allow-Origin"),
+      toyOrigin,
+    );
+    const uploaded = await fetch(`${base}/api/leaderboard`, {
+      method: "POST",
+      headers: { Origin: toyOrigin, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    assert.equal(uploaded.status, 200);
+    assert.equal(
+      uploaded.headers.get("Access-Control-Allow-Origin"),
+      toyOrigin,
+    );
+    const lookalike = await fetch(`${base}/api/leaderboard?level=12&mode=1`, {
+      headers: { Origin: `${toyOrigin}.attacker.example` },
+    });
+    assert.equal(lookalike.status, 403);
+  }
   const room = await fetch(`${base}/api/rooms`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
