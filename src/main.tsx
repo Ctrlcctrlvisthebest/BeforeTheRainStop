@@ -1,3 +1,4 @@
+import { rankedClear } from "./score-rules";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
@@ -892,7 +893,7 @@ function App() {
                     : formatTime(selectedBest)}
                 </strong>
               </div>
-              <small>{t("仅保存在此浏览器 · 按人数分别记录")}</small>
+              <small>{t("全星通关才计入记录 · 按人数分别记录")}</small>
             </div>
             <div className="chapter-brief">
               {level >= 8 && (
@@ -1502,6 +1503,16 @@ function App() {
             <p>
               {t(l.name)} · {hud.flips} {t("次转面")}
             </p>
+            {!rankedClear(hud) && (
+              <div className="finish-record">
+                <p>
+                  {t("本次用时")} · {formatTime(Math.round(hud.time * 1000))}
+                </p>
+                <p role="status">
+                  {t("未收齐星星：本次通关不计入记录，也不会上传排行榜。")}
+                </p>
+              </div>
+            )}
             {finish && (
               <div
                 className={`finish-record ${finish.improved ? "new-best" : ""}`}
@@ -1543,43 +1554,45 @@ function App() {
                 </small>
               </div>
             )}
-            <div className="ranking-upload" role="status">
-              {t(
-                rankingStatus === "saved"
-                  ? "成绩已核验，榜单已更新。"
-                  : rankingStatus === "retry"
-                    ? "成绩暂未上传，请稍后重试。"
-                    : rankingStatus === "outdated"
-                      ? "玩法已更新，请刷新后重新挑战。本地成绩已保留。"
-                      : rankingStatus === "name-rejected"
-                        ? "昵称未通过审核，本地成绩已保留。可使用「旅人」重新上传。"
-                        : rankingStatus === "rejected"
-                          ? "成绩未通过核验，仅保留本地成绩。"
-                          : rankingStatus === "unavailable"
-                            ? "本次过程记录不完整，仅保留本地成绩。"
-                            : "正在核验并上传成绩…",
-              )}
-              {rankingStatus === "retry" && (
-                <button
-                  disabled={retryingTeamScore}
-                  onClick={session ? retryTeamScore : ranking.retry}
-                >
-                  {t("重试上传")}
-                </button>
-              )}
-              {rankingStatus === "name-rejected" && (
-                <button
-                  onClick={() => {
-                    soloName.current = "旅人";
-                    setName("旅人");
-                    save("local", "rain-name", "旅人");
-                    ranking.retryAsTraveler();
-                  }}
-                >
-                  {t("使用「旅人」重新上传")}
-                </button>
-              )}
-            </div>
+            {rankedClear(hud) && (
+              <div className="ranking-upload" role="status">
+                {t(
+                  rankingStatus === "saved"
+                    ? "成绩已核验，榜单已更新。"
+                    : rankingStatus === "retry"
+                      ? "成绩暂未上传，请稍后重试。"
+                      : rankingStatus === "outdated"
+                        ? "玩法已更新，请刷新后重新挑战。本地成绩已保留。"
+                        : rankingStatus === "name-rejected"
+                          ? "昵称未通过审核，本地成绩已保留。可使用「旅人」重新上传。"
+                          : rankingStatus === "rejected"
+                            ? "成绩未通过核验，仅保留本地成绩。"
+                            : rankingStatus === "unavailable"
+                              ? "本次过程记录不完整，仅保留本地成绩。"
+                              : "正在核验并上传成绩…",
+                )}
+                {rankingStatus === "retry" && (
+                  <button
+                    disabled={retryingTeamScore}
+                    onClick={session ? retryTeamScore : ranking.retry}
+                  >
+                    {t("重试上传")}
+                  </button>
+                )}
+                {rankingStatus === "name-rejected" && (
+                  <button
+                    onClick={() => {
+                      soloName.current = "旅人";
+                      setName("旅人");
+                      save("local", "rain-name", "旅人");
+                      ranking.retryAsTraveler();
+                    }}
+                  >
+                    {t("使用「旅人」重新上传")}
+                  </button>
+                )}
+              </div>
+            )}
             <Leaderboard
               level={hud.level}
               mode={hud.mode}

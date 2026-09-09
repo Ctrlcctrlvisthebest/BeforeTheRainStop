@@ -1,10 +1,10 @@
+import { CAMPAIGN_VERSION } from "./campaign-version";
 import { LEVELS, isMode, type Mode } from "./game";
 
 // Replay protocol: old clients must refresh after gameplay rules change.
-export const RANKING_VERSION = 2;
-// These rules only relax route restrictions; previous achievements stay valid.
-// Keep their existing boards and allow faster new routes to replace old times.
-const BOARD_STORAGE_VERSION = 1;
+export const RANKING_VERSION = CAMPAIGN_VERSION;
+// Leave legacy boards intact; only full-star runs on the rebuilt maps compete.
+const BOARD_STORAGE_VERSION = 2;
 export interface RankingEntry {
   id: string;
   names: string[];

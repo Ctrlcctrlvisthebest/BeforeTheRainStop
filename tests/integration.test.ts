@@ -1,3 +1,4 @@
+import { CAMPAIGN_VERSION } from "../src/campaign-version";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { idleInput, MAX_FOLDS } from "../src/game";
@@ -8,7 +9,11 @@ async function post(path: string, body: unknown) {
     const r = await fetch(base + "/api" + path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: JSON.stringify(
+        body && typeof body === "object"
+          ? { ...body, rulesVersion: CAMPAIGN_VERSION }
+          : body,
+      ),
     });
     const d = (await r.json()) as any;
     // The suite creates twelve rooms; respect the service's ten-per-minute limit.
@@ -38,7 +43,10 @@ function peer(code: string, token: string) {
     errors: [] as string[],
     seq: 0,
   };
-  ws.onopen = () => ws.send(JSON.stringify({ type: "hello", token }));
+  ws.onopen = () =>
+    ws.send(
+      JSON.stringify({ version: CAMPAIGN_VERSION, type: "hello", token }),
+    );
   ws.onmessage = (e) => {
     const d = JSON.parse(String(e.data));
     if (d.type === "state") {
@@ -77,13 +85,20 @@ for (const transport of ["http", "websocket"] as const)
               "Content-Type": "application/json",
               Authorization: `Bearer ${joined.token}`,
             },
-            body: JSON.stringify({ type: "leave" }),
+            body: JSON.stringify({
+              type: "leave",
+              rulesVersion: CAMPAIGN_VERSION,
+            }),
           },
         );
         assert.equal(response.status, 200);
       } else
         old.ws.send(
-          JSON.stringify({ type: "command", command: { type: "leave" } }),
+          JSON.stringify({
+            version: CAMPAIGN_VERSION,
+            type: "command",
+            command: { type: "leave" },
+          }),
         );
       await until(
         () =>
@@ -108,7 +123,10 @@ for (const transport of ["http", "websocket"] as const)
             "Content-Type": "application/json",
             Authorization: `Bearer ${joined.token}`,
           },
-          body: JSON.stringify({ type: "leave" }),
+          body: JSON.stringify({
+            type: "leave",
+            rulesVersion: CAMPAIGN_VERSION,
+          }),
         },
       );
       assert.equal(rejected.status, 401);
@@ -118,7 +136,11 @@ for (const transport of ["http", "websocket"] as const)
         "array message rejected",
       );
       host.ws.send(
-        JSON.stringify({ type: "command", command: { type: "start" } }),
+        JSON.stringify({
+          version: CAMPAIGN_VERSION,
+          type: "command",
+          command: { type: "start" },
+        }),
       );
       await until(
         () => !!replacement!.room?.game,
@@ -131,6 +153,7 @@ for (const transport of ["http", "websocket"] as const)
       const x = replacement.room!.game!.players[next.slot].x;
       replacement.ws.send(
         JSON.stringify({
+          version: CAMPAIGN_VERSION,
           type: "input",
           gameId: replacement.room!.game!.id,
           seq: 1,
@@ -179,7 +202,11 @@ for (const [n, level] of [
         "connect",
       );
       peers[0].ws.send(
-        JSON.stringify({ type: "command", command: { type: "start" } }),
+        JSON.stringify({
+          version: CAMPAIGN_VERSION,
+          type: "command",
+          command: { type: "start" },
+        }),
       );
       await until(
         () => peers.every((p) => p.room?.game?.status === "playing"),
@@ -188,6 +215,7 @@ for (const [n, level] of [
       const id = peers[0].room!.game!.id;
       peers[0].ws.send(
         JSON.stringify({
+          version: CAMPAIGN_VERSION,
           type: "input",
           gameId: id,
           seq: ++peers[0].seq,
@@ -198,6 +226,7 @@ for (const [n, level] of [
       await until(() => peers[0].room!.game!.players[0].x > 0, "movement");
       peers[0].ws.send(
         JSON.stringify({
+          version: CAMPAIGN_VERSION,
           type: "input",
           gameId: id,
           seq: ++peers[0].seq,
@@ -216,6 +245,7 @@ for (const [n, level] of [
       );
       peers[0].ws.send(
         JSON.stringify({
+          version: CAMPAIGN_VERSION,
           type: "input",
           gameId: id,
           seq: ++peers[0].seq,
@@ -234,6 +264,7 @@ for (const [n, level] of [
       );
       peers[0].ws.send(
         JSON.stringify({
+          version: CAMPAIGN_VERSION,
           type: "input",
           gameId: id,
           seq: ++peers[0].seq,
@@ -247,6 +278,7 @@ for (const [n, level] of [
       const sendGuest = (input: ReturnType<typeof idleInput>) =>
         peers[1].ws.send(
           JSON.stringify({
+            version: CAMPAIGN_VERSION,
             type: "input",
             gameId: id,
             seq: ++peers[1].seq,
@@ -274,6 +306,7 @@ for (const [n, level] of [
       sendGuest(idleInput());
       peers[1].ws.send(
         JSON.stringify({
+          version: CAMPAIGN_VERSION,
           type: "input",
           gameId: id,
           seq: ++peers[1].seq,
@@ -283,6 +316,7 @@ for (const [n, level] of [
       await until(() => peers.every((p) => p.room!.game!.view === 1), "turn");
       peers[1].ws.send(
         JSON.stringify({
+          version: CAMPAIGN_VERSION,
           type: "input",
           gameId: id,
           seq: ++peers[1].seq,
@@ -332,7 +366,11 @@ for (const capacity of [2, 3, 6])
         "bridge party ready",
       );
       peers[0].ws.send(
-        JSON.stringify({ type: "command", command: { type: "start" } }),
+        JSON.stringify({
+          version: CAMPAIGN_VERSION,
+          type: "command",
+          command: { type: "start" },
+        }),
       );
       await until(
         () => peers.every((p) => !!p.room?.game),
@@ -341,6 +379,7 @@ for (const capacity of [2, 3, 6])
       const send = (id: number, input: ReturnType<typeof idleInput>) =>
         peers[id].ws.send(
           JSON.stringify({
+            version: CAMPAIGN_VERSION,
             type: "input",
             gameId: peers[id].room!.game!.id,
             seq: ++peers[id].seq,
@@ -421,12 +460,17 @@ for (const capacity of [2, 3, 6])
         "fire party ready",
       );
       peers[0].ws.send(
-        JSON.stringify({ type: "command", command: { type: "start" } }),
+        JSON.stringify({
+          version: CAMPAIGN_VERSION,
+          type: "command",
+          command: { type: "start" },
+        }),
       );
       await until(() => peers.every((p) => !!p.room?.game), "fire scene ready");
       const send = (input: ReturnType<typeof idleInput>) =>
         peers[0].ws.send(
           JSON.stringify({
+            version: CAMPAIGN_VERSION,
             type: "input",
             gameId: peers[0].room!.game!.id,
             seq: ++peers[0].seq,
@@ -505,7 +549,11 @@ for (const capacity of [2, 3, 6])
         "connect new chapter",
       );
       peers[0].ws.send(
-        JSON.stringify({ type: "command", command: { type: "start" } }),
+        JSON.stringify({
+          version: CAMPAIGN_VERSION,
+          type: "command",
+          command: { type: "start" },
+        }),
       );
       await until(
         () => peers.every((p) => p.room?.game?.status === "playing"),
@@ -516,6 +564,7 @@ for (const capacity of [2, 3, 6])
       const send = (input: Partial<ReturnType<typeof idleInput>> = {}) =>
         peers[0].ws.send(
           JSON.stringify({
+            version: CAMPAIGN_VERSION,
             type: "input",
             gameId: game().id,
             seq: ++peers[0].seq,
@@ -635,7 +684,11 @@ test("quick restart synchronizes a fresh run and drops held inputs and stale com
       "restart peers online",
     );
     host.ws.send(
-      JSON.stringify({ type: "command", command: { type: "start" } }),
+      JSON.stringify({
+        version: CAMPAIGN_VERSION,
+        type: "command",
+        command: { type: "start" },
+      }),
     );
     await until(
       () => !!host.room?.game && !!guest.room?.game,
@@ -644,6 +697,7 @@ test("quick restart synchronizes a fresh run and drops held inputs and stale com
     const oldId = host.room!.game!.id;
     host.ws.send(
       JSON.stringify({
+        version: CAMPAIGN_VERSION,
         type: "input",
         gameId: oldId,
         seq: ++host.seq,
@@ -656,6 +710,7 @@ test("quick restart synchronizes a fresh run and drops held inputs and stale com
     );
     host.ws.send(
       JSON.stringify({
+        version: CAMPAIGN_VERSION,
         type: "command",
         command: { type: "restart", gameId: oldId, next: false },
       }),
@@ -668,6 +723,7 @@ test("quick restart synchronizes a fresh run and drops held inputs and stale com
     assert.ok(guest.room!.game!.time > 0);
     guest.ws.send(
       JSON.stringify({
+        version: CAMPAIGN_VERSION,
         type: "command",
         command: { type: "restart", gameId: oldId, next: false },
       }),
@@ -693,12 +749,14 @@ test("quick restart synchronizes a fresh run and drops held inputs and stale com
     }
     host.ws.send(
       JSON.stringify({
+        version: CAMPAIGN_VERSION,
         type: "command",
         command: { type: "restart", gameId: oldId, next: false },
       }),
     );
     host.ws.send(
       JSON.stringify({
+        version: CAMPAIGN_VERSION,
         type: "input",
         gameId: oldId,
         seq: ++host.seq,

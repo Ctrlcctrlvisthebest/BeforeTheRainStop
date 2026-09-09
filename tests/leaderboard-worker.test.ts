@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { build } from "esbuild";
-import { newGame, type Mode } from "../src/game";
+import { LEVELS, newGame, type Mode } from "../src/game";
 import { type Room } from "../src/room";
 import { RANKING_VERSION } from "../src/leaderboard";
 import { ReplayRecorder } from "../src/replay";
@@ -84,6 +84,8 @@ test("SQLite keeps the global fastest three; faster replacements, ties and persi
   const ctx = context(),
     board = new RainLeaderboard(ctx, {});
   const score = (participant: string, timeMs: number, achievedAt = 100) => ({
+    version: RANKING_VERSION,
+    stars: LEVELS[0].stars.map((_, id) => id),
     participant,
     timeMs,
     achievedAt,
@@ -120,11 +122,11 @@ test("solo RPC derives time from the replay, ignores a claimed time, sanitizes n
   const ctx = context(),
     board = new RainLeaderboard(ctx, {}),
     recorder = new ReplayRecorder();
-  const game = completeLevel(0, undefined, (g, input) =>
+  const game = completeLevel(12, undefined, (g, input) =>
     recorder.record(g, input),
   );
   const body = {
-    level: 0,
+    level: 12,
     version: RANKING_VERSION,
     replay: recorder.snapshot(game),
     name: "<Rain>\u0000",
@@ -165,6 +167,8 @@ test("historical leaderboard names are masked on read and queued team scores ret
     { id: "old-clear", names: ["旅人"], timeMs: 5000, achievedAt: 100 },
   ]);
   board.submitVerified({
+    version: RANKING_VERSION,
+    stars: LEVELS[0].stars.map((_, id) => id),
     participant: "old-team",
     id: "queued-clear",
     level: 0,
@@ -252,6 +256,7 @@ for (const mode of [2, 3, 6] as Mode[])
     room.phase = "game";
     room.game = newGame(mode, 0, "finished");
     room.game.status = "won";
+    room.game.stars = LEVELS[0].stars.map((_, id) => id);
     room.game.time = 12.345;
     roomObject.enqueueScore(room);
     await ctx.drain();
@@ -288,3 +293,83 @@ for (const mode of [2, 3, 6] as Mode[])
     ctx.db.close();
     boardCtx.db.close();
   });
+
+test("a valid clear without all stars cannot claim a ranked score", () => {
+  const ctx = context(),
+    board = new RainLeaderboard(ctx, {}),
+    recorder = new ReplayRecorder();
+  const game = completeLevel(0, undefined, (g, input) =>
+    recorder.record(g, input),
+  );
+  assert.ok(game.stars.length < LEVELS[0].stars.length);
+  const result = board.submitSolo(
+    {
+      level: 0,
+      version: RANKING_VERSION,
+      name: "Paper",
+      stars: LEVELS[0].stars.map((_, id) => id),
+      replay: recorder.snapshot(game),
+    },
+    "A",
+  );
+  assert.equal(result.status, 400);
+  assert.deepEqual(board.top(), []);
+  ctx.db.close();
+});
+
+for (const mode of [2, 3, 6] as Mode[])
+  test(`${mode} players: missing stars never enter the upload queue`, async () => {
+    const ctx = context(),
+      object = new RainRoom(ctx, {});
+    await ctx.ready();
+    await object.operate("create", "ABCDEFGH", "", {
+      capacity: mode,
+      level: 0,
+      name: "Paper",
+    });
+    const room = object.room as Room;
+    room.game = newGame(mode, 0, "incomplete");
+    room.game.status = "won";
+    room.game.time = 10;
+    object.enqueueScore(room);
+    assert.equal(room.rankingStatus, undefined);
+    assert.equal(
+      ctx.db.prepare("SELECT COUNT(*) n FROM score_outbox").get()!.n,
+      0,
+    );
+    ctx.db.close();
+  });
+
+test("old map sessions return to lobby and old queued scores stay out of new boards", async () => {
+  const ctx = context(),
+    object = new RainRoom(ctx, {});
+  await ctx.ready();
+  await object.operate("create", "ABCDEFGH", "", {
+    capacity: 2,
+    level: 0,
+    name: "Paper",
+  });
+  const room = object.room as Room;
+  room.game = newGame(2, 0, "old");
+  room.game.rulesVersion = 2;
+  room.phase = "game";
+  object.save(room);
+  ctx.db
+    .prepare("INSERT INTO score_outbox VALUES(?,?)")
+    .run("old", JSON.stringify({ id: "old", version: 2 }));
+  const reloaded = new RainRoom(ctx, {});
+  await ctx.ready();
+  assert.equal(reloaded.room.phase, "lobby");
+  assert.equal(reloaded.room.game, null);
+  assert.equal(reloaded.room.players.length, 1);
+  await reloaded.alarm();
+  assert.equal(
+    ctx.db.prepare("SELECT COUNT(*) n FROM score_outbox").get()!.n,
+    0,
+  );
+  assert.equal(
+    ctx.db.prepare("SELECT COUNT(*) n FROM legacy_score_outbox").get()!.n,
+    1,
+  );
+  ctx.db.close();
+});

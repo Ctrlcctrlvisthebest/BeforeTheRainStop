@@ -1,3 +1,4 @@
+import { CAMPAIGN_VERSION } from "./campaign-version";
 import { EXTRA_LEVELS } from "./chapters";
 import { CHALLENGE_MAPS } from "./challenge-maps";
 import {
@@ -319,6 +320,7 @@ export interface Bird extends Point {
   support: number;
 }
 export interface Game {
+  rulesVersion: number;
   id: string;
   mode: Mode;
   level: number;
@@ -346,6 +348,7 @@ export function isMode(v: unknown): v is Mode {
 export function newGame(mode: Mode, level = 0, id = "solo"): Game {
   if (!isMode(mode) || !LEVELS[level]) throw new Error("无效模式或关卡");
   return {
+    rulesVersion: CAMPAIGN_VERSION,
     id,
     mode,
     level,

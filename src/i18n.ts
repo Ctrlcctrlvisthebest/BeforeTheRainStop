@@ -2,6 +2,13 @@ import { MAP_TRANSLATIONS } from "./challenge-maps";
 export type Language = "zh" | "en";
 const english: Record<string, string> = {
   ...MAP_TRANSLATIONS,
+  "地图与计分规则已更新，请刷新页面重新加入。":
+    "Maps and scoring rules changed. Reload this page and rejoin.",
+  "未收齐星星：本次通关不计入记录，也不会上传排行榜。":
+    "Stars missing: this clear does not count as a record and will not be ranked.",
+  "全星通关才计入记录 · 按人数分别记录":
+    "All-star records only · separate by player count",
+  "全星通关 · 用时越短，排名越高": "All-star clears · faster ranks higher",
   "昵称含有不允许的内容，请换一个名字。":
     "This nickname contains disallowed content. Please choose another name.",
   "昵称过长，请控制在 16 个字符以内。":

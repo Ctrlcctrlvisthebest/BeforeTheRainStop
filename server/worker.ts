@@ -1,3 +1,5 @@
+import { rankedClear } from "../src/score-rules";
+import { CAMPAIGN_VERSION } from "../src/campaign-version";
 import { DurableObject } from "cloudflare:workers";
 import {
   authenticate,
@@ -11,7 +13,11 @@ import {
   type PublicRoom,
 } from "../src/room";
 import { cleanInput, idleInput, stepGame, type Inputs } from "../src/game";
-import { boardName, validPlayerToken } from "../src/leaderboard";
+import {
+  boardName,
+  validPlayerToken,
+  RANKING_VERSION,
+} from "../src/leaderboard";
 import { NamePolicyError } from "./name-policy";
 import type { VerifiedScore } from "./leaderboard";
 export { RainLeaderboard } from "./leaderboard";
@@ -55,6 +61,15 @@ export class RainRoom extends DurableObject<Env> {
         .exec<{ data: string }>("SELECT data FROM room WHERE id=1")
         .toArray();
       this.room = rows[0] ? (JSON.parse(rows[0].data) as Room) : null;
+      if (this.room?.game && this.room.game.rulesVersion !== CAMPAIGN_VERSION) {
+        this.room.game = null;
+        this.room.phase = "lobby";
+        this.room.votes = [];
+        this.room.voteNext = null;
+        delete this.room.rankingStatus;
+        this.room.revision++;
+        this.save(this.room);
+      }
       if (this.room) {
         const online = new Set(
           this.ctx
@@ -85,10 +100,12 @@ export class RainRoom extends DurableObject<Env> {
   }
   private enqueueScore(room: Room) {
     const g = room.game;
-    if (!g || g.status !== "won" || room.rankingStatus) return;
+    if (!g || !rankedClear(g) || room.rankingStatus) return;
     // Credentials are never exposed in the public room or leaderboard response.
     // Older rooms without persistent ranking identities use their private room tokens.
     const score: VerifiedScore = {
+      version: RANKING_VERSION,
+      stars: [...g.stars],
       id: g.id,
       level: g.level,
       mode: g.mode,
@@ -127,6 +144,21 @@ export class RainRoom extends DurableObject<Env> {
       if (!row) break;
       try {
         const score = JSON.parse(row.data) as VerifiedScore;
+        if (score.version !== RANKING_VERSION) {
+          this.ctx.storage.sql.exec(
+            "CREATE TABLE IF NOT EXISTS legacy_score_outbox(id TEXT PRIMARY KEY,data TEXT NOT NULL)",
+          );
+          this.ctx.storage.sql.exec(
+            "INSERT OR IGNORE INTO legacy_score_outbox(id,data) VALUES(?,?)",
+            row.id,
+            row.data,
+          );
+          this.ctx.storage.sql.exec(
+            "DELETE FROM score_outbox WHERE id=?",
+            row.id,
+          );
+          continue;
+        }
         await this.env.LEADERBOARDS.getByName(
           boardName(score.level, score.mode),
         ).submitVerified(score);
@@ -351,6 +383,19 @@ export class RainRoom extends DurableObject<Env> {
       if (!raw || typeof raw !== "object" || Array.isArray(raw))
         throw new RoomError("消息格式无效");
       const m = raw as Record<string, unknown>;
+      if (
+        ["hello", "input", "command"].includes(String(m.type)) &&
+        m.version !== CAMPAIGN_VERSION
+      ) {
+        ws.send(
+          JSON.stringify({
+            type: "error",
+            error: "地图与计分规则已更新，请刷新页面重新加入。",
+          }),
+        );
+        ws.close(4003, "Refresh for updated maps");
+        return;
+      }
       const a = ws.deserializeAttachment() as Attachment;
       const r = this.room;
       if (!r || Date.now() >= r.expiresAt) {
@@ -554,7 +599,7 @@ export default {
       const url = new URL(request.url);
       if (url.pathname === "/api/health" && request.method === "GET")
         return Response.json(
-          { ok: true, game: "before-the-rain", version: 2 },
+          { ok: true, game: "before-the-rain", version: CAMPAIGN_VERSION },
           { headers },
         );
       if (url.pathname === "/api/leaderboard") {
@@ -637,6 +682,8 @@ export default {
         if (!/^[a-f0-9-]{36}$/.test(token))
           throw new RoomError("请先加入房间", 401);
       }
+      if (kind === "command" && body.rulesVersion !== CAMPAIGN_VERSION)
+        throw new RoomError("地图与计分规则已更新，请刷新页面重新加入。", 409);
       const result = await env.ROOMS.getByName("v2:" + roomCode).operate(
         kind,
         roomCode,

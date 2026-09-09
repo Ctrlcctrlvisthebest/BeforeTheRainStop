@@ -219,7 +219,9 @@ test("timed fire visuals use the same active window as damage", () => {
     );
   }
 });
-for (const level of [10, 11, 12, 13, 14, 15, 16])
+for (const level of [10, 11, 12, 13, 14, 15, 16].filter(
+  (level) => LEVELS[level].gate,
+))
   for (const mode of [1, 2, 3, 6] as const)
     test(`challenge ${level + 1}: ${mode} players can hold the gate without overheating`, () => {
       const g = newGame(mode, level);

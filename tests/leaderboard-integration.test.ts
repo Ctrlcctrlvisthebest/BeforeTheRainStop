@@ -10,15 +10,15 @@ const base = process.env.TEST_SERVER ?? "http://127.0.0.1:8788";
 if (!["localhost", "127.0.0.1", "[::1]"].includes(new URL(base).hostname))
   throw new Error("Leaderboard integration tests require a local Worker");
 const recorder = new ReplayRecorder();
-const game = completeLevel(0, undefined, (g, input) =>
+const game = completeLevel(12, undefined, (g, input) =>
   recorder.record(g, input),
 );
 const replay = recorder.snapshot(game)!;
 const slow: Replay = [[1, 30], ...replay];
-assert.equal(verifyReplay(0, slow).status, "won");
+assert.equal(verifyReplay(12, slow).status, "won");
 
 test("local Worker verifies clears, publishes top three, replaces faster times and protects board boundaries", async () => {
-  const get = async (query = "level=0&mode=1") =>
+  const get = async (query = "level=12&mode=1") =>
     fetch(`${base}/api/leaderboard?${query}`);
   const post = async (body: unknown) =>
     fetch(`${base}/api/leaderboard`, {
@@ -28,7 +28,7 @@ test("local Worker verifies clears, publishes top three, replaces faster times a
     });
   const body = {
     version: RANKING_VERSION,
-    level: 0,
+    level: 12,
     replay,
     playerToken: crypto.randomUUID(),
     name: "雨中旅人",
@@ -102,7 +102,7 @@ test("local Worker verifies clears, publishes top three, replaces faster times a
     (await post({ ...body, padding: "x".repeat(512 * 1024) })).status,
     413,
   );
-  const forbidden = await fetch(`${base}/api/leaderboard?level=0&mode=1`, {
+  const forbidden = await fetch(`${base}/api/leaderboard?level=12&mode=1`, {
     headers: { Origin: "https://untrusted.example" },
   });
   assert.equal(forbidden.status, 403);
@@ -117,12 +117,12 @@ test("local Worker verifies clears, publishes top three, replaces faster times a
   });
   assert.equal(preflight.status, 204);
   assert.equal(preflight.headers.get("Access-Control-Allow-Origin"), toyOrigin);
-  const toyBoard = await fetch(`${base}/api/leaderboard?level=0&mode=1`, {
+  const toyBoard = await fetch(`${base}/api/leaderboard?level=12&mode=1`, {
     headers: { Origin: toyOrigin },
   });
   assert.equal(toyBoard.status, 200);
   assert.equal(toyBoard.headers.get("Access-Control-Allow-Origin"), toyOrigin);
-  const lookalike = await fetch(`${base}/api/leaderboard?level=0&mode=1`, {
+  const lookalike = await fetch(`${base}/api/leaderboard?level=12&mode=1`, {
     headers: { Origin: "https://www.bilibili.com.attacker.example" },
   });
   assert.equal(lookalike.status, 403);

@@ -1,7 +1,8 @@
+import { rankedClear } from "./score-rules";
 import { LEVELS, MODES, isMode, type Game, type Mode } from "./game";
 import { save, stored } from "./storage";
 
-export const RECORDS_KEY = "rain-best-times-v1";
+export const RECORDS_KEY = "rain-best-times-all-stars-v3";
 export type BestTimes = Record<string, number>;
 // Names identify the built-in chapters independently of their menu position or UI language.
 const chapterNames = LEVELS.map((level) => level.name);
@@ -57,7 +58,7 @@ export class LocalRecords {
 
   /** Only call with the actual simulation/server state, never a predicted frame. */
   record(game: Game): Completion | null {
-    if (game.status !== "won") return null;
+    if (!rankedClear(game)) return null;
     const key = recordKey(game.level, game.mode);
     const timeMs = Math.round(game.time * 1000);
     if (!key || !validTime(timeMs)) return null;

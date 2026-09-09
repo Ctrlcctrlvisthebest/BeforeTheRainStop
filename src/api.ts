@@ -1,3 +1,4 @@
+import { CAMPAIGN_VERSION } from "./campaign-version";
 import type { PublicRoom } from "./room";
 import type { Input, Inputs } from "./game";
 export interface Session {
@@ -25,7 +26,14 @@ export async function api(
       ...(body === undefined ? {} : { "Content-Type": "application/json" }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body:
+      body === undefined
+        ? undefined
+        : JSON.stringify(
+            typeof body === "object" && body !== null
+              ? { ...body, rulesVersion: CAMPAIGN_VERSION }
+              : body,
+          ),
     signal: AbortSignal.timeout(10000),
   });
   const data = (await r.json()) as ApiResult & { error?: string };
@@ -73,7 +81,13 @@ export class Connection {
     ws.onopen = () => {
       if (!active()) return;
       this.seq = 0;
-      ws.send(JSON.stringify({ type: "hello", token: this.session.token }));
+      ws.send(
+        JSON.stringify({
+          type: "hello",
+          token: this.session.token,
+          version: CAMPAIGN_VERSION,
+        }),
+      );
     };
     ws.onmessage = (e) => {
       if (!active()) return;
@@ -93,11 +107,13 @@ export class Connection {
       this.ws = null;
       this.status(false);
       if (this.pingTimer) clearInterval(this.pingTimer);
-      if (e.code === 4001 || e.code === 1008) {
+      if (e.code === 4001 || e.code === 1008 || e.code === 4003) {
         this.error(
-          e.code === 4001
-            ? "此座位已在另一个页面连接"
-            : "房间凭证失效，请返回重新加入",
+          e.code === 4003
+            ? "地图与计分规则已更新，请刷新页面重新加入。"
+            : e.code === 4001
+              ? "此座位已在另一个页面连接"
+              : "房间凭证失效，请返回重新加入",
         );
         return;
       }
@@ -118,12 +134,20 @@ export class Connection {
   input(gameId: string, input: Input) {
     if (this.ws?.readyState === 1)
       this.ws.send(
-        JSON.stringify({ type: "input", gameId, seq: ++this.seq, input }),
+        JSON.stringify({
+          type: "input",
+          gameId,
+          seq: ++this.seq,
+          input,
+          version: CAMPAIGN_VERSION,
+        }),
       );
   }
   command(command: Record<string, unknown>) {
     if (this.ws?.readyState === 1)
-      this.ws.send(JSON.stringify({ type: "command", command }));
+      this.ws.send(
+        JSON.stringify({ type: "command", command, version: CAMPAIGN_VERSION }),
+      );
     else this.error("连接暂时中断，正在重连。");
   }
   close() {

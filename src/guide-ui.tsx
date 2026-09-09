@@ -121,8 +121,8 @@ export const LESSONS: Record<Lesson, LessonData> = {
     keys: ["F", "R"],
     steps: [
       [
-        "靠近钥匙或星星自动拾取。钥匙必须找齐，星星可以不拿。",
-        "Touch keys or stars to collect them. All keys are required; stars are optional.",
+        "靠近钥匙或星星自动拾取。找齐钥匙即可通关；收齐全部星星才计入本地记录和排行榜。",
+        "Touch items to collect them. All keys unlock the exit; all stars are required for local records and rankings.",
       ],
       [
         "到下一个新许愿架自动存档，并补满耐折。死亡或按 R 返回，自己未存档的物品回到原处。",
@@ -288,8 +288,8 @@ export function GuideCard({
         </span>
         <small>
           {w([
-            "星星可选 · 金色空心圈是路标",
-            "Stars optional · hollow gold rings are guide markers",
+            "全星才计记录 · 空心圈是路标",
+            "All stars to rank · hollow rings mark the route",
           ])}
         </small>
       </div>

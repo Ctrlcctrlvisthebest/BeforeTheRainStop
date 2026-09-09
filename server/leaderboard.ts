@@ -1,3 +1,4 @@
+import { rankedClear, hasAllStars } from "../src/score-rules";
 import { DurableObject } from "cloudflare:workers";
 import {
   boardName,
@@ -13,6 +14,8 @@ import {
 import type { Game, Mode } from "../src/game";
 
 export interface VerifiedScore extends RankingEntry {
+  version: number;
+  stars: number[];
   level: number;
   mode: Mode;
   participant: string;
@@ -46,6 +49,9 @@ export class RainLeaderboard extends DurableObject<Env> {
   submitVerified(score: VerifiedScore) {
     boardName(score.level, score.mode);
     if (
+      score.version !== RANKING_VERSION ||
+      !Array.isArray(score.stars) ||
+      !hasAllStars(score.level, score.stars) ||
       !score.participant ||
       score.names.length !== score.mode ||
       !Number.isSafeInteger(score.timeMs) ||
@@ -78,6 +84,7 @@ export class RainLeaderboard extends DurableObject<Env> {
       boardName(body.level, 1);
       name = requirePlayerName(body.name);
       game = verifyReplay(body.level, body.replay);
+      if (!rankedClear(game)) throw new Error("收齐全部星星的通关才计入记录");
     } catch (error) {
       return {
         status: error instanceof NamePolicyError ? error.status : 400,
@@ -85,6 +92,8 @@ export class RainLeaderboard extends DurableObject<Env> {
       };
     }
     const entries = this.submitVerified({
+      version: RANKING_VERSION,
+      stars: [...game.stars],
       id: crypto.randomUUID(),
       level: game.level,
       mode: 1,

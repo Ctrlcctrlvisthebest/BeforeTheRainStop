@@ -4,6 +4,7 @@ import {
   newGame,
   platformAt,
   stepGame,
+  activeHazard,
   type Game,
   type Input,
 } from "../src/game";
@@ -63,6 +64,29 @@ export function completeStormLevel(
   const move = (target: number, jump = false) => {
     const axis = g.view === 0 ? "x" : "z",
       sign = Math.sign(target - p[axis]);
+    const other = axis === "x" ? "z" : "x";
+    const fires = l.hazards.filter(
+      (fire) =>
+        !jump &&
+        fire.period &&
+        Math.abs(fire[other] - p[other]) <
+          (axis === "x" ? fire.d : fire.w) / 2 + 0.3 &&
+        (fire[axis] - p[axis]) * sign > 0 &&
+        (target - fire[axis]) * sign > 0,
+    );
+    // Observe each pulse and wait for a whole crossing window. No physics state
+    // is changed; low roofs require walking through during the extinguished phase.
+    if (fires.length)
+      until(
+        () =>
+          fires.every((fire) => {
+            const arrival = Math.abs(fire[axis] - p[axis]) / 5.3 + 0.1;
+            return [-0.3, 0, 0.3].every(
+              (offset) => !activeHazard(fire.period, g.time + arrival + offset),
+            );
+          }),
+        () => ({ shelter: true }),
+      );
     until(
       () => (target - p[axis]) * sign <= 0.09,
       () => ({ axis: sign * (g.view === 0 ? 1 : -1), jump }),

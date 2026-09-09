@@ -115,7 +115,8 @@ export function Leaderboard({
         </button>
       </div>
       <p className="ranking-chapter">
-        {t(LEVELS[level].name)} · {mode} {t("人")} · {t("用时越短，排名越高")}
+        {t(LEVELS[level].name)} · {mode} {t("人")} ·{" "}
+        {t("全星通关 · 用时越短，排名越高")}
       </p>
       {entries.length > 0 && (
         <ol>

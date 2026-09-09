@@ -38,6 +38,11 @@ for (let level = 12; level < 17; level++) {
       const g = completeStormLevel(level, undefined, undefined, delay);
       assert.equal(g.status, "won");
       assert.equal(g.players[0].deaths, 0);
+      assert.equal(
+        g.stars.length,
+        LEVELS[level].stars.length,
+        "the complete guided route reaches every star",
+      );
     }
   });
   test(`chapter ${level + 1}: each ferry is essential to its long gap`, () => {

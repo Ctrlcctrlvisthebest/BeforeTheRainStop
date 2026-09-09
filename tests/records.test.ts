@@ -1,3 +1,4 @@
+import { rankedClear } from "../src/score-rules";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -42,6 +43,7 @@ function withStorage(
 function finish(seconds: number, level = 0, mode: Mode = 1) {
   const game = newGame(mode, level, crypto.randomUUID());
   game.status = "won";
+  game.stars = LEVELS[level].stars.map((_, id) => id);
   game.time = seconds;
   return game;
 }
@@ -98,6 +100,7 @@ test("all chapters and player counts have independent records", () =>
 test("real journeys record only the final win and use the existing simulation clock", () =>
   withStorage((_disk, writes) => {
     const records = new LocalRecords();
+    let eligible = 0;
     for (let level = 0; level < LEVELS.length; level++) {
       let completions = 0;
       const game = completeLevel(level, (g) => {
@@ -105,17 +108,20 @@ test("real journeys record only the final win and use the existing simulation cl
         if (g.status === "playing") assert.equal(result, null);
         if (result) completions++;
       });
-      assert.equal(completions, 1);
+      const qualifies = rankedClear(game);
+      eligible += Number(qualifies);
+      assert.equal(completions, Number(qualifies));
       assert.equal(
         bestTimeFor(records.times, level, 1),
-        Math.round(game.time * 1000),
+        qualifies ? Math.round(game.time * 1000) : undefined,
       );
       const frozen = game.time;
       stepGame(game, {});
       assert.equal(game.time, frozen, "results-screen time is not added");
       assert.equal(records.record(game), null);
     }
-    assert.equal(writes(), LEVELS.length);
+    assert.equal(writes(), eligible);
+    assert.ok(eligible >= 5);
   }));
 
 test("deaths and checkpoint returns keep elapsed time; full restart starts at zero", () =>
@@ -138,6 +144,7 @@ test("one arrived teammate is not a team completion", () =>
     const records = new LocalRecords();
     const game = newGame(2);
     game.keys = game.savedKeys = [0];
+    game.stars = game.savedStars = LEVELS[0].stars.map((_, id) => id);
     Object.assign(game.players[0], LEVELS[0].exit);
     stepGame(game, {});
     assert.equal(game.players[0].arrived, true);
@@ -229,3 +236,23 @@ test("time display rounds to one decimal and carries into the next minute", () =
   assert.equal(formatTime(3600000), "60:00.0");
   assert.equal(formatTime(NaN), "—");
 });
+
+test("missing or duplicate stars never create or replace records, and legacy records stay separate", () =>
+  withStorage((disk, writes) => {
+    const legacy = JSON.stringify({ [`1:${LEVELS[0].name}`]: 1 });
+    disk.set("rain-best-times-v1", legacy);
+    const records = new LocalRecords();
+    assert.deepEqual(records.times, {});
+    records.record(finish(60));
+    for (const stars of [[], [0], [0, 0, 0], [0, 1, 999]]) {
+      const game = finish(1);
+      game.stars = stars;
+      assert.equal(records.record(game), null);
+    }
+    const old = finish(1);
+    old.rulesVersion = 2;
+    assert.equal(records.record(old), null);
+    assert.equal(bestTimeFor(records.times, 0, 1), 60000);
+    assert.equal(writes(), 1);
+    assert.equal(disk.get("rain-best-times-v1"), legacy);
+  }));
