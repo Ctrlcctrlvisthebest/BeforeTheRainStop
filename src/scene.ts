@@ -3,9 +3,11 @@ import { rainFloorAt, type RainCover } from "./rain-occlusion";
 import {
   disposeObjectTree,
   platformVisual,
-  platformLayer,
+  surfacePriorities,
+  stableNearbyLight,
   landingHeight,
 } from "./scene-resources";
+import { stabilizeTerrain, styleTerrainDepth } from "./terrain-scene";
 import { translate, type Language } from "./i18n";
 import { touchCopy } from "./mobile";
 import { CROSSINGS, bankPoint, bridgePlank, isOnBridgePlate } from "./bridges";
@@ -73,49 +75,6 @@ function slab(b: Platform, color: string): THREE.Group {
   return group;
 }
 
-const distantTint = new THREE.Color("#74899e");
-function styleDepth(
-  node: THREE.Group,
-  platform: Platform,
-  player: Point,
-  view: 0 | 1,
-  preview: boolean,
-) {
-  const layer = preview ? "active" : platformLayer(platform, player, view);
-  const corridor = platform.kind === "low-roof" || platform.kind === "railing";
-  const state = `${layer}:${corridor}`;
-  if (node.userData.depthState === state) return;
-  node.userData.depthState = state;
-  node.traverse((o) => {
-    if (o.name === "landing-edge" && o instanceof THREE.Line) {
-      const m = o.material as THREE.LineBasicMaterial;
-      m.color.set(layer === "active" ? "#e4d1aa" : "#7b90a4");
-      m.opacity = corridor ? 0.16 : layer === "active" ? 0.85 : 0.16;
-    }
-    if (!(o instanceof THREE.Mesh)) return;
-    o.castShadow = layer === "active" && !corridor;
-    const mats = Array.isArray(o.material) ? o.material : [o.material];
-    for (const m of mats) {
-      m.transparent = corridor || layer === "front";
-      m.opacity = corridor
-        ? o.name === "eave-beam"
-          ? 0.55
-          : 0.14
-        : layer === "front"
-          ? 0.09
-          : 1;
-      m.depthWrite = !m.transparent;
-      if (
-        m instanceof THREE.MeshStandardMaterial ||
-        m instanceof THREE.MeshBasicMaterial
-      ) {
-        m.userData.baseColor ??= m.color.clone();
-        m.color.copy(m.userData.baseColor);
-        if (layer === "back") m.color.multiply(distantTint);
-      }
-    }
-  });
-}
 function facet(points: number[], color: string): THREE.Mesh {
   const g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.Float32BufferAttribute(points, 3));
@@ -480,6 +439,7 @@ export class PaperScene {
   private mechanismCards = new Map<string, MechanismCard>();
   private hazards: THREE.Group[] = [];
   private fires: THREE.Group[] = [];
+  private litFire: THREE.Group | null = null;
   private fireLight = new THREE.PointLight("#ffad5b", 0, 6, 2);
   private gate: THREE.Group | null = null;
   private gateLabel: THREE.Sprite | null = null;
@@ -594,11 +554,15 @@ export class PaperScene {
     this.pads = [];
     this.hazards = [];
     this.fires = [];
+    this.litFire = null;
+    this.fireLight.intensity = 0;
     this.windLines = [];
     const l = LEVELS[g.level];
     this.scene.background = new THREE.Color(l.sky);
     this.scene.fog = new THREE.Fog(l.sky, 32, 80);
-    l.platforms.forEach((b) => {
+    const visualBodies = l.platforms.map(platformVisual);
+    const priority = surfacePriorities(visualBodies);
+    l.platforms.forEach((b, index) => {
       // Show the corridor as a cutaway: its solid upper walls are out of play.
       const corridor = b.kind === "low-roof" || b.kind === "railing";
       const node = slab(
@@ -632,6 +596,7 @@ export class PaperScene {
           node.add(beam);
         }
       }
+      stabilizeTerrain(node, priority[index], index);
       this.tiles.push(node);
       this.root.add(node);
     });
@@ -643,6 +608,11 @@ export class PaperScene {
       this.crossingDeck = slab(
         bridgePlank({ ...g, bridgeLatched: true })!,
         "#a27d54",
+      );
+      stabilizeTerrain(
+        this.crossingDeck,
+        Math.max(0, ...priority) + 1,
+        l.platforms.length,
       );
       this.root.add(this.crossingDeck);
       for (const side of [-1, 1] as const) {
@@ -680,6 +650,11 @@ export class PaperScene {
         endMark.position.set(side * (l.gate.w / 2 + 0.02), -l.gate.h + 1.1, 0);
         this.gate.add(endMark);
       }
+      stabilizeTerrain(
+        this.gate,
+        Math.max(0, ...priority) + 2,
+        l.platforms.length + 1,
+      );
       this.root.add(this.gate);
       this.gateLabel = textSprite(
         this.text("挡路闸门 · 踩踏板移开"),
@@ -1138,7 +1113,7 @@ export class PaperScene {
     this.tiles.forEach((node, i) => {
       const b = solid[i];
       node.position.set(b.x, platformVisual(b).y, b.z);
-      styleDepth(node, b, player, g.view, preview);
+      styleTerrainDepth(node, b, player, this.yaw / (Math.PI / 2), preview, dt);
     });
     this.birds.forEach((node, i) => {
       const p = g.players[i];
@@ -1257,7 +1232,15 @@ export class PaperScene {
         dt,
       );
       const plank = bridgePlank(g);
-      if (plank) styleDepth(this.crossingDeck, plank, player, g.view, preview);
+      if (plank)
+        styleTerrainDepth(
+          this.crossingDeck,
+          plank,
+          player,
+          this.yaw / (Math.PI / 2),
+          preview,
+          dt,
+        );
       const pressed = g.players.some((p) =>
         isOnBridgePlate(CROSSINGS[g.level], p),
       );
@@ -1293,32 +1276,44 @@ export class PaperScene {
       if (this.gateLabel)
         this.gateLabel.visible =
           !g.gateOpen && nearbyLabel(this.gateLabel.position);
-      styleDepth(this.gate, l.gate, player, g.view, preview);
+      styleTerrainDepth(
+        this.gate,
+        l.gate,
+        player,
+        this.yaw / (Math.PI / 2),
+        preview,
+        dt,
+      );
     }
     this.hazards.forEach((o, i) => {
       animateFire(o, this.clock, activeHazard(l.hazards[i].period, g.time));
     });
     this.fires.forEach((o) => animateFire(o, this.clock));
     const fireViewer = this.scratch.set(player.x, player.y, player.z);
-    const nearestFire = [
-      ...this.fires,
-      ...this.hazards.filter((o) => o.userData.active),
-    ].reduce<THREE.Group | null>(
-      (best, fire) =>
-        !best ||
-        fire.position.distanceToSquared(fireViewer) <
-          best.position.distanceToSquared(fireViewer)
-          ? fire
-          : best,
-      null,
+    const nearestFire = stableNearbyLight(
+      this.litFire,
+      [...this.fires, ...this.hazards.filter((o) => o.userData.active)],
+      fireViewer,
     );
     if (nearestFire) {
-      this.fireLight.position.copy(nearestFire.position);
-      this.fireLight.position.y += 0.7;
-      this.fireLight.intensity =
+      this.scratch.copy(nearestFire.position).y += 0.7;
+      if (!this.litFire) this.fireLight.position.copy(this.scratch);
+      else this.fireLight.position.lerp(this.scratch, 1 - Math.exp(-dt * 8));
+      this.fireLight.intensity = THREE.MathUtils.damp(
+        this.fireLight.intensity,
         (nearestFire.userData.blazing ? 6 : 3) *
-        (1 + Math.sin(this.clock * 12) * 0.1);
-    } else this.fireLight.intensity = 0;
+          (1 + Math.sin(this.clock * 12) * 0.1),
+        8,
+        dt,
+      );
+    } else
+      this.fireLight.intensity = THREE.MathUtils.damp(
+        this.fireLight.intensity,
+        0,
+        8,
+        dt,
+      );
+    this.litFire = nearestFire;
     this.signs.forEach((o, i) => {
       const sign = l.signs[i];
       o.visible =
@@ -1453,6 +1448,7 @@ export class PaperScene {
     this.sceneryOcclusion.update(
       this.visibilitySubjects,
       this.scratch.subVectors(this.camera.position, this.target),
+      preview ? 1 : dt,
     );
     this.renderer.render(this.scene, this.camera);
   }

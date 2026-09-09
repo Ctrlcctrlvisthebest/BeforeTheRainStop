@@ -1,16 +1,81 @@
 import * as THREE from "three";
 import type { Platform, Point } from "./game";
 
-/** A lane is the full platform span perpendicular to the movement axis. */
+export type PlatformLayer = "active" | "front" | "back";
+/** Fractional views follow the actual camera turn. A small exit/entry gap keeps
+ * network position jitter from repeatedly switching a platform's layer. */
 export function platformLayer(
   platform: Platform,
   player: Point,
-  view: 0 | 1,
-): "active" | "front" | "back" {
-  const offset = view === 0 ? platform.z - player.z : platform.x - player.x;
-  const span = view === 0 ? platform.d : platform.w;
-  if (Math.abs(offset) <= span / 2 + 0.45) return "active";
+  view: number,
+  previous?: PlatformLayer,
+): PlatformLayer {
+  const x = Math.sin((view * Math.PI) / 2),
+    z = Math.cos((view * Math.PI) / 2);
+  const offset = (platform.x - player.x) * x + (platform.z - player.z) * z;
+  const span = Math.abs(x) * platform.w + Math.abs(z) * platform.d;
+  const margin = previous === "active" ? 0.16 : previous ? -0.16 : 0;
+  if (Math.abs(offset) <= span / 2 + 0.45 + margin) return "active";
   return offset > 0 ? "front" : "back";
+}
+
+/** Graph-color intersecting swept boxes, keeping depth offsets small even in a
+ * large editor map. Geometry and collisions retain their original coordinates. */
+export function surfacePriorities(platforms: readonly Platform[]): number[] {
+  const bounds = platforms.map((p) => {
+    const rx = p.motion?.axis === "x" ? p.motion.range : 0;
+    const rz = p.motion?.axis === "z" ? p.motion.range : 0;
+    return [
+      p.x - p.w / 2 - rx,
+      p.x + p.w / 2 + rx,
+      p.y - p.h,
+      p.y,
+      p.z - p.d / 2 - rz,
+      p.z + p.d / 2 + rz,
+    ];
+  });
+  const ranks: number[] = [];
+  bounds.forEach((a, i) => {
+    const used = new Set<number>();
+    for (let j = 0; j < i; j++) {
+      const b = bounds[j];
+      if (
+        [0, 2, 4].every(
+          (axis) =>
+            a[axis] <= b[axis + 1] + 0.001 && b[axis] <= a[axis + 1] + 0.001,
+        )
+      )
+        used.add(ranks[j]);
+    }
+    let rank = 0;
+    while (used.has(rank)) rank++;
+    ranks.push(rank);
+  });
+  return ranks;
+}
+
+export function stableNearbyLight<T extends { position: THREE.Vector3 }>(
+  current: T | null,
+  candidates: readonly T[],
+  viewer: THREE.Vector3,
+): T | null {
+  let nearest: T | null = null;
+  for (const light of candidates)
+    if (
+      !nearest ||
+      light.position.distanceToSquared(viewer) <
+        nearest.position.distanceToSquared(viewer)
+    )
+      nearest = light;
+  if (
+    current &&
+    candidates.includes(current) &&
+    nearest &&
+    current.position.distanceTo(viewer) <
+      nearest.position.distanceTo(viewer) + 0.6
+  )
+    return current;
+  return nearest;
 }
 
 /** Project a contact shadow onto real geometry, never across a gap or upward. */

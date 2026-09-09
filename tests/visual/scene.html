@@ -69,6 +69,17 @@
         </select></label
       >
       <button id="turn">转面</button>
+      <button id="probe">检查重叠面稳定性</button
+      ><output id="probe-result" aria-live="polite"></output>
+      <label
+        >镜头测试
+        <select id="motion">
+          <option value="still">静止</option>
+          <option value="jitter">轻微位置抖动</option>
+          <option value="walk">来回移动</option>
+          <option value="turn">反复转面</option>
+        </select></label
+      >
       <label
         >互动
         <select id="interaction">

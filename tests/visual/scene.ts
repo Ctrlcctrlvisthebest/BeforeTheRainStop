@@ -3,6 +3,7 @@ import { GUIDE_ROUTES } from "../../src/guide";
 import { PaperScene } from "../../src/scene";
 import { bankPoint, CROSSINGS } from "../../src/bridges";
 import type { Language } from "../../src/i18n";
+import { probeTerrain } from "./terrain-probe";
 
 const select = (id: string) =>
   document.getElementById(id) as unknown as HTMLSelectElement;
@@ -12,7 +13,8 @@ const chapter = select("chapter"),
   view = select("view"),
   local = select("local"),
   interaction = select("interaction"),
-  language = select("language");
+  language = select("language"),
+  motion = select("motion");
 LEVELS.forEach((level, index) =>
   chapter.add(new Option(`${index + 1} · ${level.name}`, String(index))),
 );
@@ -21,6 +23,8 @@ const scene = new PaperScene(document.querySelector("canvas")!);
 let revision = 0;
 let game = newGame(1, 12);
 let points = [LEVELS[12].spawn];
+let anchors = game.players.map((p) => ({ x: p.x, y: p.y, z: p.z }));
+let motionStart = performance.now();
 
 function loadLocations() {
   const index = Number(chapter.value),
@@ -109,12 +113,15 @@ function loadGame() {
       }),
     );
   local.disabled = game.mode === 1;
+  anchors = game.players.map((p) => ({ x: p.x, y: p.y, z: p.z }));
+  motionStart = performance.now();
 }
 chapter.addEventListener("change", loadLocations);
 mode.addEventListener("change", loadGame);
 location.addEventListener("change", loadGame);
 local.addEventListener("change", loadGame);
 interaction.addEventListener("change", loadGame);
+motion.addEventListener("change", loadGame);
 view.addEventListener("change", () => {
   game.view = Number(view.value) as 0 | 1;
 });
@@ -123,11 +130,35 @@ document.querySelector("#turn")!.addEventListener("click", () => {
   view.value = String(game.view);
 });
 loadLocations();
+document.querySelector("#probe")!.addEventListener("click", async () => {
+  const output = document.querySelector("#probe-result")!;
+  output.textContent = "正在检查 GPU 重叠面…";
+  try {
+    const result = await probeTerrain();
+    output.textContent = `${result.pairs} 处重叠 · 原始不稳定 ${result.unstableBefore} · 修复后不稳定 ${result.unstableAfter}${result.failures.length ? ` · ${result.failures.join(",")}` : ""}`;
+  } catch (error) {
+    output.textContent = `检查失败：${error}`;
+  }
+});
 let previous = performance.now();
 function frame(now: number) {
   const dt = Math.min((now - previous) / 1000, 0.05);
   previous = now;
   game.motionTime += dt;
+  const elapsed = (now - motionStart) / 1000;
+  if (motion.value === "turn") {
+    game.view = (Math.floor(elapsed / 2) % 2) as 0 | 1;
+    view.value = String(game.view);
+  }
+  if (motion.value === "jitter" || motion.value === "walk") {
+    const offset =
+      Math.sin(elapsed * (motion.value === "jitter" ? 40 : 1)) *
+      (motion.value === "jitter" ? 0.025 : 2);
+    game.players.forEach((p, i) => {
+      p.x = anchors[i].x + offset;
+      p.z = anchors[i].z + offset;
+    });
+  }
   scene.render(
     game,
     game.mode === 1 ? 0 : Number(local.value),
