@@ -8,6 +8,7 @@ import {
   landingHeight,
 } from "./scene-resources";
 import { stabilizeTerrain, styleTerrainDepth } from "./terrain-scene";
+import { TerrainEdges, topOutline } from "./terrain-edges";
 import { translate, type Language } from "./i18n";
 import { touchCopy } from "./mobile";
 import { CROSSINGS, bankPoint, bridgePlank, isOnBridgePlate } from "./bridges";
@@ -55,13 +56,11 @@ function slab(b: Platform, color: string): THREE.Group {
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   group.add(mesh);
-  const edge = new THREE.LineLoop(
-    new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(-b.w / 2, 0.018, -b.d / 2),
-      new THREE.Vector3(b.w / 2, 0.018, -b.d / 2),
-      new THREE.Vector3(b.w / 2, 0.018, b.d / 2),
-      new THREE.Vector3(-b.w / 2, 0.018, b.d / 2),
-    ]),
+  const edge = new THREE.LineSegments(
+    new THREE.BufferGeometry().setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(topOutline(b, 0, []), 3),
+    ),
     new THREE.LineBasicMaterial({
       color: "#e4d1aa",
       transparent: true,
@@ -429,6 +428,7 @@ export class PaperScene {
     floor: number;
   }[] = [];
   private tiles: THREE.Group[] = [];
+  private terrainEdges: TerrainEdges | null = null;
   private keys: THREE.Group[] = [];
   private stars: THREE.Mesh[] = [];
   private pads: THREE.Group[] = [];
@@ -639,6 +639,20 @@ export class PaperScene {
       this.crossingLabel.position.set(far.x, far.y + 2.9, far.z);
       this.root.add(this.crossingLabel);
     }
+    this.terrainEdges = new TerrainEdges([
+      ...this.tiles.map((node, index) => ({
+        node,
+        platform: visualBodies[index],
+      })),
+      ...(this.crossingDeck
+        ? [
+            {
+              node: this.crossingDeck,
+              platform: bridgePlank({ ...g, bridgeLatched: true })!,
+            },
+          ]
+        : []),
+    ]);
     if (l.gate) {
       this.gate = slab(l.gate, "#d49b57");
       for (const side of [-1, 1]) {
@@ -1252,6 +1266,7 @@ export class PaperScene {
         this.crossingLabel.visible =
           nearbyLabel(this.crossingLabel.position) && !g.bridgeLatched;
     }
+    this.terrainEdges?.update();
     this.bridgeSockets.forEach(({ side, group }) => {
       const bank = group.position;
       const depth =

@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { FrameBudget } from "../src/frame-budget";
 import { colorSlab, mergeDecorations } from "../src/render-geometry";
 import { rainFloorAt } from "../src/rain-occlusion";
-import { LEVELS, platformAt } from "../src/game";
+import { LEVELS, platformAt, type Platform } from "../src/game";
 import { WEATHER, BLAZE_ROOFS, SHIELD_RADIUS } from "../src/weather";
 import { prepareBackdrop, SceneryOcclusion } from "../src/scenery-occlusion";
 import {
@@ -16,6 +16,170 @@ import {
   platformVisual,
 } from "../src/scene-resources";
 import { stabilizeTerrain, styleTerrainDepth } from "../src/terrain-scene";
+import { TerrainEdges, topOutline } from "../src/terrain-edges";
+
+function outlineLength(vertices: ArrayLike<number>) {
+  let length = 0;
+  for (let i = 0; i < vertices.length; i += 6)
+    length += Math.hypot(
+      vertices[i + 3] - vertices[i],
+      vertices[i + 5] - vertices[i + 2],
+    );
+  return length;
+}
+
+// Independent reference: tile the plane at every rectangle boundary and sum
+// edges separating filled and empty cells, counting the outside boundary once.
+function unionPerimeter(platforms: readonly Platform[]) {
+  let length = 0;
+  for (const height of new Set(platforms.map((p) => p.y))) {
+    const group = platforms.filter((p) => p.y === height);
+    const xs = [
+      ...new Set(group.flatMap((p) => [p.x - p.w / 2, p.x + p.w / 2])),
+    ].sort((a, b) => a - b);
+    const zs = [
+      ...new Set(group.flatMap((p) => [p.z - p.d / 2, p.z + p.d / 2])),
+    ].sort((a, b) => a - b);
+    const occupied = (x: number, z: number) =>
+      x >= 0 &&
+      z >= 0 &&
+      x < xs.length - 1 &&
+      z < zs.length - 1 &&
+      group.some(
+        (p) =>
+          Math.abs((xs[x] + xs[x + 1]) / 2 - p.x) < p.w / 2 &&
+          Math.abs((zs[z] + zs[z + 1]) / 2 - p.z) < p.d / 2,
+      );
+    for (let x = 0; x < xs.length - 1; x++)
+      for (let z = 0; z < zs.length - 1; z++) {
+        if (!occupied(x, z)) continue;
+        if (!occupied(x - 1, z)) length += zs[z + 1] - zs[z];
+        if (!occupied(x + 1, z)) length += zs[z + 1] - zs[z];
+        if (!occupied(x, z - 1)) length += xs[x + 1] - xs[x];
+        if (!occupied(x, z + 1)) length += xs[x + 1] - xs[x];
+      }
+  }
+  return length;
+}
+
+test("platform outlines retain only the union boundary in every chapter and moving-platform position", () => {
+  for (const level of LEVELS)
+    for (const time of [0, 1.25, 2.5]) {
+      const platforms = level.platforms.map((p) =>
+        platformVisual(platformAt(p, time)),
+      );
+      const length = platforms.reduce(
+        (sum, p, index) =>
+          sum +
+          outlineLength(
+            topOutline(
+              p,
+              index,
+              platforms.flatMap((platform, other) =>
+                other === index ? [] : [{ platform, index: other }],
+              ),
+            ),
+          ),
+        0,
+      );
+      assert.ok(
+        Math.abs(length - unionPerimeter(platforms)) < 0.0001,
+        `${level.name}, time ${time}: no internal or duplicate edges; no missing outer edges`,
+      );
+    }
+});
+
+test("outline clipping handles containment, identical boxes, partial joins and real gaps", () => {
+  const p = { x: 0, y: 0, z: 0, w: 4, h: 1, d: 4 };
+  for (const platforms of [
+    [p, { ...p }],
+    [p, { ...p, w: 2, d: 2 }],
+    [p, { ...p, x: 4, d: 2 }],
+    [p, { ...p, x: 4.01 }],
+    [p, { ...p, y: 0.5 }],
+    [p, { ...p, x: -2, z: -2 }, { ...p, x: 2, z: 2 }],
+  ]) {
+    const actual = platforms.reduce(
+      (sum, platform, index) =>
+        sum +
+        outlineLength(
+          topOutline(
+            platform,
+            index,
+            platforms.flatMap((p, other) =>
+              other === index ? [] : [{ platform: p, index: other }],
+            ),
+          ),
+        ),
+      0,
+    );
+    assert.ok(Math.abs(actual - unionPerimeter(platforms)) < 0.0001);
+  }
+});
+
+test("deck movement and appearance refresh joined edges while idle outlines reuse their buffers", () => {
+  const bank = { x: 0, y: 0, z: 0, w: 2, h: 1, d: 2 };
+  const deck = {
+    ...bank,
+    x: 4,
+    motion: { axis: "x" as const, range: 4, period: 3 },
+  };
+  const sources = [bank, deck].map((platform) => {
+    const node = new THREE.Group();
+    node.position.set(platform.x, platform.y, platform.z);
+    const line = new THREE.LineSegments(
+      new THREE.BufferGeometry(),
+      new THREE.LineBasicMaterial(),
+    );
+    line.name = "landing-edge";
+    node.add(line);
+    return { node, platform, line };
+  });
+  const edges = new TerrainEdges(sources);
+  const attribute = sources[0].line.geometry.getAttribute(
+    "position",
+  ) as THREE.BufferAttribute;
+  const version = attribute.version;
+  for (let i = 0; i < 100; i++) edges.update();
+  assert.equal(
+    attribute.version,
+    version,
+    "stationary scene never reuploads outlines",
+  );
+  const length = () =>
+    sources
+      .filter(({ node }) => node.visible)
+      .reduce((sum, { line }) => {
+        const values = line.geometry
+          .getAttribute("position")
+          .array.slice(0, line.geometry.drawRange.count * 3);
+        return sum + outlineLength(values);
+      }, 0);
+  assert.equal(length(), 16);
+  sources[1].node.position.x = 2;
+  edges.update();
+  assert.equal(length(), 12, "docking removes the shared seam");
+  sources[1].node.position.x = 1;
+  edges.update();
+  assert.equal(length(), 10, "overlapping surfaces retain one outer contour");
+  sources[1].node.visible = false;
+  edges.update();
+  assert.equal(length(), 8, "removing a bridge restores the bank edge");
+  sources[1].node.visible = true;
+  sources[1].node.position.y = -0.5;
+  edges.update();
+  assert.equal(
+    length(),
+    16,
+    "an arriving bridge below the bank does not erase its edge",
+  );
+  assert.equal(
+    sources[0].line.geometry.getAttribute("position"),
+    attribute,
+    "moving decks reuse GPU storage",
+  );
+  sources.forEach(({ node }) => disposeObjectTree(node));
+});
 
 test("all coplanar platform overlaps have distinct depth priorities without moving collision geometry", () => {
   let overlaps = 0;
