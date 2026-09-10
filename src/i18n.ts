@@ -181,6 +181,13 @@ const english: Record<string, string> = {
   "桥钉旁按住搭桥，同伴过桥后踩住对岸金色踏板 2 秒，放下木桥接应你。单人按住 2 秒自动接桥；未接通前松开会退回原岸。":
     "Hold at the gold pins to make a bridge. A friend crosses your paper and holds the far gold pad for 2s, lowering a wooden deck so you can follow. Solo: hold for 2s to lower it automatically. Releasing early returns you to your starting bank.",
   "背景音乐：檐下的愿望": "Background music: Wishes Beneath the Eaves",
+  背景音乐: "Background music",
+  背景音乐曲目: "Background music track",
+  曲目: "Track",
+  沿灯而行: "Along the Lanterns",
+  "轻快 · 沿灯而行": "Lively · Along the Lanterns",
+  "原版 · 檐下的愿望": "Original · Wishes Beneath the Eaves",
+  "轻拨弦、笛音短句与柔和鼓点": "Light plucks, flute phrases and a gentle beat",
   暂停背景音乐: "Pause background music",
   播放背景音乐: "Play background music",
   "♪ 加载中…": "♪ Loading…",

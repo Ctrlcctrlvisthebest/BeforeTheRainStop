@@ -3,8 +3,37 @@ import { save, stored } from "./storage";
 import { translate, type Language } from "./i18n";
 
 type Playback = "ready" | "loading" | "playing" | "paused" | "error";
+const MUSIC_TRACKS = [
+  {
+    id: "lantern-walk",
+    title: "沿灯而行",
+    choice: "轻快 · 沿灯而行",
+    description: "轻拨弦、笛音短句与柔和鼓点",
+    duration: 80,
+  },
+  {
+    id: "rain-wishes",
+    title: "檐下的愿望",
+    choice: "原版 · 檐下的愿望",
+    description: "拨弦、笛音与远处的钟声",
+    duration: 80,
+  },
+] as const;
+const musicSource = (id: string) =>
+  `${import.meta.env.BASE_URL}audio/${id}.m4a`;
+const musicTime = (seconds: number) =>
+  `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
+
 export function useGameAudio(inGame: boolean) {
   const player = useRef<HTMLAudioElement>(null);
+  const [track, setTrack] = useState(() => {
+    const saved = stored<unknown>("local", "rain-music-track");
+    return MUSIC_TRACKS.find((track) => track.id === saved) ?? MUSIC_TRACKS[0];
+  });
+  const trackRef = useRef(track);
+  // Keep React's initial src stable. Subsequent selections set the media source
+  // synchronously so play() stays inside the tap gesture on mobile browsers.
+  const initialSource = useRef(musicSource(track.id));
   const [initialEnabled] = useState(
     () => stored<boolean>("local", "rain-music-enabled") !== false,
   );
@@ -71,6 +100,21 @@ export function useGameAudio(inGame: boolean) {
       setEnabled(true);
       void start();
     }
+  }
+  function selectTrack(id: string) {
+    const next = MUSIC_TRACKS.find((track) => track.id === id);
+    if (!next || next.id === trackRef.current.id) return;
+    ++activeRequest.current;
+    trackRef.current = next;
+    setTrack(next);
+    save("local", "rain-music-track", next.id);
+    const audio = player.current;
+    if (!audio) return;
+    audio.pause();
+    audio.src = musicSource(next.id);
+    audio.load();
+    setState(enabled.current ? "ready" : "paused");
+    if (enabled.current) void start();
   }
   function setVolume(value: number) {
     const next = Math.max(0, Math.min(100, value));
@@ -147,7 +191,19 @@ export function useGameAudio(inGame: boolean) {
       void fx.current?.close().catch(() => {});
     };
   }, []);
-  return { player, state, setState, volume, setVolume, start, toggle, effect };
+  return {
+    player,
+    initialSource: initialSource.current,
+    track,
+    selectTrack,
+    state,
+    setState,
+    volume,
+    setVolume,
+    start,
+    toggle,
+    effect,
+  };
 }
 export type GameAudio = ReturnType<typeof useGameAudio>;
 export function MusicControls({
@@ -161,6 +217,7 @@ export function MusicControls({
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState(0);
   const controls = useRef<HTMLDivElement>(null);
+  useEffect(() => setPosition(0), [audio.track.id]);
   useEffect(() => {
     if (!open) return;
     const close = (event: PointerEvent) => {
@@ -174,13 +231,20 @@ export function MusicControls({
     <div className="music-control" ref={controls}>
       <audio
         ref={audio.player}
-        src={`${import.meta.env.BASE_URL}audio/rain-wishes.m4a`}
+        src={audio.initialSource}
         loop
         preload="none"
-        aria-label={t("背景音乐：檐下的愿望")}
-        onPlaying={() => audio.setState("playing")}
-        onPause={() => audio.setState("paused")}
-        onError={() => audio.setState("error")}
+        aria-label={`${t("背景音乐")}：${t(audio.track.title)}`}
+        onPlaying={(event) => {
+          if (!event.currentTarget.paused) audio.setState("playing");
+        }}
+        onPause={(event) => {
+          if (event.currentTarget.paused) audio.setState("paused");
+        }}
+        onError={(event) => {
+          if (event.currentTarget.error) audio.setState("error");
+        }}
+        onEmptied={() => setPosition(0)}
         onTimeUpdate={(event) => {
           if (open) setPosition(event.currentTarget.currentTime);
         }}
@@ -214,11 +278,25 @@ export function MusicControls({
           <div className="music-heading">
             <span>♫</span>
             <div>
-              <strong>{t("檐下的愿望")}</strong>
+              <strong>{t(audio.track.title)}</strong>
               <small>{t("原创器乐 · 循环播放")}</small>
             </div>
           </div>
-          <p>{t("拨弦、笛音与远处的钟声")}</p>
+          <label className="music-track-picker">
+            {t("曲目")}
+            <select
+              aria-label={t("背景音乐曲目")}
+              value={audio.track.id}
+              onChange={(event) => audio.selectTrack(event.target.value)}
+            >
+              {MUSIC_TRACKS.map((track) => (
+                <option key={track.id} value={track.id}>
+                  {t(track.choice)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p>{t(audio.track.description)}</p>
           <div className="music-time">
             <span>
               {t(
@@ -230,8 +308,7 @@ export function MusicControls({
               )}
             </span>
             <output aria-label={t("音乐播放进度")}>
-              {Math.floor(position / 60)}:
-              {String(Math.floor(position % 60)).padStart(2, "0")} / 1:20
+              {musicTime(position)} / {musicTime(audio.track.duration)}
             </output>
           </div>
           <label>

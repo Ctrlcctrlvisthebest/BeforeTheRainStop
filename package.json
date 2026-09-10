@@ -8,12 +8,13 @@
     "dev:server": "wrangler dev --port 8788",
     "build": "tsc --noEmit && vite build && node scripts/clean-build.mjs",
     "preview": "vite preview --host 127.0.0.1",
-    "test": "tsx --test tests/game.test.ts tests/bridges.test.ts tests/fire.test.ts tests/collectibles.test.ts tests/guide.test.ts tests/room.test.ts tests/touch-input.test.ts tests/editor.test.ts tests/robustness.test.ts tests/connection.test.ts tests/performance.test.ts tests/records.test.ts tests/leaderboard.test.ts tests/leaderboard-worker.test.ts tests/storm.test.ts tests/name-policy.test.ts tests/client-boundary.test.ts tests/mechanism.test.ts",
+    "test": "tsx --test tests/game.test.ts tests/bridges.test.ts tests/fire.test.ts tests/collectibles.test.ts tests/guide.test.ts tests/room.test.ts tests/touch-input.test.ts tests/editor.test.ts tests/robustness.test.ts tests/connection.test.ts tests/performance.test.ts tests/records.test.ts tests/leaderboard.test.ts tests/leaderboard-worker.test.ts tests/storm.test.ts tests/name-policy.test.ts tests/client-boundary.test.ts tests/mechanism.test.ts && npm run test:audio",
     "test:integration": "tsx --test tests/integration.test.ts",
     "deploy:server": "wrangler deploy",
     "types": "wrangler types",
     "test:leaderboard": "tsx --test tests/leaderboard-integration.test.ts",
-    "build:toy": "tsc --noEmit && VITE_ROOM_SERVER_URL=https://before-the-rain-rooms.zoeli2010xl.workers.dev vite build --mode toy && node scripts/clean-build.mjs dist-toy"
+    "build:toy": "tsc --noEmit && VITE_ROOM_SERVER_URL=https://before-the-rain-rooms.zoeli2010xl.workers.dev vite build --mode toy && node scripts/clean-build.mjs dist-toy",
+    "test:audio": "node --test tests/audio-controls.test.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",
@@ -31,6 +32,7 @@
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",
     "vite": "^8.2.2",
-    "wrangler": "^4.129.0"
+    "wrangler": "^4.129.0",
+    "jsdom": "^30.0.1"
   }
 }

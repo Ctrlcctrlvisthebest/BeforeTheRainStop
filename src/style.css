@@ -1424,6 +1424,27 @@ footer span {
 .music-panel label > span {
   float: right;
 }
+.music-panel .music-track-picker {
+  display: block;
+}
+.music-track-picker select {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  margin-top: 6px;
+  padding: 8px;
+  border: 1px solid #9e8467;
+  border-radius: 4px;
+  background: #f3e8d3;
+  color: #574333;
+  font: inherit;
+  cursor: pointer;
+}
+.music-track-picker select:focus-visible {
+  outline: 2px solid #a35b41;
+  outline-offset: 2px;
+}
 .music-panel input[type="range"] {
   padding: 0;
   margin-top: 12px;
