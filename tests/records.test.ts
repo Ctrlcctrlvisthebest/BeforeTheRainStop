@@ -272,3 +272,26 @@ test("the new campaign retains unchanged bests, isolates remade maps and preserv
     assert.equal(disk.get("rain-best-times-all-stars-v3"), old);
     assert.equal(bestTimeFor(new LocalRecords().times, 9, 1), 30000);
   }));
+
+test("chapter 20 remake retains the other 26 bests without mixing old or forged map times", () =>
+  withStorage((disk) => {
+    const old = JSON.stringify(
+      Object.fromEntries(
+        MODES.flatMap((mode) => [
+          ...LEVELS.map((level) => [`${mode}:${level.name}`, 1200]),
+          [`${mode}:穿窗巷`, 800],
+        ]),
+      ),
+    );
+    disk.set("rain-best-times-all-stars-v4", old);
+    const records = new LocalRecords();
+    for (const mode of MODES)
+      for (let index = 0; index < LEVELS.length; index++)
+        assert.equal(
+          bestTimeFor(records.times, index, mode),
+          index === 19 ? undefined : 1200,
+        );
+    records.record(finish(45, 19));
+    assert.equal(bestTimeFor(new LocalRecords().times, 19, 1), 45000);
+    assert.equal(disk.get("rain-best-times-all-stars-v4"), old);
+  }));

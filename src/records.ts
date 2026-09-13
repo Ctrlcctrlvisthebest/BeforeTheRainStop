@@ -17,15 +17,20 @@ const validTime = (value: unknown): value is number =>
 
 export function loadBestTimes(): BestTimes {
   let value = stored<unknown>("local", RECORDS_KEY);
-  // The 14 untouched chapters keep their existing bests. Remade chapters get
-  // new records; keep the original v3 file intact as the historical copy.
-  if (value == null && CAMPAIGN_VERSION === 4) {
-    const legacy = stored<unknown>("local", "rain-best-times-all-stars-v3");
-    if (legacy && typeof legacy === "object" && !Array.isArray(legacy)) {
-      const unchanged = [
-        ...chapterNames.slice(0, 9),
-        ...chapterNames.slice(12, 17),
-      ];
+  // Migrate only comparable maps; leave historical stores intact. Version 5
+  // replaces chapter 20, while v3 predates the remakes of chapters 10–12.
+  if (value == null) {
+    for (const version of [4, 3]) {
+      const legacy = stored<unknown>(
+        "local",
+        `rain-best-times-all-stars-v${version}`,
+      );
+      if (!legacy || typeof legacy !== "object" || Array.isArray(legacy))
+        continue;
+      const unchanged =
+        version === 4
+          ? chapterNames.filter((_, index) => index !== 19)
+          : [...chapterNames.slice(0, 9), ...chapterNames.slice(12, 17)];
       value = Object.fromEntries(
         MODES.flatMap((mode) =>
           unchanged.map((name) => {
@@ -34,6 +39,7 @@ export function loadBestTimes(): BestTimes {
           }),
         ),
       );
+      break;
     }
   }
   const times: BestTimes = {};

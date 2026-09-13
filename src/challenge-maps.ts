@@ -1,6 +1,6 @@
 import chapter18 from "./maps/18-wishing-ring.json";
 import chapter19 from "./maps/19-cross-current.json";
-import chapter20 from "./maps/20-window-alley.json";
+import chapter20 from "./maps/20-lantern-workshop.json";
 import chapter21 from "./maps/21-return-to-the-gate.json";
 import chapter22 from "./maps/22-falling-letter.json";
 import chapter23 from "./maps/23-out-of-time.json";

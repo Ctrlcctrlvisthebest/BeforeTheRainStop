@@ -187,3 +187,40 @@ test("new and redesigned levels are not translated, mirrored or axis-swapped ter
           `${level + 1} duplicates ${other + 1}`,
         );
 });
+
+test("chapter 20 requires jumping to reach the first key", () => {
+  let keys = 0;
+  assert.throws(
+    () =>
+      completeStormLevel(
+        19,
+        (g) => {
+          keys = g.keys.length;
+        },
+        (_g, input) => {
+          input.jump = false;
+        },
+      ),
+    /chapter 20/,
+  );
+  assert.equal(keys, 0);
+});
+
+test("chapter 20 gate blocks the ferry approach until both teammates hold their plates", () => {
+  const l = LEVELS[19],
+    g = newGame(2, 19);
+  g.players.forEach((p) => Object.assign(p, l.pads[0]));
+  for (let frame = 0; frame < 260; frame++) stepGame(g, {});
+  assert.equal(g.gateOpen, false);
+  const right = {
+    0: { ...idleInput(), axis: 1 },
+    1: { ...idleInput(), axis: 1 },
+  };
+  for (let frame = 0; frame < 80; frame++) stepGame(g, right);
+  assert.ok(g.players.every((p) => p.x < l.gate!.x && p.deaths === 0));
+  g.players.forEach((p, i) => Object.assign(p, l.pads[i]));
+  for (let frame = 0; frame < 260; frame++) stepGame(g, {});
+  assert.equal(g.gateOpen, true);
+  for (let frame = 0; frame < 60; frame++) stepGame(g, right);
+  assert.ok(g.players.every((p) => p.x > l.gate!.x && p.deaths === 0));
+});

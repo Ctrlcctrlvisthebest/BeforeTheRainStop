@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import type { Platform, Point } from "./game";
-import { platformLayer } from "./scene-resources";
+import { platformLayer, setMaterialTransparency } from "./scene-resources";
 
 const distantTint = new THREE.Color("#74899e");
 const activeEdge = new THREE.Color("#e4d1aa"),
@@ -76,7 +76,7 @@ export function styleTerrainDepth(
     o.castShadow = !corridor && opacity === 1;
     for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
       m.opacity = corridor && o.name === "eave-beam" ? 0.55 : opacity;
-      m.transparent = m.opacity < 1;
+      setMaterialTransparency(m, m.opacity < 1);
       m.depthWrite = !m.transparent;
       if (
         m instanceof THREE.MeshStandardMaterial ||

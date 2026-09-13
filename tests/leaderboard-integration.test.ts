@@ -204,3 +204,33 @@ test("local Worker verifies clears, publishes top three, replaces faster times a
     "Verified sample scores stored only in local development SQLite.",
   );
 });
+
+test("chapter 20: local Worker verifies the rebuilt route and rejects the previous replay version", async () => {
+  const recorder = new ReplayRecorder();
+  const game = completeLevel(19, undefined, (g, input) =>
+    recorder.record(g, input),
+  );
+  const body = {
+    version: RANKING_VERSION,
+    level: 19,
+    replay: recorder.snapshot(game),
+    playerToken: crypto.randomUUID(),
+    name: "灯坊旅人",
+  };
+  const post = (version: number) =>
+    fetch(`${base}/api/leaderboard`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...body, version }),
+    });
+  assert.equal((await post(4)).status, 409);
+  const accepted = await post(RANKING_VERSION);
+  assert.equal(accepted.status, 200, await accepted.clone().text());
+  const board = (await accepted.json()) as LeaderboardData;
+  assert.equal(board.level, 19);
+  assert.ok(
+    board.entries.some(
+      (entry) => entry.timeMs === Math.round(game.time * 1000),
+    ),
+  );
+});

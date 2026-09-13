@@ -255,7 +255,13 @@ test("terrain fades continuously and keeps stable draw order through repeated ca
     player = { x: 0, y: 0, z: 0 };
   styleTerrainDepth(root, tile, player, 0, false, 1 / 60);
   assert.equal(mat.opacity, 1);
+  const opaqueVersion = mat.version;
   styleTerrainDepth(root, tile, player, 1, false, 1 / 60);
+  assert.equal(
+    mat.version,
+    opaqueVersion + 1,
+    "invalidate the cached OPAQUE shader",
+  );
   assert.ok(
     mat.opacity > 0.7 && mat.opacity < 1,
     "no one-frame jump to 9% opacity",
@@ -263,6 +269,11 @@ test("terrain fades continuously and keeps stable draw order through repeated ca
   for (let i = 0; i < 80; i++)
     styleTerrainDepth(root, tile, player, 1, false, 1 / 60);
   assert.equal(mat.opacity, 0.09);
+  assert.equal(
+    mat.version,
+    opaqueVersion + 1,
+    "fading must not recompile each frame",
+  );
   for (let i = 0; i < 180; i++) {
     styleTerrainDepth(
       root,
@@ -293,18 +304,22 @@ test("roof cutaways stay faded during sightline jitter and restore gradually aft
   occlusion.add(root);
   const direction = new THREE.Vector3(0, 0, 1),
     subject = new THREE.Vector3(0.64, 0, -2);
+  const opaqueVersion = mat.version;
   occlusion.update([subject], direction, 1 / 60);
   assert.equal(mat.opacity, 0.1);
+  assert.equal(mat.version, opaqueVersion + 1);
   for (let i = 0; i < 120; i++) {
     subject.x = i % 2 ? 0.66 : 0.64;
     occlusion.update([subject], direction, 1 / 60);
     assert.equal(mat.opacity, 0.1);
   }
+  assert.equal(mat.version, opaqueVersion + 1);
   subject.x = 1.1;
   occlusion.update([subject], direction, 1 / 60);
   assert.ok(mat.opacity > 0.1 && mat.opacity < 0.4);
   for (let i = 0; i < 80; i++) occlusion.update([subject], direction, 1 / 60);
   assert.equal(mat.opacity, 1);
+  assert.equal(mat.version, opaqueVersion + 2);
   disposeObjectTree(root);
 });
 

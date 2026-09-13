@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { setMaterialTransparency } from "./scene-resources";
 
 /** Background art is drawn before gameplay and can never write over its depth. */
 export function prepareBackdrop(root: THREE.Group) {
@@ -106,7 +107,10 @@ export class SceneryOcclusion {
       decoration.visibility = visibility;
       for (const saved of decoration.materials) {
         saved.material.opacity = saved.opacity * visibility;
-        saved.material.transparent = visibility < 1 || saved.transparent;
+        setMaterialTransparency(
+          saved.material,
+          visibility < 1 || saved.transparent,
+        );
         saved.material.depthWrite = visibility < 1 ? false : saved.depthWrite;
       }
       for (const saved of decoration.meshes)

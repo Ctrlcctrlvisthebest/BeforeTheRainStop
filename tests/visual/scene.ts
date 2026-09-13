@@ -3,6 +3,7 @@ import { GUIDE_ROUTES } from "../../src/guide";
 import { PaperScene } from "../../src/scene";
 import { bankPoint, CROSSINGS } from "../../src/bridges";
 import type { Language } from "../../src/i18n";
+import { probeTransparency } from "./transparency-probe";
 import { probeTerrain } from "./terrain-probe";
 
 const select = (id: string) =>
@@ -172,3 +173,9 @@ function frame(now: number) {
 }
 requestAnimationFrame(frame);
 window.addEventListener("pagehide", () => scene.dispose(), { once: true });
+
+document.querySelector("#transparency")!.addEventListener("click", () => {
+  const result = probeTransparency();
+  document.querySelector("#transparency-result")!.textContent =
+    `${result.checks} 项 GPU 检查 · ${result.failures.length ? result.failures.join("; ") : "全部通过"}`;
+});

@@ -1,6 +1,17 @@
 import * as THREE from "three";
 import type { Platform, Point } from "./game";
 
+/** Switching render passes also changes Three's OPAQUE shader define. Invalidate
+ * only on a mode change; opacity animation itself remains a cheap uniform update. */
+export function setMaterialTransparency(
+  material: THREE.Material,
+  transparent: boolean,
+) {
+  if (material.transparent === transparent) return;
+  material.transparent = transparent;
+  material.needsUpdate = true;
+}
+
 export type PlatformLayer = "active" | "front" | "back";
 /** Fractional views follow the actual camera turn. A small exit/entry gap keeps
  * network position jitter from repeatedly switching a platform's layer. */

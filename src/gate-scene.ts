@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { setMaterialTransparency } from "./scene-resources";
 
 const stone = (color: string) =>
   new THREE.MeshStandardMaterial({ color, roughness: 0.9, flatShading: true });
@@ -72,7 +73,7 @@ export function animateGatePad(
   group.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return;
     const material = o.material as THREE.Material;
-    material.transparent = ghost;
+    setMaterialTransparency(material, ghost);
     material.opacity = ghost ? 0.08 : 1;
     material.depthWrite = !ghost;
     o.castShadow = !ghost;

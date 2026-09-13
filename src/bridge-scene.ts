@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { setMaterialTransparency } from "./scene-resources";
 import { bankPoint, type BridgeCrossing } from "./bridges";
 import type { SocketState } from "./mechanism-state";
 
@@ -77,7 +78,7 @@ export function animateBridgeSocket(
       state === "aligned" || state === "holding" ? color : "#000000",
     );
     material.emissiveIntensity = 0.55;
-    material.transparent = ghost;
+    setMaterialTransparency(material, ghost);
     material.opacity = ghost ? 0.12 : 1;
     material.depthWrite = !ghost;
   });
