@@ -129,6 +129,8 @@ export function validateMap(
   for (const k of ["color", "sky"])
     if (typeof l[k] !== "string" || !/^#[\da-f]{6}$/i.test(l[k]))
       fail(`level.${k}`, "需要 #RRGGBB 颜色");
+  if (l.freeCheckpoints !== undefined && typeof l.freeCheckpoints !== "boolean")
+    fail("level.freeCheckpoints", "需要布尔值");
   point(l.spawn, "spawn");
   point(l.exit, "exit");
   list(l.platforms, "platforms", MAP_LIMITS.platforms, platform);
@@ -222,6 +224,25 @@ export function validateMap(
       !l.platforms?.[v.id]?.motion
     )
       fail(path, "渡台引导必须引用移动平台");
+    if (
+      v.landingId !== undefined &&
+      (v.kind !== "ferry" ||
+        !Number.isInteger(v.landingId) ||
+        v.landingId === v.id ||
+        !l.platforms?.[v.landingId]?.motion)
+    )
+      fail(path + ".landingId", "换乘目标必须是另一座移动平台");
+    if (v.via !== undefined) {
+      point(v.via, path + ".via");
+      if (v.kind !== "jump") fail(path + ".via", "空中转弯点只能用于跳跃引导");
+      if (
+        object(v.via) &&
+        object(v.target) &&
+        [0, 1].includes(v.view) &&
+        v.via[v.view === 0 ? "x" : "z"] !== v.target[v.view === 0 ? "x" : "z"]
+      )
+        fail(path + ".via", "转弯点必须与最终平台的起跳轴坐标对齐");
+    }
     if (v.kind === "wind") point(v.from, path + ".from");
     if (v.kind === "bridge" && !value.crossing) fail(path, "没有纸桥断口");
     if (v.kind === "pads" && !l.pads?.length) fail(path, "没有开门踏板");
@@ -338,7 +359,14 @@ export function parseMap(value: unknown, campaignChapter?: number): MapFile {
     version: m.version,
     ...(m.chapter !== undefined ? { chapter: m.chapter } : {}),
     level: {
-      ...pick(m.level, ["name", "sub", "hint", "color", "sky"]),
+      ...pick(m.level, [
+        "name",
+        "sub",
+        "hint",
+        "color",
+        "sky",
+        "freeCheckpoints",
+      ]),
       spawn: point(m.level.spawn),
       exit: point(m.level.exit),
       platforms: m.level.platforms.map(platform),
@@ -378,8 +406,9 @@ export function parseMap(value: unknown, campaignChapter?: number): MapFile {
       view: v.view,
       target: point(v.target),
       ...(["key", "rack", "ferry"].includes(v.kind) ? pick(v, ["id"]) : {}),
-      ...(v.kind === "ferry" ? pick(v, ["requiredKey"]) : {}),
+      ...(v.kind === "ferry" ? pick(v, ["requiredKey", "landingId"]) : {}),
       ...(v.kind === "wind" && v.from ? { from: point(v.from) } : {}),
+      ...(v.kind === "jump" && v.via ? { via: point(v.via) } : {}),
     })),
     ...(m.translations ? { translations: { ...m.translations } } : {}),
   } as MapFile;

@@ -67,6 +67,8 @@ export interface Level {
   keys: Point[];
   stars: Point[];
   checkpoints: Marker[];
+  /** Revisitable racks for branching maps; older chapters keep ordered saves. */
+  freeCheckpoints?: boolean;
   signs: Marker[];
   pads: Point[];
   gate?: Platform;
@@ -741,15 +743,14 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
     }
     let reachedCheckpoint = false;
     l.checkpoints.forEach((c, index) => {
-      if (
-        index > p.checkpoint &&
-        Math.hypot(c.x - p.x, c.z - p.z) < 1.1 &&
-        Math.abs(c.y - p.y) < 1
-      ) {
-        p.checkpoint = index;
-        reachedCheckpoint = true;
-        p.foldsLeft = MAX_FOLDS;
-        p.repairProgress = 0;
+      if (Math.hypot(c.x - p.x, c.z - p.z) < 1.1 && Math.abs(c.y - p.y) < 1) {
+        if (l.freeCheckpoints ? index !== p.checkpoint : index > p.checkpoint) {
+          p.checkpoint = index;
+          reachedCheckpoint = true;
+          p.foldsLeft = MAX_FOLDS;
+          p.repairProgress = 0;
+        }
+        if (l.freeCheckpoints) reachedCheckpoint = true;
       }
     });
     l.keys.forEach((k, index) => {

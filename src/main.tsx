@@ -1248,7 +1248,13 @@ function App() {
                 <b>
                   {t("未存档")} · ⚿ {carriedKeys} · ✦ {carriedStars}
                 </b>
-                <span>{t("带到下一个许愿架 · 死亡后需重新拾取")}</span>
+                <span>
+                  {t(
+                    LEVELS[hud.level].freeCheckpoints
+                      ? "带回任意许愿架 · 死亡后需重新拾取"
+                      : "带到下一个许愿架 · 死亡后需重新拾取",
+                  )}
+                </span>
               </>
             ) : local.bankedUntil > hud.time ? (
               <>
@@ -1673,6 +1679,7 @@ function App() {
             <HowToPlay
               language={language}
               initialLesson={helpLesson}
+              freeCheckpoints={isPlaying && !!LEVELS[hud.level].freeCheckpoints}
               playing={isPlaying}
               multiplayer={!!session}
               compact={compact}

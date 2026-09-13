@@ -309,3 +309,71 @@ test("sideways ferry disembarkation waits for the quay to align on the other axi
   assert.ok(guide.keys.includes("空格"));
   assert.equal(guide.direction, "right");
 });
+
+test("a fresh guide at a revisited dock respects uncollected outward keys", () => {
+  const g = newGame(1, 28),
+    p = g.players[0];
+  Object.assign(p, LEVELS[28].checkpoints[0], { checkpoint: 0 });
+  const outward = guideFor(g, 0, newGuideTracker());
+  assert.equal(outward.kind, "ferry");
+  g.keys = [0, 1];
+  const home = guideFor(g, 0, newGuideTracker());
+  assert.equal(home.kind, "jump");
+  assert.equal(home.direction, "turn");
+  assert.ok(
+    home.target!.z > 0,
+    "after banking the island keys, continue toward the home bridge",
+  );
+});
+
+test("transfer guidance tracks the other deck and waits for its landing window", () => {
+  const g = newGame(1, 35),
+    p = g.players[0];
+  const transfer = GUIDE_ROUTES[35].find((s) => s.landingId !== undefined)!;
+  Object.assign(p, {
+    x: 13.15,
+    y: 1,
+    z: 0,
+    grounded: true,
+    support: transfer.id,
+    checkpoint: 0,
+  });
+  const tracker = newGuideTracker();
+  g.motionTime = 0;
+  const wait = guideFor(g, 0, tracker);
+  assert.equal(wait.direction, "stay");
+  assert.match(words(wait.title, "en"), /ferries to meet/);
+  g.motionTime = 1.3;
+  p.x = 13.15 + 4 * Math.sin((1.3 * Math.PI) / 4);
+  const jump = guideFor(g, 0, tracker);
+  assert.match(words(jump.title, "en"), /Jump to the other ferry/);
+  assert.ok(jump.keys.includes("空格"));
+  assert.notEqual(
+    jump.target!.z,
+    wait.target!.z,
+    "the marker follows the destination deck",
+  );
+  p.support = transfer.landingId!;
+  p.x = 19.15;
+  p.z = 0;
+  assert.equal(
+    guideFor(g, 0, tracker).direction,
+    "turn",
+    "land first, then turn for the second ferry",
+  );
+});
+
+test("the midair corner cue keeps the glide held while requesting a view change", () => {
+  const g = newGame(1, 33),
+    p = g.players[0];
+  const corner = GUIDE_ROUTES[33].find((s) => s.via)!;
+  Object.assign(p, corner.via, { grounded: false, support: -1 });
+  const tracker = newGuideTracker();
+  const turn = guideFor(g, 0, tracker);
+  assert.equal(turn.direction, "turn");
+  assert.deepEqual(turn.keys, ["Q", "空格"]);
+  g.view = 1;
+  const landing = guideFor(g, 0, tracker);
+  assert.deepEqual(landing.target, corner.target);
+  assert.ok(landing.keys.includes("空格"));
+});

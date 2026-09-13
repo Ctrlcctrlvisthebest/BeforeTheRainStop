@@ -931,6 +931,22 @@ function App() {
               }
             />
           </label>
+          <label>
+            许愿架存档方式
+            <select
+              value={map.level.freeCheckpoints ? "revisit" : "ordered"}
+              onChange={(e) =>
+                changeMap((m) => {
+                  if (e.target.value === "revisit")
+                    m.level.freeCheckpoints = true;
+                  else delete m.level.freeCheckpoints;
+                })
+              }
+            >
+              <option value="ordered">依次前往新架子</option>
+              <option value="revisit">允许回访任意架子</option>
+            </select>
+          </label>
           {numberField(
             "目标关卡",
             map.chapter ?? 1,
@@ -1366,6 +1382,30 @@ function App() {
                       </select>
                     </label>
                   )}
+                  {item.kind === "jump" && (
+                    <label>
+                      空中转面
+                      <input
+                        type="checkbox"
+                        checked={!!item.via}
+                        onChange={(e) =>
+                          patch(
+                            "via",
+                            e.target.checked ? { ...item.target } : undefined,
+                          )
+                        }
+                      />
+                    </label>
+                  )}
+                  {item.kind === "jump" && item.via && (
+                    <div className="field-grid">
+                      {(["x", "y", "z"] as const).map((k) =>
+                        numberField(`空中转弯点 ${k}`, item.via[k], (n) =>
+                          patch("via", { ...item.via, [k]: n }),
+                        ),
+                      )}
+                    </div>
+                  )}
                   {item.kind === "wind" && (
                     <div className="field-grid">
                       {(["x", "y", "z"] as const).map((k) =>
@@ -1377,6 +1417,31 @@ function App() {
                         ),
                       )}
                     </div>
+                  )}
+                  {item.kind === "ferry" && (
+                    <label>
+                      换乘目标
+                      <select
+                        value={item.landingId ?? ""}
+                        onChange={(e) =>
+                          patch(
+                            "landingId",
+                            e.target.value === "" ? undefined : +e.target.value,
+                          )
+                        }
+                      >
+                        <option value="">固定对岸（目标坐标）</option>
+                        {map.level.platforms.map(
+                          (p, i) =>
+                            p.motion &&
+                            i !== item.id && (
+                              <option key={i} value={i}>
+                                换到渡台 {i + 1}
+                              </option>
+                            ),
+                        )}
+                      </select>
+                    </label>
                   )}
                   {item.kind === "ferry" && (
                     <label>

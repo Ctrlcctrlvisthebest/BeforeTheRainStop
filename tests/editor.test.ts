@@ -253,3 +253,37 @@ test("new stair route needs separate landings rather than holding jump across it
   }
   assert.equal(reachedUpper, false);
 });
+
+test("round-trip saves, moving-deck transfers and midair corners survive editor export", () => {
+  for (const chapter of [30, 34, 36]) {
+    const map = CHALLENGE_MAPS[chapter - 9];
+    assert.deepEqual(parseMap(JSON.parse(serializeMap(map))), map);
+  }
+  const transferMap = structuredClone(CHALLENGE_MAPS[36 - 9]);
+  const transfer = transferMap.route.find((s) => s.landingId !== undefined)!;
+  const shifted = removeEntity(transferMap, { kind: "platforms", index: 0 });
+  const shiftedStep = shifted.route.find((s) => s.landingId !== undefined)!;
+  assert.equal(shiftedStep.id, transfer.id! - 1);
+  assert.equal(shiftedStep.landingId, transfer.landingId! - 1);
+  const removed = removeEntity(transferMap, {
+    kind: "platforms",
+    index: transfer.landingId!,
+  });
+  assert.ok(!removed.route.some((s) => s.landingId !== undefined));
+  const routeIndex = transferMap.route.indexOf(transfer);
+  const walk = editEntity(
+    transferMap,
+    { kind: "route", index: routeIndex },
+    { kind: "walk" },
+  );
+  assert.equal(walk.route[routeIndex].landingId, undefined);
+  transfer.landingId = transfer.id;
+  assert.match(validateMap(transferMap).errors.join(), /landingId/);
+  const malformed = structuredClone(CHALLENGE_MAPS[30 - 9]) as any;
+  malformed.level.freeCheckpoints = "yes";
+  assert.match(validateMap(malformed).errors.join(), /freeCheckpoints/);
+  const cornerMap = structuredClone(CHALLENGE_MAPS[34 - 9]);
+  const corner = cornerMap.route.find((s) => s.via)!;
+  corner.via!.x++;
+  assert.match(validateMap(cornerMap).errors.join(), /via/);
+});

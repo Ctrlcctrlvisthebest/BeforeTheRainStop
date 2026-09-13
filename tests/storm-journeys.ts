@@ -132,7 +132,15 @@ export function completeStormLevel(
       tick({}, 55);
     }
     const axis = g.view === 0 ? "x" : "z";
-    if (s.kind === "wind") {
+    if (s.kind === "jump" && s.via) {
+      move(s.via[axis], true);
+      tick({ turn: true, jump: true });
+      tick({ jump: true }, 22);
+      if (p.grounded)
+        throw new Error("midair turn unexpectedly found a floor " + detail());
+      move(s.target[g.view === 0 ? "x" : "z"], true);
+      land();
+    } else if (s.kind === "wind") {
       move(s.from![axis]);
       until(() => p.y > s.target.y + 0.9);
       move(s.target[axis], true);
@@ -158,30 +166,35 @@ export function completeStormLevel(
         sign = Math.sign(s.target[axis] - p[axis]),
         other = axis === "x" ? "z" : "x",
         transverse = platform.motion!.axis !== axis;
-      // Board only while the ferry is approaching; wait under paper if needed.
-      until(
-        () =>
-          Math.abs(platformAt(platform, g.motionTime)[axis] - p[axis]) < 3.5 &&
-          Math.abs(platformAt(platform, g.motionTime + 0.9)[other] - p[other]) <
-            0.6,
-        () => ({ shelter: true }),
-      );
-      tick({ axis: sign * (g.view === 0 ? 1 : -1), jump: true });
-      until(
-        () => p.support === s.id,
-        () => {
-          const delta = platformAt(platform, g.motionTime)[axis] - p[axis];
-          return {
-            axis:
-              Math.abs(delta) < 0.22
-                ? 0
-                : Math.sign(delta) * (g.view === 0 ? 1 : -1),
-            jump: true,
-          };
-        },
-        240,
-      );
-      tick();
+      // A deck-to-deck transfer already lands us on the next ferry.
+      if (p.support !== s.id) {
+        // Board only while the ferry is approaching; wait under paper if needed.
+        until(
+          () =>
+            Math.abs(platformAt(platform, g.motionTime)[axis] - p[axis]) <
+              3.5 &&
+            Math.abs(
+              platformAt(platform, g.motionTime + 0.9)[other] - p[other],
+            ) < 0.6,
+          () => ({ shelter: true }),
+        );
+        tick({ axis: sign * (g.view === 0 ? 1 : -1), jump: true });
+        until(
+          () => p.support === s.id,
+          () => {
+            const delta = platformAt(platform, g.motionTime)[axis] - p[axis];
+            return {
+              axis:
+                Math.abs(delta) < 0.22
+                  ? 0
+                  : Math.sign(delta) * (g.view === 0 ? 1 : -1),
+              jump: true,
+            };
+          },
+          240,
+        );
+        tick();
+      }
       const pickup =
         s.requiredKey === undefined ? undefined : l.keys[s.requiredKey];
       if (pickup && pickup.y > platform.y + 1.8) {
@@ -217,6 +230,36 @@ export function completeStormLevel(
         () => s.requiredKey === undefined || g.keys.includes(s.requiredKey),
         () => ({ shelter: true }),
       );
+      if (s.landingId !== undefined) {
+        const destination = l.platforms[s.landingId];
+        until(
+          () =>
+            Math.abs(platformAt(destination, g.motionTime)[axis] - p[axis]) <
+              3.2 &&
+            Math.abs(
+              platformAt(destination, g.motionTime + 0.7)[other] - p[other],
+            ) < 0.35,
+          () => ({ shelter: true }),
+          1800,
+        );
+        tick({ jump: true });
+        until(
+          () => p.support === s.landingId && p.grounded,
+          () => {
+            const delta = platformAt(destination, g.motionTime)[axis] - p[axis];
+            return {
+              axis:
+                Math.abs(delta) < 0.15
+                  ? 0
+                  : Math.sign(delta) * (g.view === 0 ? 1 : -1),
+              jump: true,
+            };
+          },
+          240,
+        );
+        tick({}, 4);
+        continue;
+      }
       until(
         () =>
           Math.abs(s.target[axis] - p[axis]) < (transverse ? 5.4 : 4.3) &&

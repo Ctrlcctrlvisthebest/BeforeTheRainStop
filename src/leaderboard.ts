@@ -1,4 +1,8 @@
-import { CAMPAIGN_VERSION, UNCHANGED_LEVELS_V6 } from "./campaign-version";
+import {
+  CAMPAIGN_VERSION,
+  UNCHANGED_LEVELS_V6,
+  REBUILT_LEVELS_V8,
+} from "./campaign-version";
 import { LEVELS, isMode, type Mode } from "./game";
 
 // Replay protocol: old clients must refresh after gameplay rules change.
@@ -22,5 +26,5 @@ export const validPlayerToken = (value: unknown): value is string =>
 export function boardName(level: number, mode: Mode) {
   if (!Number.isInteger(level) || !LEVELS[level] || !isMode(mode))
     throw new Error("关卡或人数无效");
-  return `v${UNCHANGED_LEVELS_V6.includes(level) ? 2 : BOARD_STORAGE_VERSION}:${mode}:${LEVELS[level].name}`;
+  return `v${REBUILT_LEVELS_V8.includes(level) ? 4 : UNCHANGED_LEVELS_V6.includes(level) ? 2 : BOARD_STORAGE_VERSION}:${mode}:${LEVELS[level].name}`;
 }

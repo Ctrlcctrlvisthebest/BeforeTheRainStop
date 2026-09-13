@@ -319,10 +319,12 @@ function LessonDiagram({
   lesson,
   language,
   compact = false,
+  freeCheckpoints = false,
 }: {
   lesson: Lesson;
   language: Language;
   compact?: boolean;
+  freeCheckpoints?: boolean;
 }) {
   const w = (c: Copy) =>
     compact ? touchCopy(words(c, language), language) : words(c, language);
@@ -331,7 +333,11 @@ function LessonDiagram({
       className="lesson-diagram"
       viewBox="0 0 480 136"
       role="img"
-      aria-label={w(LESSONS[lesson].title)}
+      aria-label={w(
+        lesson === "save" && freeCheckpoints
+          ? ["任意许愿架都可存档", "Save at any wishing rack"]
+          : LESSONS[lesson].title,
+      )}
     >
       <defs>
         <marker
@@ -465,7 +471,11 @@ function LessonDiagram({
             {w(["随身携带", "Carried"])}
           </text>
           <text x="260" y="119">
-            {w(["下一个新架子", "Next new rack"])}
+            {w(
+              freeCheckpoints
+                ? ["任意许愿架", "Any rack"]
+                : ["下一个新架子", "Next new rack"],
+            )}
           </text>
           <text x="419" y="119">
             {w(["正式保存", "Saved"])}
@@ -576,15 +586,38 @@ export function HowToPlay({
   playing = false,
   multiplayer = false,
   compact = false,
+  freeCheckpoints = false,
 }: {
   language: Language;
   initialLesson?: Lesson;
+  freeCheckpoints?: boolean;
   playing?: boolean;
   multiplayer?: boolean;
   compact?: boolean;
 }) {
   const [lesson, setLesson] = useState<Lesson>(initialLesson),
-    data = LESSONS[lesson],
+    data: LessonData =
+      lesson === "save" && freeCheckpoints
+        ? {
+            ...LESSONS.save,
+            title: [
+              "带回任何许愿架，都能存下新收集",
+              "Return to any rack to save your finds",
+            ],
+            steps: [
+              LESSONS.save.steps[0],
+              [
+                "本关允许回访许愿架。靠近任何架子都会存下随身物品；死亡或按 R 返回最近停靠的架子。",
+                "Racks in this chapter can be revisited. Any rack saves carried items; death or R returns you to the most recently visited rack.",
+              ],
+              LESSONS.save.steps[2],
+            ],
+            note: [
+              "同一架子反复存物不会自动恢复耐折，需要时按住 F 修补。队友携带和已存物品不受你的死亡影响。",
+              "Saving again at the same rack does not refill folds: hold F to mend. Your death leaves teammates' carried and saved items intact.",
+            ],
+          }
+        : LESSONS[lesson],
     w = (c: Copy) =>
       compact ? touchCopy(words(c, language), language) : words(c, language);
   return (
@@ -633,7 +666,12 @@ export function HowToPlay({
         aria-labelledby={`lesson-${lesson}`}
       >
         <h3>{w(data.title)}</h3>
-        <LessonDiagram lesson={lesson} language={language} compact={compact} />
+        <LessonDiagram
+          lesson={lesson}
+          language={language}
+          compact={compact}
+          freeCheckpoints={freeCheckpoints}
+        />
         <ol>
           {data.steps.map((s, i) => (
             <li key={i}>{w(s)}</li>

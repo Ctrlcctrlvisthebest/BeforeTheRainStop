@@ -145,8 +145,12 @@ export function editEntity(
     if (item.kind === "exit" && rest.kind && rest.kind !== "exit") return map;
     Object.assign(item, rest);
     if (!["key", "rack", "ferry"].includes(item.kind)) delete item.id;
-    if (item.kind !== "ferry") delete item.requiredKey;
+    if (item.kind !== "ferry") {
+      delete item.requiredKey;
+      delete item.landingId;
+    }
     if (item.kind !== "wind") delete item.from;
+    if (item.kind !== "jump") delete item.via;
     if (x !== undefined) item.target.x = x;
     if (y !== undefined) item.target.y = y;
     if (z !== undefined) item.target.z = z;
@@ -182,11 +186,17 @@ export function removeEntity(map: MapFile, s: Selection): MapFile {
       !(
         r.kind === referenceKind &&
         (s.kind === "crossing" || r.id === s.index)
-      ),
+      ) && !(s.kind === "platforms" && r.landingId === s.index),
   );
   next.route.forEach((r) => {
     if (r.kind === referenceKind && r.id !== undefined && r.id > s.index)
       r.id--;
+    if (
+      s.kind === "platforms" &&
+      r.landingId !== undefined &&
+      r.landingId > s.index
+    )
+      r.landingId--;
     if (s.kind === "keys" && r.requiredKey !== undefined) {
       if (r.requiredKey === s.index) delete r.requiredKey;
       else if (r.requiredKey > s.index) r.requiredKey--;

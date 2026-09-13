@@ -166,3 +166,39 @@ test("old room snapshots migrate existing collection to saved progress", () => {
   assert.deepEqual(g.stars, [0]);
   assert.equal(g.players[0].lastDropped, 0);
 });
+
+test("branching maps bank new items on return and respawn at the most recently visited rack", () => {
+  const g = newGame(1, 29),
+    p = g.players[0];
+  rack(g, 0, 0);
+  rack(g, 0, 1);
+  pickup(g, 0, "keys", 0);
+  rack(g, 0, 0);
+  assert.equal(
+    p.checkpoint,
+    0,
+    "returning from the balcony selects the lower rack again",
+  );
+  assert.deepEqual(g.savedKeys, [0]);
+  pickup(g, 0, "keys", 1);
+  fall(g, 0);
+  assert.equal(p.checkpoint, 0);
+  assert.equal(p.x, LEVELS[29].checkpoints[0].x);
+  assert.deepEqual(g.keys, [0], "only the unbanked excursion is lost");
+});
+
+test("returning to the same hub banks a later excursion without granting free folds", () => {
+  const g = newGame(1, 34),
+    p = g.players[0];
+  rack(g, 0, 0);
+  p.foldsLeft = 2;
+  pickup(g, 0, "keys", 0);
+  rack(g, 0, 0);
+  assert.deepEqual(g.savedKeys, [0]);
+  assert.equal(p.foldsLeft, 2);
+  pickup(g, 0, "keys", 1);
+  rack(g, 0, 0);
+  fall(g, 0);
+  assert.deepEqual(g.keys, [0, 1]);
+  assert.equal(p.foldsLeft, 2);
+});

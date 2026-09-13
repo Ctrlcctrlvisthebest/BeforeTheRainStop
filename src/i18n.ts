@@ -80,6 +80,8 @@ const english: Record<string, string> = {
   未存档: "Unsaved",
   "带到下一个许愿架 · 死亡后需重新拾取":
     "Reach the next rack · dropped if you die",
+  "带回任意许愿架 · 死亡后需重新拾取":
+    "Return to any rack · dropped if you die",
   已存入许愿架: "Saved at the wishing rack",
   件物品: "items",
   "这部分收集，死亡后会保留": "These items will survive a death",

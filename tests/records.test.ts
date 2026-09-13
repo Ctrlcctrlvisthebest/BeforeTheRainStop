@@ -324,3 +324,30 @@ test("v7 carries forward every v6 chapter and mode without importing scores for 
     assert.equal(bestTimeFor(new LocalRecords().times, 26, 6), 3606);
     assert.equal(disk.get("rain-best-times-all-stars-v6"), legacy);
   }));
+
+test("v8 imports every unchanged v7 map and mode while preserving the old store", () =>
+  withStorage((disk) => {
+    const remade = [28, 29, 31, 33, 34, 35, 39];
+    const old = JSON.stringify(
+      Object.fromEntries(
+        MODES.flatMap((mode) =>
+          LEVELS.map((level, index) => [
+            `${mode}:${level.name}`,
+            1000 + index * 100 + mode,
+          ]),
+        ),
+      ),
+    );
+    disk.set("rain-best-times-all-stars-v7", old);
+    const records = new LocalRecords();
+    for (const mode of MODES)
+      for (let index = 0; index < LEVELS.length; index++)
+        assert.equal(
+          bestTimeFor(records.times, index, mode),
+          remade.includes(index) ? undefined : 1000 + index * 100 + mode,
+        );
+    records.record(finish(80, 39));
+    assert.equal(bestTimeFor(new LocalRecords().times, 39, 1), 80000);
+    assert.equal(bestTimeFor(new LocalRecords().times, 38, 6), 4806);
+    assert.equal(disk.get("rain-best-times-all-stars-v7"), old);
+  }));

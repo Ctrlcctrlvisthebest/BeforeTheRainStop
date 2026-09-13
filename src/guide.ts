@@ -33,6 +33,10 @@ export interface RouteStep {
   id?: number;
   from?: Point;
   requiredKey?: number;
+  /** Transfer directly to another moving deck instead of a fixed bank. */
+  landingId?: number;
+  /** Airborne corner: start in view, turn at via, then glide along the other axis. */
+  via?: Point;
 }
 const pt = (x: number, z: number, y = 0): Point => ({ x, y, z });
 const walk = (x: number, z: number, view: 0 | 1 = 0, y = 0): RouteStep => ({
@@ -280,7 +284,12 @@ function reached(g: Game, p: Bird, s: RouteStep, previous: Point): boolean {
   if (s.kind === "key") return g.keys.includes(s.id!);
   if (s.requiredKey !== undefined && !g.keys.includes(s.requiredKey))
     return false;
-  if (s.kind === "rack") return p.checkpoint >= s.id!;
+  if (s.kind === "rack")
+    return LEVELS[g.level].freeCheckpoints
+      ? p.checkpoint === s.id && distance(p, s.target) < 1.1
+      : p.checkpoint >= s.id!;
+  if (s.kind === "ferry" && s.landingId !== undefined)
+    return p.support === s.landingId && p.grounded;
   if (s.kind === "pads") {
     if (g.gateOpen) return true;
     const l = LEVELS[g.level],
@@ -318,6 +327,18 @@ function reached(g: Game, p: Bird, s: RouteStep, previous: Point): boolean {
 }
 function checkpointIndex(g: Game, p: Bird): number {
   const route = GUIDE_ROUTES[g.level];
+  if (LEVELS[g.level].freeCheckpoints) {
+    let index = 0;
+    for (const [i, step] of route.entries()) {
+      if (
+        (step.kind === "key" && !g.keys.includes(step.id!)) ||
+        (step.requiredKey !== undefined && !g.keys.includes(step.requiredKey))
+      )
+        break;
+      if (step.kind === "rack" && step.id === p.checkpoint) index = i + 1;
+    }
+    return index;
+  }
   return Math.max(
     0,
     ...route.map((s, i) =>
@@ -387,6 +408,11 @@ export function guideFor(
         (s.requiredKey !== undefined && !g.keys.includes(s.requiredKey))),
   );
   const s = route[missingEarlier >= 0 ? missingEarlier : tracker.index];
+  const takeoffAxis = s.view === 0 ? "x" : "z";
+  const pastAirCorner =
+    !!s.via &&
+    (Math.abs(p[takeoffAxis] - s.via[takeoffAxis]) < 0.6 ||
+      (!p.grounded && g.view !== s.view));
   let target = { ...s.target },
     lesson: Lesson = "basics",
     title: Copy = ["沿走廊前进", "Follow the walkway"],
@@ -404,6 +430,16 @@ export function guideFor(
     ];
     keys = ["空格"];
   }
+  if (s.kind === "jump" && s.via) {
+    target = pastAirCorner ? { ...s.target } : { ...s.via };
+    title = pastAirCorner
+      ? ["保持滑翔，落到侧面的平台", "Keep gliding onto the side landing"]
+      : ["先飞到空中的转弯路标", "Glide to the midair turning marker"];
+    body = [
+      "整段都按住跳跃键。先沿当前方向飞，到空中路标后按 Q 转面，再沿新的方向滑到落台。",
+      "Hold Jump throughout. Glide toward the marker, press Q in midair, then move along the new axis to land.",
+    ];
+  }
   if (s.kind === "rack") {
     lesson = "save";
     title = ["到许愿架存下物品", "Save your items at the rack"];
@@ -411,6 +447,11 @@ export function guideFor(
       "靠近下一个新许愿架会自动存档并补满耐折，不用按键。",
       "Approach the next new rack to save items and restore folds automatically. No button needed.",
     ];
+    if (l.freeCheckpoints)
+      body = [
+        "回到这座许愿架也能存下新物品。死亡后会回到最近停靠的许愿架。",
+        "Revisit this rack to save new items. A fall returns you to your most recently visited rack.",
+      ];
   }
   if (s.kind === "key") {
     lesson = "save";
@@ -443,7 +484,11 @@ export function guideFor(
     lesson = "wind";
     const platform = platformAt(l.platforms[s.id!], g.motionTime),
       riding = p.support === s.id;
-    target = riding ? s.target : { ...platform };
+    const destination =
+      s.landingId === undefined
+        ? s.target
+        : platformAt(l.platforms[s.landingId], g.motionTime);
+    target = riding ? { ...destination } : { ...platform };
     const hasKey =
       s.requiredKey === undefined || g.keys.includes(s.requiredKey);
     const ferryAxis = s.view === 0 ? "x" : "z",
@@ -452,8 +497,14 @@ export function guideFor(
     const canJump =
       riding &&
       hasKey &&
-      Math.abs(p[ferryAxis] - s.target[ferryAxis]) < (transverse ? 5.4 : 4.5) &&
-      Math.abs(p[other] - s.target[other]) < (transverse ? 0.6 : 1.2);
+      Math.abs(p[ferryAxis] - destination[ferryAxis]) <
+        (s.landingId !== undefined ? 3.2 : transverse ? 5.4 : 4.5) &&
+      (s.landingId !== undefined
+        ? Math.abs(
+            p[other] -
+              platformAt(l.platforms[s.landingId], g.motionTime + 0.7)[other],
+          ) < 0.35
+        : Math.abs(p[other] - destination[other]) < (transverse ? 0.6 : 1.2));
     const landing = platformAt(l.platforms[s.id!], g.motionTime + 0.9);
     waitForFerry = riding
       ? !canJump
@@ -473,6 +524,15 @@ export function guideFor(
           "长断口不能直接越过。先落到移动平台上，再乘它去对岸。",
           "This gap is too wide to jump directly. Land on the moving platform and ride it across.",
         ];
+    if (riding && s.landingId !== undefined) {
+      title = canJump
+        ? ["现在跳到另一条渡舟", "Jump to the other ferry now"]
+        : ["等两条渡舟靠拢", "Wait for the two ferries to meet"];
+      body = [
+        "中间没有岸。保持站稳，等另一条船靠近再跳过去；落稳后按下一步引导转面。",
+        "There is no middle bank. Wait aboard, then jump to the other deck as it approaches. Turn after landing.",
+      ];
+    }
     if (riding && !hasKey) {
       title = ["先随渡台经过钥匙", "Ride through the key first"];
       body = [
@@ -625,7 +685,7 @@ export function guideFor(
             "With all keys collected, everyone must reach the gate. Your final items are saved here.",
           ];
   }
-  let requiredView = s.view;
+  let requiredView: 0 | 1 = pastAirCorner ? (s.view === 0 ? 1 : 0) : s.view;
   // Racks and gates may lie around a corner; follow adjacent route points when a missed key is behind us.
   if (missingEarlier >= 0) {
     const nearby = route
@@ -672,6 +732,17 @@ export function guideFor(
             "Press Q once to return to the front view, then continue left or right. The view turns for the whole team.",
           ];
     keys = ["Q"];
+    if (s.via) {
+      title = [
+        "现在空中转面，跳跃键别松",
+        "Turn in midair now; keep holding Jump",
+      ];
+      body = [
+        "按一次 Q，然后沿新方向继续滑翔到平台。",
+        "Press Q once, then keep gliding along the new axis to the platform.",
+      ];
+      keys = ["Q", "空格"];
+    }
     direction = "turn";
   } else if (direction !== "stay")
     keys = [delta > 0 ? "→ / D" : "← / A", ...keys];
