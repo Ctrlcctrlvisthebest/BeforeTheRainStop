@@ -3,7 +3,7 @@
   "version": 1,
   "chapter": 33,
   "level": {
-    "name": "四时桅索",
+    "name": "舟上悬桥",
     "sub": "四种机关分守桅杆两侧，钥匙藏在换面后的落台。",
     "hint": "火檐开闸 · 舟上拾钥 · 高空接桥",
     "color": "#62798b",
@@ -724,7 +724,7 @@
     }
   ],
   "translations": {
-    "四时桅索": "Rigging of Four Seasons",
+    "舟上悬桥": "A Bridge Above the Ferry",
     "四种机关分守桅杆两侧，钥匙藏在换面后的落台。": "Four mechanisms guard the mast, with keys beyond each turn.",
     "火檐开闸 · 舟上拾钥 · 高空接桥": "Fire before the gate · a key above the ferry · bridge in the sky",
     "火熄再穿檐 · 出檐后才能起跳": "Cross while the fire is out; jump only after leaving the low roof",

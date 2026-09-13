@@ -1,3 +1,4 @@
+import { CHAPTER_STORAGE_SUFFIXES } from "./chapter-storage";
 import { rankedClear } from "./score-rules";
 import {
   CAMPAIGN_VERSION,
@@ -5,13 +6,13 @@ import {
   V6_CAMPAIGN_LENGTH,
   REBUILT_LEVELS_V8,
 } from "./campaign-version";
-import { LEVELS, MODES, isMode, type Game, type Mode } from "./game";
+import { MODES, isMode, type Game, type Mode } from "./game";
 import { save, stored } from "./storage";
 
 export const RECORDS_KEY = `rain-best-times-all-stars-v${CAMPAIGN_VERSION}`;
 export type BestTimes = Record<string, number>;
-// Names identify the built-in chapters independently of their menu position or UI language.
-const chapterNames = LEVELS.map((level) => level.name);
+// Compatibility encoding only; gameplay identity remains the numeric level ID.
+const chapterNames = CHAPTER_STORAGE_SUFFIXES;
 function recordKey(level: number, mode: Mode) {
   return Number.isInteger(level) && chapterNames[level] && isMode(mode)
     ? `${mode}:${chapterNames[level]}`

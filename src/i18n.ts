@@ -2,6 +2,7 @@ import { MAP_TRANSLATIONS } from "./challenge-maps";
 export type Language = "zh" | "en";
 const english: Record<string, string> = {
   ...MAP_TRANSLATIONS,
+  通关记录与排行榜: "Records and leaderboard",
   "地图与计分规则已更新，请刷新页面重新加入。":
     "Maps and scoring rules changed. Reload this page and rejoin.",
   "未收齐星星：本次通关不计入记录，也不会上传排行榜。":
@@ -104,7 +105,7 @@ const english: Record<string, string> = {
   "Q · 正面向右走": "Q · go right in front view",
   "Q · 沿雨廊折返": "Q · double back through the rain",
   "Q · 跳过旺火去存档": "Q · jump the blaze to reach the rack",
-  渡风灯船: "Lantern Ferries",
+  渡上高廊: "Ferries to the Upper Walk",
   "等一盏移动的灯，把愿望送上高处。":
     "Wait for a drifting lantern. Send your wishes skyward.",
   "断口太宽 · 借移动渡台换脚 · 乘风登上高廊":
@@ -121,7 +122,7 @@ const english: Record<string, string> = {
   "Q · 正面搭桥": "Q · bridge in front view",
   "Q · 绕向后面的灯廊": "Q · around to the lantern walk",
   "Q · 这次向左走": "Q · go left this time",
-  回灯长夜: "Home Through the Long Night",
+  高廊归岸: "From Gallery to Shore",
   "最后一段雨路，每个愿望都要带回家。":
     "One last stretch of rain. Bring every wish home.",
   "高廊向左折返 · 下到远处灯岸 · 烤干后一起开门":
@@ -411,7 +412,7 @@ const english: Record<string, string> = {
   纸的另一面: "The Other Side of Paper",
   借你一片翅膀: "A Wing to Lend",
   乘同一阵风: "Ride the Same Wind",
-  一只也不能少: "Leave No Crane Behind",
+  同归灯下: "Together in the Lantern Light",
   "跑起来，世界还有另一面。": "There is another side to every path.",
   "有人搭桥，有人先走。": "One makes a bridge. Another crosses.",
   "风会带你去高一点的地方。": "The wind will carry you a little higher.",

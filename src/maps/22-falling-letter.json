@@ -2,7 +2,7 @@
   "format": "before-the-rain-map",
   "version": 1,
   "level": {
-    "name": "落雨千层",
+    "name": "层台落笺",
     "sub": "从高处寄出的信，要在每一层轻轻停住。",
     "hint": "逐层滑翔落灯台 · 中层与底层各借一艘渡舟",
     "color": "#53697b",
@@ -441,7 +441,7 @@
     }
   ],
   "translations": {
-    "落雨千层": "A Falling Letter",
+    "层台落笺": "A Letter Drifting Down",
     "从高处寄出的信，要在每一层轻轻停住。": "A letter from the rooftops must pause gently on every lower terrace.",
     "向下看落点 · 松开方向及时落稳 · 逐层保存": "Look for the lower landing · stop moving to settle · save on each terrace",
     "向下滑翔 · 落稳再转面，别越过下一层": "Glide down · land before turning, without overshooting the next terrace",

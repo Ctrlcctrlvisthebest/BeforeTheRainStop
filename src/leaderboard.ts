@@ -1,3 +1,4 @@
+import { CHAPTER_STORAGE_SUFFIXES } from "./chapter-storage";
 import {
   CAMPAIGN_VERSION,
   UNCHANGED_LEVELS_V6,
@@ -26,5 +27,5 @@ export const validPlayerToken = (value: unknown): value is string =>
 export function boardName(level: number, mode: Mode) {
   if (!Number.isInteger(level) || !LEVELS[level] || !isMode(mode))
     throw new Error("关卡或人数无效");
-  return `v${REBUILT_LEVELS_V8.includes(level) ? 4 : UNCHANGED_LEVELS_V6.includes(level) ? 2 : BOARD_STORAGE_VERSION}:${mode}:${LEVELS[level].name}`;
+  return `v${REBUILT_LEVELS_V8.includes(level) ? 4 : UNCHANGED_LEVELS_V6.includes(level) ? 2 : BOARD_STORAGE_VERSION}:${mode}:${CHAPTER_STORAGE_SUFFIXES[level]}`;
 }

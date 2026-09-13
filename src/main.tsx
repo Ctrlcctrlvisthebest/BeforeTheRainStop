@@ -44,6 +44,7 @@ import {
 import "./style.css";
 import "./mobile.css";
 import "./play-layout.css";
+import "./rain-ui.css";
 import { TouchInput, mergeInput, type TouchField } from "./touch-input";
 import { useCompactControls, touchCopy } from "./mobile";
 import { useGameAudio, MusicControls } from "./audio";
@@ -796,27 +797,24 @@ function App() {
       {phase === "menu" && (
         <>
           <div className="intro">
-            <span className="eyebrow">
-              {t("1 / 2 / 3 / 6 人 · 纸上合作冒险")}
-            </span>
-            <h1>
-              <span>{t("雨停之前，")}</span>
-              <span>{t("愿你平安抵达。")}</span>
-            </h1>
-            <p>
-              {t("一张纸，一个愿望。")}
-              <br />
-              {t("在雨幕与许愿架之间，替同伴留一片干燥。")}
-            </p>
-            <div className="wish-tags" aria-hidden="true">
-              <i>◇</i>
-              <i>✦</i>
-              <i>◇</i>
+            <div className="intro-title">
+              <h1>{t("雨停之前")}</h1>
+              <p className="intro-dedication">{t("愿你平安抵达。")}</p>
             </div>
-            <GoalFlow language={language} />
-            <div className="intro-controls">
-              <kbd>{t("空格")}</kbd> {t("起飞")} <kbd>Q</kbd> {t("转面")}{" "}
-              <kbd>S</kbd> {t("展纸挡雨")}
+            <div className="intro-story">
+              <p>
+                {t("一张纸，一个愿望。")}
+                <br />
+                {t("在雨幕与许愿架之间，替同伴留一片干燥。")}
+              </p>
+              <span className="intro-players">
+                {t("1 / 2 / 3 / 6 人 · 纸上合作冒险")}
+              </span>
+              <GoalFlow language={language} />
+              <div className="intro-controls">
+                <kbd>{t("空格")}</kbd> {t("起飞")} <kbd>Q</kbd> {t("转面")}{" "}
+                <kbd>S</kbd> {t("展纸挡雨")}
+              </div>
             </div>
           </div>
           <section className="panel menu">
@@ -825,6 +823,41 @@ function App() {
               <b>
                 {LEVELS.length} {t("个关卡")}
               </b>
+            </div>
+            <label>
+              {t("出发关卡")}
+              <select
+                value={level}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  setLevel(n);
+                  game.current = newGame(1, n);
+                }}
+              >
+                {LEVELS.map((l, i) => (
+                  <option key={i} value={i}>
+                    {String(i + 1).padStart(2, "0")} · {t(l.name)}
+                    {bestTimeFor(bestTimes, i, mode) !== undefined &&
+                      ` · ${formatTime(bestTimeFor(bestTimes, i, mode)!)}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="chapter-brief">
+              {level >= 8 && (
+                <strong className="challenge-label">
+                  {t("挑战关 · 熟练后再来")}
+                </strong>
+              )}
+              <p className="chapter-sub">{t(LEVELS[level].sub)}</p>
+              <p>
+                {compact
+                  ? touchCopy(t(LEVELS[level].hint), language)
+                  : t(LEVELS[level].hint)}
+              </p>
+              <button onClick={() => learn("basics")}>
+                {t("第一次玩？先看图解")} ↗
+              </button>
             </div>
             <label>
               {t("你的名字")}
@@ -861,60 +894,13 @@ function App() {
                 <button
                   key={m}
                   className={mode === m ? "selected" : ""}
+                  aria-pressed={mode === m}
                   onClick={() => setMode(m)}
                 >
                   <strong>{m}</strong>
                   <span>{t(m === 1 ? "独自探索" : "好友联机")}</span>
                 </button>
               ))}
-            </div>
-            <label>
-              {t("出发关卡")}
-              <select
-                value={level}
-                onChange={(e) => {
-                  const n = Number(e.target.value);
-                  setLevel(n);
-                  game.current = newGame(1, n);
-                }}
-              >
-                {LEVELS.map((l, i) => (
-                  <option key={i} value={i}>
-                    {String(i + 1).padStart(2, "0")} · {t(l.name)}
-                    {bestTimeFor(bestTimes, i, mode) !== undefined &&
-                      ` · ${formatTime(bestTimeFor(bestTimes, i, mode)!)}`}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="chapter-record" aria-label={t("本关通关记录")}>
-              <div>
-                <span>
-                  {t("本地最佳")} · {mode} {t("人")}
-                </span>
-                <strong>
-                  {selectedBest === undefined
-                    ? t("暂无通关记录")
-                    : formatTime(selectedBest)}
-                </strong>
-              </div>
-              <small>{t("全星通关才计入记录 · 按人数分别记录")}</small>
-            </div>
-            <div className="chapter-brief">
-              {level >= 8 && (
-                <strong className="challenge-label">
-                  {t("挑战关 · 熟练后再来")}
-                </strong>
-              )}
-              <b>{t("本关练习")}</b>
-              <p>
-                {compact
-                  ? touchCopy(t(LEVELS[level].hint), language)
-                  : t(LEVELS[level].hint)}
-              </p>
-              <button onClick={() => learn("basics")}>
-                {t("第一次玩？先看图解")} ↗
-              </button>
             </div>
             <button
               className="primary"
@@ -942,7 +928,23 @@ function App() {
             <p className="fine">
               {t("每人一只纸鹤 · 用房间码邀请好友 · 不需要注册")}
             </p>
-            <Leaderboard level={level} mode={mode} language={language} />
+            <details className="journey-records">
+              <summary>{t("通关记录与排行榜")}</summary>
+              <div className="chapter-record" aria-label={t("本关通关记录")}>
+                <div>
+                  <span>
+                    {t("本地最佳")} · {mode} {t("人")}
+                  </span>
+                  <strong>
+                    {selectedBest === undefined
+                      ? t("暂无通关记录")
+                      : formatTime(selectedBest)}
+                  </strong>
+                </div>
+                <small>{t("全星通关才计入记录 · 按人数分别记录")}</small>
+              </div>
+              <Leaderboard level={level} mode={mode} language={language} />
+            </details>
           </section>
           <footer>
             {t("把愿望系在檐下，把同伴带回家。")}

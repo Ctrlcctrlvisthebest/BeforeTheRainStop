@@ -3,7 +3,7 @@
   "version": 1,
   "chapter": 28,
   "level": {
-    "name": "天缝针脚",
+    "name": "云间针脚",
     "sub": "细台隔着风口，每次落脚都要重新判断方向。",
     "hint": "折向连跳 · 双风接渡台 · 高处再降落",
     "color": "#62798b",
@@ -534,7 +534,7 @@
     }
   ],
   "translations": {
-    "天缝针脚": "Stitches in the Sky",
+    "云间针脚": "Stitches Between Clouds",
     "细台隔着风口，每次落脚都要重新判断方向。": "Read each landing anew as the narrow ledges change direction.",
     "折向连跳 · 双风接渡台 · 高处再降落": "Turning jumps · two lifts and a ferry · descend from the ridge",
     "风口先升高 · 对准高台后离开风柱": "Rise in the updraft, then leave toward the upper ledge",

@@ -3,7 +3,7 @@
   "version": 1,
   "chapter": 39,
   "level": {
-    "name": "长夜守灯",
+    "name": "双渡长夜",
     "sub": "五段机关之间没有长廊，灯火只照亮下一块落脚点。",
     "hint": "双渡取钥 · 火檐开闸 · 风桥连收",
     "color": "#62798b",
@@ -859,7 +859,7 @@
     }
   ],
   "translations": {
-    "长夜守灯": "Keeping the Last Lantern",
+    "双渡长夜": "Two Crossings Through the Night",
     "五段机关之间没有长廊，灯火只照亮下一块落脚点。": "No long corridors connect these mechanisms: follow the next small light.",
     "双渡取钥 · 火檐开闸 · 风桥连收": "Two ferry keys · fire before the gate · wind into bridge",
     "等渡台靠岸再跳 · 船上松开方向键 · 对岸近了再起跳": "Board as the ferry approaches; release movement aboard and jump near the far bank",

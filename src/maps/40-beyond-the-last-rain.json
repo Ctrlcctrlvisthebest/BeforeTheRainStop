@@ -3,7 +3,7 @@
   "version": 1,
   "chapter": 40,
   "level": {
-    "name": "雨尽归灯",
+    "name": "旧灯归途",
     "sub": "出口就在旧灯旁；先接桥出发，再从上层开门、绕回家。",
     "hint": "接桥出航 · 登楼开闸 · 滑翔归灯",
     "color": "#62798b",
@@ -576,7 +576,7 @@
     }
   ],
   "translations": {
-    "雨尽归灯": "The Last Journey Home",
+    "旧灯归途": "Back to the Old Lantern",
     "出口就在旧灯旁；先接桥出发，再从上层开门、绕回家。": "The exit waits by the old lantern. Build your way out, open its gate above, and loop home.",
     "接桥出航 · 登楼开闸 · 滑翔归灯": "Bridge and sail out · open the upper switches · glide home",
     "灯门在侧面 · 桥接通后会一直保留，回家还要经过这里": "The lantern gate is sideways. Your bridge will remain latched for the way home",

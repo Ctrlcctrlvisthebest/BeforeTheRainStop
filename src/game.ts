@@ -215,7 +215,7 @@ export const LEVELS: Level[] = [
     hazards: [],
   },
   {
-    name: "一只也不能少",
+    name: "同归灯下",
     sub: "窗内的灯，为所有人亮着。",
     hint: "Q 转到侧面搭桥 · 跳过旺火 · 接通木桥后一起踩机关",
     color: "#465b70",

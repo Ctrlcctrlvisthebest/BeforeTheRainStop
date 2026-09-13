@@ -3,7 +3,7 @@
   "version": 1,
   "chapter": 36,
   "level": {
-    "name": "无岸换乘",
+    "name": "两舟之间",
     "sub": "中间没有落脚的岸；两条渡舟靠拢时，直接从船跳到船。",
     "hint": "横舟换纵舟 · 观察交会窗口 · 转面驶离",
     "color": "#62798b",
@@ -308,7 +308,7 @@
     }
   ],
   "translations": {
-    "无岸换乘": "A Transfer Without a Shore",
+    "两舟之间": "Between Two Boats",
     "中间没有落脚的岸；两条渡舟靠拢时，直接从船跳到船。": "There is no middle bank. When the decks meet, jump directly from one ferry to the other.",
     "横舟换纵舟 · 观察交会窗口 · 转面驶离": "Transfer from crosswise to lengthwise · watch the meeting window · turn and depart",
     "两舟靠拢时直接换船 · 落稳后按 Q，随纵向渡舟离开": "Jump deck to deck when they meet. After landing, press Q and ride the second ferry away"

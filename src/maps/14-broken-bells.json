@@ -2,7 +2,7 @@
   "format": "before-the-rain-map",
   "version": 1,
   "level": {
-    "name": "风铃天井",
+    "name": "三井入云",
     "sub": "借三口风井登高，再沿落台滑回灯下。",
     "hint": "风井中先升高再横移 · 三次升空方向不同 · 高处星星别漏",
     "color": "#526879",
@@ -440,7 +440,7 @@
     }
   ],
   "translations": {
-    "风铃天井": "Windbell Well",
+    "三井入云": "Three Wells to the Clouds",
     "借三口风井登高，再沿落台滑回灯下。": "Climb three wind wells, then glide down to the lantern.",
     "风井中先升高再横移 · 三次升空方向不同 · 高处星星别漏": "Rise before leaving each wind well · lifts turn corners · collect the high stars",
     "先借风升高 · 再横移离开风井": "Rise in the wind before moving out",

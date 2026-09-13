@@ -2,7 +2,7 @@
   "format": "before-the-rain-map",
   "version": 1,
   "level": {
-    "name": "黎明入心",
+    "name": "回环入庭",
     "sub": "最后一封愿望，沿雨的螺旋送到正中。",
     "hint": "外圈收灯 · 渡船缩进内圈 · 折桥抵达中央",
     "color": "#53697b",
@@ -1092,7 +1092,7 @@
     }
   ],
   "translations": {
-    "黎明入心": "Into the Dawn",
+    "回环入庭": "Circling into the Courtyard",
     "最后一封愿望，沿雨的螺旋送到正中。": "Carry the last wish along a spiral into the heart of the rain.",
     "外圈收灯 · 渡船缩进内圈 · 折桥抵达中央": "Collect on the outer ring · ferry into the inner ring · bridge to the centre"
   },

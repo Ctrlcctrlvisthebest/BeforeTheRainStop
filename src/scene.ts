@@ -1,5 +1,6 @@
 import { mergeDecorations, colorSlab } from "./render-geometry";
-import { rainFloorAt, type RainCover } from "./rain-occlusion";
+import type { RainCover } from "./rain-occlusion";
+import { RainCurtain, WindLeaves } from "./weather-scene";
 import {
   disposeObjectTree,
   platformVisual,
@@ -419,14 +420,11 @@ export class PaperScene {
   private visibilitySubjects: THREE.Vector3[] = [];
   private camera = new THREE.OrthographicCamera();
   private birds: THREE.Group[] = [];
-  private rain: THREE.LineSegments | null = null;
-  private rainSeeds: {
-    x: number;
-    z: number;
-    phase: number;
-    speed: number;
-    floor: number;
-  }[] = [];
+  private rain: RainCurtain | null = null;
+  private windLeaves: WindLeaves | null = null;
+  private readonly reducedMotion = matchMedia(
+    "(prefers-reduced-motion: reduce)",
+  );
   private tiles: THREE.Group[] = [];
   private terrainEdges: TerrainEdges | null = null;
   private keys: THREE.Group[] = [];
@@ -446,7 +444,6 @@ export class PaperScene {
   private portal = new THREE.Group();
   private guideMarker = new THREE.Group();
   private signs: THREE.Sprite[] = [];
-  private windLines: THREE.Mesh[] = [];
   private resize: ResizeObserver;
   private level = -1;
   private count = 0;
@@ -556,7 +553,6 @@ export class PaperScene {
     this.fires = [];
     this.litFire = null;
     this.fireLight.intensity = 0;
-    this.windLines = [];
     const l = LEVELS[g.level];
     this.scene.background = new THREE.Color(l.sky);
     this.scene.fog = new THREE.Fog(l.sky, 32, 80);
@@ -743,22 +739,8 @@ export class PaperScene {
       label.name = "awning-label";
       this.root.add(label);
     });
-    l.winds.forEach((w) => {
-      for (let i = 0; i < 16; i++) {
-        const line = new THREE.Mesh(
-          new THREE.BoxGeometry(0.025, 0.38, 0.025),
-          new THREE.MeshBasicMaterial({
-            color: "#ffffff",
-            transparent: true,
-            opacity: 0.65,
-          }),
-        );
-        line.userData.wind = w;
-        line.userData.offset = i / 16;
-        this.windLines.push(line);
-        this.root.add(line);
-      }
-    });
+    this.windLeaves = new WindLeaves(l.winds);
+    this.root.add(this.windLeaves);
     this.portal = new THREE.Group();
     for (const s of [-1, 1]) {
       const post = new THREE.Mesh(
@@ -973,40 +955,10 @@ export class PaperScene {
       ...(BLAZE_ROOFS[g.level] ?? []).map((a) => ({ ...a, top: a.y + 0.05 })),
       ...l.platforms
         .filter((p) => !p.motion)
+        .map(platformVisual)
         .map((p) => ({ ...p, top: p.y + 0.02 })),
     ];
-    this.rainSeeds = [];
-    WEATHER[g.level].zones.forEach((zone, zi) => {
-      for (let i = 0; i < 160; i++)
-        this.rainSeeds.push({
-          x: zone.x + (((i * 0.618033 + zi * 0.37) % 1) - 0.5) * zone.w,
-          z: zone.z + (((i * 0.414213 + zi * 0.19) % 1) - 0.5) * zone.d,
-          phase: (i * 0.754877) % 1,
-          speed: 1 + (i % 7) * 0.08,
-          floor: -2.5,
-        });
-    });
-    this.rainSeeds.forEach((seed) => {
-      seed.floor = rainFloorAt(seed, fixedCovers);
-    });
-    const rainGeo = new THREE.BufferGeometry();
-    rainGeo.setAttribute(
-      "position",
-      new THREE.BufferAttribute(
-        new Float32Array(this.rainSeeds.length * 6),
-        3,
-      ).setUsage(THREE.DynamicDrawUsage),
-    );
-    this.rain = new THREE.LineSegments(
-      rainGeo,
-      new THREE.LineBasicMaterial({
-        color: "#a4b9d0",
-        transparent: true,
-        opacity: 0.46,
-        depthWrite: false,
-      }),
-    );
-    this.rain.frustumCulled = false;
+    this.rain = new RainCurtain(WEATHER[g.level], fixedCovers);
     this.root.add(this.rain);
     // Paper motes make depth readable while the camera turns.
     const dots: number[] = [];
@@ -1380,28 +1332,12 @@ export class PaperScene {
       card.update(item, this.camera, viewWidth / this.width, compact);
     }
     this.portal.getObjectByName("exit-label")!.visible = nearbyLabel(l.exit);
-    this.windLines.forEach((o, i) => {
-      const w = o.userData.wind as Point & {
-        w: number;
-        d: number;
-        height: number;
-      };
-      const offset = o.userData.offset as number;
-      o.position.set(
-        w.x + Math.sin(i * 4) * w.w * 0.35,
-        w.y + ((this.clock * 0.65 + offset) % 1) * w.height,
-        w.z + Math.cos(i * 9) * w.d * 0.35,
-      );
-    });
+    this.windLeaves?.update(this.clock, this.reducedMotion.matches);
     const glow = this.portal.getObjectByName("glow") as THREE.Mesh;
     const pm = glow.material as THREE.MeshBasicMaterial;
     const opened = g.keys.length === l.keys.length;
     pm.opacity = opened ? 0.52 + Math.sin(this.clock * 2) * 0.12 : 0.12;
     if (this.rain) {
-      const pos = this.rain.geometry.getAttribute(
-        "position",
-      ) as THREE.BufferAttribute;
-      const time = g.status === "playing" ? this.clock : g.motionTime;
       const movingCovers: RainCover[] = this.movingPlatforms.map((raw) => {
         const p = platformAt(raw, g.motionTime);
         return { x: p.x, z: p.z, w: p.w, d: p.d, top: p.y + 0.02 };
@@ -1415,22 +1351,13 @@ export class PaperScene {
             d: SHIELD_RADIUS * 2,
             top: p.y + 1.34,
           });
-      this.rainSeeds.forEach((seed, i) => {
-        const bottom = rainFloorAt(seed, movingCovers, seed.floor);
-        const y =
-          bottom +
-          (1 - ((time * 0.7 * seed.speed + seed.phase) % 1)) * (12 - bottom);
-        pos.setXYZ(i * 2, seed.x, y, seed.z);
-        pos.setXYZ(
-          i * 2 + 1,
-          seed.x + 0.045,
-          Math.max(bottom, y - 0.3 * seed.speed),
-          seed.z,
-        );
-      });
-      pos.needsUpdate = true;
-      (this.rain.material as THREE.LineBasicMaterial).opacity =
-        rainStrength(g.level, g.motionTime) > 1 ? 0.53 : 0.3;
+      this.rain.update(
+        this.clock,
+        player,
+        rainStrength(g.level, g.motionTime),
+        movingCovers,
+        this.reducedMotion.matches,
+      );
     }
     let subjectCount = 0;
     const addSubject = (x: number, y: number, z: number) => {

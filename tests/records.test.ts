@@ -1,3 +1,4 @@
+import { CHAPTER_STORAGE_SUFFIXES } from "../src/chapter-storage";
 import { rankedClear } from "../src/score-rules";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -179,10 +180,10 @@ test("corrupt records, invalid durations, and non-game chapter slots cannot pois
     disk.set(
       RECORDS_KEY,
       JSON.stringify({
-        [`1:${LEVELS[0].name}`]: 1000,
-        [`2:${LEVELS[0].name}`]: "1000",
-        [`3:${LEVELS[0].name}`]: -1,
-        [`6:${LEVELS[0].name}`]: 0,
+        [`1:${CHAPTER_STORAGE_SUFFIXES[0]}`]: 1000,
+        [`2:${CHAPTER_STORAGE_SUFFIXES[0]}`]: "1000",
+        [`3:${CHAPTER_STORAGE_SUFFIXES[0]}`]: -1,
+        [`6:${CHAPTER_STORAGE_SUFFIXES[0]}`]: 0,
         "1:unknown-map": 10,
       }),
     );
@@ -239,7 +240,7 @@ test("time display rounds to one decimal and carries into the next minute", () =
 
 test("missing or duplicate stars never create or replace records, and legacy records stay separate", () =>
   withStorage((disk, writes) => {
-    const legacy = JSON.stringify({ [`1:${LEVELS[0].name}`]: 1 });
+    const legacy = JSON.stringify({ [`1:${CHAPTER_STORAGE_SUFFIXES[0]}`]: 1 });
     disk.set("rain-best-times-v1", legacy);
     const records = new LocalRecords();
     assert.deepEqual(records.times, {});
@@ -260,10 +261,10 @@ test("missing or duplicate stars never create or replace records, and legacy rec
 test("the new campaign retains unchanged bests, isolates remade maps and preserves v3 history", () =>
   withStorage((disk) => {
     const old = JSON.stringify({
-      [`1:${LEVELS[0].name}`]: 500,
-      [`1:${LEVELS[13].name}`]: 700,
+      [`1:${CHAPTER_STORAGE_SUFFIXES[0]}`]: 500,
+      [`1:${CHAPTER_STORAGE_SUFFIXES[13]}`]: 700,
       "1:一线风铃": 400,
-      [`1:${LEVELS[9].name}`]: 300,
+      [`1:${CHAPTER_STORAGE_SUFFIXES[9]}`]: 300,
     });
     disk.set("rain-best-times-all-stars-v3", old);
     const records = new LocalRecords();
@@ -281,7 +282,10 @@ for (const version of [4, 5])
       const old = JSON.stringify(
         Object.fromEntries(
           MODES.flatMap((mode) => [
-            ...LEVELS.map((level) => [`${mode}:${level.name}`, 1200]),
+            ...CHAPTER_STORAGE_SUFFIXES.map((suffix) => [
+              `${mode}:${suffix}`,
+              1200,
+            ]),
             [`${mode}:穿窗巷`, 800],
           ]),
         ),
@@ -304,8 +308,8 @@ test("v7 carries forward every v6 chapter and mode without importing scores for 
     const legacy = JSON.stringify(
       Object.fromEntries(
         MODES.flatMap((mode) =>
-          LEVELS.map((level, index) => [
-            `${mode}:${level.name}`,
+          CHAPTER_STORAGE_SUFFIXES.map((suffix, index) => [
+            `${mode}:${suffix}`,
             1000 + index * 100 + mode,
           ]),
         ),
@@ -331,8 +335,8 @@ test("v8 imports every unchanged v7 map and mode while preserving the old store"
     const old = JSON.stringify(
       Object.fromEntries(
         MODES.flatMap((mode) =>
-          LEVELS.map((level, index) => [
-            `${mode}:${level.name}`,
+          CHAPTER_STORAGE_SUFFIXES.map((suffix, index) => [
+            `${mode}:${suffix}`,
             1000 + index * 100 + mode,
           ]),
         ),
@@ -351,3 +355,47 @@ test("v8 imports every unchanged v7 map and mode while preserving the old store"
     assert.equal(bestTimeFor(new LocalRecords().times, 38, 6), 4806);
     assert.equal(disk.get("rain-best-times-all-stars-v7"), old);
   }));
+
+// Golden historical keys must survive display-title changes, including v8
+// stores that already exist (not just migration from an older version).
+test("all forty renamed display titles preserve existing save and board keys", async () => {
+  const { default: historical } =
+    await import("./fixtures/chapter-storage-v8.json");
+  const { boardName } = await import("../src/leaderboard");
+  assert.deepEqual([...CHAPTER_STORAGE_SUFFIXES], historical);
+  const titles = LEVELS.map((l) => l.name);
+  withStorage((disk) => {
+    const legacy = Object.fromEntries(
+      MODES.flatMap((mode) =>
+        historical.map((name, level) => [
+          `${mode}:${name}`,
+          90000 + level * 100 + mode,
+        ]),
+      ),
+    );
+    disk.set(RECORDS_KEY, JSON.stringify(legacy));
+    try {
+      // Give every display name the same value: identity must still be numeric.
+      LEVELS.forEach((l) => {
+        l.name = "任意显示标题";
+      });
+      const records = new LocalRecords();
+      for (const mode of MODES)
+        for (let level = 0; level < 40; level++) {
+          const oldKey = `${mode}:${historical[level]}`;
+          assert.equal(bestTimeFor(records.times, level, mode), legacy[oldKey]);
+          assert.ok(boardName(level, mode).endsWith(`:${oldKey}`));
+          records.record(finish(60, level, mode));
+        }
+      assert.deepEqual(
+        Object.keys(JSON.parse(disk.get(RECORDS_KEY)!)).sort(),
+        Object.keys(legacy).sort(),
+      );
+      assert.equal(Object.keys(new LocalRecords().times).length, 160);
+    } finally {
+      LEVELS.forEach((l, i) => {
+        l.name = titles[i];
+      });
+    }
+  });
+});

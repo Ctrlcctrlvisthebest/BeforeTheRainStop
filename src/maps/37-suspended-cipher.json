@@ -3,7 +3,7 @@
   "version": 1,
   "chapter": 37,
   "level": {
-    "name": "悬空密札",
+    "name": "高门低桥",
     "sub": "先读完高低错落的密札，才能接上最后一段回信。",
     "hint": "火后双风 · 折向开闸 · 降到纸桥",
     "color": "#62798b",
@@ -727,7 +727,7 @@
     }
   ],
   "translations": {
-    "悬空密札": "Suspended Cipher",
+    "高门低桥": "High Gate, Low Bridge",
     "先读完高低错落的密札，才能接上最后一段回信。": "Read the scattered high and low letters before bridging the final reply.",
     "火后双风 · 折向开闸 · 降到纸桥": "Two lifts beyond fire · turning gate approach · descend to the paper bridge",
     "火熄再穿檐 · 出檐后才能起跳": "Cross while the fire is out; jump only after leaving the low roof",

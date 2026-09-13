@@ -3,7 +3,7 @@
   "version": 1,
   "chapter": 32,
   "level": {
-    "name": "环扣纸桥",
+    "name": "重过旧桥",
     "sub": "去程接通纸桥，绕过上层后回到桥头，旧路成为归途。",
     "hint": "先桥后风 · 上下回路 · 旧桥再过",
     "color": "#62798b",
@@ -555,7 +555,7 @@
     }
   ],
   "translations": {
-    "环扣纸桥": "A Bridge That Closes the Loop",
+    "重过旧桥": "Across the Old Bridge Again",
     "去程接通纸桥，绕过上层后回到桥头，旧路成为归途。": "Latch the bridge on the way out; the upper loop returns you to its starting bank.",
     "先桥后风 · 上下回路 · 旧桥再过": "Bridge before wind · an over-and-under loop · reuse the bridge",
     "侧台烘干并存档 · 回到桥口再接桥": "Dry and save on the side ledge, then return to the bridge mouth",

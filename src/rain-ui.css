@@ -1,0 +1,572 @@
+/* The game-only design layer. Editor styles and gameplay layout reservations
+   remain independent; mobile control hit areas are inherited unchanged. */
+.app {
+  --night: #203343;
+  --rain-blue: #354e60;
+  --mist: #acbdc6;
+  --paper-light: #ede9de;
+  --lantern: #e2ba7e;
+  --serif: "Noto Serif SC", "Songti SC", STSong, Georgia, serif;
+  color: var(--paper-light);
+}
+.app:not(.playing) .atmosphere {
+  background:
+    linear-gradient(90deg, #182c3cc9, #20334330 50%, #20334385),
+    linear-gradient(0deg, #203343d9, transparent 42%);
+}
+.app .grain {
+  opacity: 0.055;
+}
+.app .brand-icon {
+  color: var(--lantern);
+  border-color: #b99b6d80;
+  transform: none;
+}
+.app .tools button {
+  border: 0;
+  background: #203343d9;
+  color: var(--paper-light);
+  min-height: 44px;
+  font-size: 12px;
+}
+.app .tools button:hover {
+  background: var(--rain-blue);
+}
+.app .tools .language,
+.app .tools .music-active {
+  color: var(--lantern);
+}
+.app .intro {
+  position: fixed;
+  top: 23vh;
+  left: 9%;
+  width: calc(87% - 465px);
+  max-width: 640px;
+  display: flex;
+  gap: clamp(28px, 4vw, 64px);
+  align-items: flex-start;
+}
+.intro-title {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+.app .intro h1 {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  font-size: clamp(52px, 5.2vw, 76px);
+  line-height: 1.2;
+  letter-spacing: 0.2em;
+  font-weight: 500;
+  margin: 0;
+  color: var(--paper-light);
+  text-shadow: 0 4px 32px #17293688;
+}
+.app .intro .intro-dedication {
+  writing-mode: vertical-rl;
+  font-family: var(--serif);
+  color: var(--lantern);
+  letter-spacing: 0.25em;
+  font-size: 16px;
+  margin: 5px 0 0;
+}
+.intro-story {
+  padding-top: 8px;
+  max-width: 280px;
+}
+.app .intro-story > p {
+  font-size: 14px;
+  line-height: 2.1;
+  margin-top: 0;
+}
+.intro-players {
+  display: block;
+  margin-top: 30px;
+  font-size: 12px;
+  color: var(--mist);
+}
+.app .intro .goal-flow {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 18px;
+  margin-top: 26px;
+  font-size: 12px;
+}
+.app .intro .goal-flow > i {
+  display: none;
+}
+.app .intro .goal-flow b {
+  border-color: #acbdc64d;
+  color: var(--mist);
+}
+.app .intro-controls {
+  font-size: 11px;
+  line-height: 2.2;
+  max-width: 270px;
+}
+.app .panel:is(.menu, .lobby, .win) {
+  --ink: var(--paper-light);
+  --muted: var(--mist);
+  --red: var(--lantern);
+  --line: #acbdc638;
+  color: var(--paper-light);
+  background: #243a4bee;
+  border: 0;
+  border-top: 3px solid #776350;
+  border-radius: 3px 3px 12px 3px;
+  box-shadow: 0 20px 65px #12233266;
+  padding: 26px 28px;
+}
+.app .menu {
+  width: 410px;
+  margin: 124px 5.5% 110px auto;
+}
+.app .menu::before {
+  top: -15px;
+  left: -14px;
+  right: -14px;
+  height: 8px;
+  background: #655247;
+  transform: none;
+  border-radius: 2px;
+  box-shadow: 0 4px 10px #14243366;
+}
+.app .menu::after {
+  top: -26px;
+  height: 26px;
+  border-color: #ae956b;
+  border-width: 1px;
+}
+.app .panel-top {
+  border: 0;
+  padding: 0;
+  margin-bottom: 18px;
+  font-size: 21px;
+}
+.app .panel-top b {
+  color: var(--mist);
+  font-size: 12px;
+  letter-spacing: 0;
+}
+.app .panel:is(.menu, .lobby, .win) label {
+  color: var(--mist);
+  font-size: 12px;
+}
+.app .panel:is(.menu, .lobby, .win) :is(input, select) {
+  color-scheme: dark;
+  background: #192e3c99;
+  color: var(--paper-light);
+  border: 1px solid #acbdc640;
+  border-radius: 3px;
+  min-height: 46px;
+  font-size: 14px;
+}
+.app .panel input::placeholder {
+  color: #9caeb9;
+}
+.app .menu select {
+  font-family: var(--serif);
+  font-size: 17px;
+}
+.app .chapter-brief {
+  border: 0;
+  background: none;
+  padding: 0;
+  margin: 12px 0 20px;
+}
+.app .chapter-brief .chapter-sub {
+  color: var(--paper-light);
+  font-family: var(--serif);
+  font-size: 14px;
+}
+.app .chapter-brief p {
+  color: var(--mist);
+  font-size: 12px;
+  line-height: 1.8;
+  margin: 5px 0;
+}
+.app .chapter-brief button {
+  color: var(--lantern);
+  padding: 8px 0;
+  font-size: 12px;
+}
+.app .challenge-label {
+  color: var(--lantern);
+  background: #e2ba7e0d;
+  border-color: #e2ba7e33;
+}
+.app .modes {
+  gap: 9px;
+}
+.app .modes button {
+  clip-path: none;
+  border: 1px solid #acbdc633;
+  border-radius: 3px 3px 8px 3px;
+  background: #354e6055;
+  padding: 10px 3px 12px;
+  min-height: 72px;
+  color: var(--paper-light);
+}
+.app .modes button::before {
+  content: none;
+}
+.app .modes button strong {
+  font-size: 25px;
+}
+.app .modes button span {
+  color: var(--mist);
+  font-size: 10px;
+}
+.app .modes .selected {
+  background: var(--lantern);
+  border-color: var(--lantern);
+  color: var(--night);
+}
+.app .modes .selected span {
+  color: #3e4a4f;
+}
+.app .panel:is(.menu, .lobby, .win) .primary {
+  min-height: 50px;
+  background: var(--lantern);
+  color: var(--night);
+  box-shadow: none;
+  border-radius: 3px;
+  font-size: 16px;
+  margin-top: 22px;
+}
+.app .panel:is(.menu, .lobby, .win) .primary:hover {
+  background: #eed0a0;
+}
+.app
+  .panel:is(.menu, .lobby, .win)
+  :is(
+    .fine,
+    .separator,
+    .eyebrow,
+    .seat small,
+    .room-code small,
+    .lobby-guide,
+    .chapter-record small,
+    .finish-record small,
+    .finish-record dt,
+    .ranking-chapter,
+    .ranking-state,
+    .ranking-name-hint
+  ) {
+  color: var(--mist);
+}
+.app .ranking-name-hint {
+  font-size: 11px;
+}
+.app .panel .name-error {
+  color: #ffc0a9;
+}
+.app .panel:is(.menu, .lobby, .win) :is(.text-button, .lobby-guide button) {
+  color: var(--lantern);
+}
+.app
+  .panel:is(.menu, .lobby, .win)
+  :is(
+    .join button,
+    .room-code button,
+    .ranking-heading button,
+    .ranking-upload button
+  ) {
+  min-height: 44px;
+  color: var(--paper-light);
+  background: var(--rain-blue);
+  border-color: transparent;
+  font-size: 12px;
+}
+.app
+  .panel:is(.menu, .lobby, .win)
+  :is(.chapter-record, .finish-record, .room-code) {
+  background: #192e3c66;
+  border-color: #acbdc633;
+}
+.app
+  .panel:is(.menu, .lobby, .win)
+  :is(
+    .chapter-record strong,
+    .finish-record dd,
+    .room-code strong,
+    .new-best .record-result
+  ) {
+  color: var(--lantern);
+}
+.app .journey-records {
+  border-top: 1px solid #acbdc629;
+  margin-top: 20px;
+  padding-top: 4px;
+}
+.app .journey-records summary {
+  padding: 12px 0;
+  min-height: 44px;
+  cursor: pointer;
+  color: var(--mist);
+  font-size: 12px;
+}
+.app .leaderboard {
+  border-color: #acbdc629;
+}
+.app .leaderboard li {
+  border-color: #acbdc629;
+}
+.app .ranking-place {
+  color: var(--paper-light);
+  background: #354e60;
+}
+.app .leaderboard li:first-child .ranking-place {
+  color: var(--night);
+  background: var(--lantern);
+}
+.app .ranking-upload {
+  color: var(--paper-light);
+}
+.app .win h2 {
+  color: var(--paper-light);
+}
+.app .win > p {
+  color: var(--mist);
+}
+.app .big-star,
+.app .score {
+  color: var(--lantern);
+}
+.app .hud .stage > div {
+  font-family: var(--serif);
+  color: var(--paper-light);
+}
+.app.playing .status-sidebar > :is(.rain-hud, .journey-guide) {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.app .compass {
+  background: radial-gradient(ellipse, #203343ed 30%, #20334300 75%);
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.app footer {
+  border: 0;
+  font-size: 11px;
+  color: var(--mist);
+}
+.app :is(button, input, select, summary):focus-visible {
+  outline: 2px solid var(--lantern);
+  outline-offset: 3px;
+}
+.app[lang="en"] .intro {
+  flex-direction: column;
+  gap: 20px;
+}
+.app[lang="en"] .intro-title {
+  flex-direction: column;
+  gap: 16px;
+}
+.app[lang="en"] .intro h1 {
+  writing-mode: horizontal-tb;
+  font-size: clamp(40px, 4vw, 62px);
+  line-height: 1.18;
+  letter-spacing: -0.02em;
+  max-width: 420px;
+}
+.app[lang="en"] .intro .intro-dedication {
+  writing-mode: horizontal-tb;
+  letter-spacing: 0;
+}
+.app[lang="en"] .intro-story {
+  max-width: 360px;
+}
+@media (max-width: 1100px) {
+  .app .intro {
+    left: 6%;
+    width: calc(88% - 410px);
+    gap: 26px;
+  }
+  .app .intro-title {
+    gap: 16px;
+  }
+  .app .intro-story {
+    max-width: 195px;
+  }
+  .app .menu {
+    width: 380px;
+    margin-right: 4%;
+  }
+}
+.app.compact:not(.playing) .intro {
+  position: relative;
+  inset: auto;
+  display: block;
+  width: auto;
+  max-width: 540px;
+  margin: calc(var(--safe-top) + 150px) auto 28px;
+  padding: 0 26px;
+}
+.app.compact .intro-title {
+  display: block;
+}
+.app.compact .intro h1 {
+  writing-mode: horizontal-tb;
+  font-size: clamp(34px, 9vw, 48px);
+  line-height: 1.4;
+  letter-spacing: 0.12em;
+  margin: 0;
+}
+.app.compact .intro .intro-dedication {
+  writing-mode: horizontal-tb;
+  font-size: 14px;
+  margin: 8px 0 16px;
+  letter-spacing: 0.12em;
+}
+.app.compact .intro-story {
+  max-width: none;
+  padding: 0;
+}
+.app.compact .intro-story > p {
+  font-size: 12px;
+  margin: 0;
+}
+.app.compact .intro-players {
+  font-size: 11px;
+  margin-top: 14px;
+}
+.app.compact .intro .goal-flow,
+.app.compact .intro-controls {
+  display: none;
+}
+.app.compact .menu {
+  width: calc(100% - 40px);
+  max-width: 490px;
+  margin: 50px auto calc(100px + var(--safe-bottom));
+  padding: 24px 20px;
+}
+.app.compact .menu :is(input, select) {
+  font-size: 16px;
+}
+.app.compact .chapter-brief button {
+  min-height: 44px;
+}
+.app.compact:not(.playing) .brand {
+  max-width: calc(100% - 24px);
+}
+.app.compact .edition {
+  display: none;
+}
+.app.compact footer {
+  left: 20px;
+  right: 20px;
+  font-size: 10px;
+  letter-spacing: 0;
+}
+.app.compact footer span {
+  display: none;
+}
+.app.compact[lang="en"] .intro h1 {
+  font-size: clamp(32px, 8vw, 44px);
+  letter-spacing: -0.02em;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app *,
+  .app *::before,
+  .app *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Information rests directly in the reserved rain-blue margin. */
+.app.playing .hud .stats,
+.app.playing .carry-hud,
+.app.playing .bottom-hint {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  text-shadow: 0 1px 5px #14293780;
+}
+.app.playing
+  .status-sidebar
+  :is(.heat-condition, .fold-condition, .repair-away, .guide-goal) {
+  border: 0;
+}
+.app.playing .status-sidebar .journey-guide {
+  padding-top: 20px;
+}
+.app.playing .status-sidebar .guide-keys kbd {
+  background: transparent;
+  border: 0;
+  padding-left: 0;
+  box-shadow: none;
+}
+.app.compact.playing .status-sidebar > :is(.rain-hud, .journey-guide) {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.app.compact.playing .status-sidebar > .journey-guide {
+  padding-top: 7px;
+}
+.app.compact .status-sidebar .guide-heading button {
+  border: 0;
+  background: transparent;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+/* Same large hit regions; translucent paper instead of raised keycaps. */
+.app.compact .touch-controls .touch-key {
+  border: 0;
+  border-radius: 2px;
+  background: #acbdc60b;
+  color: var(--paper-light);
+  box-shadow: none;
+  font-family: var(--serif);
+  font-weight: 500;
+  transform: none;
+  transition:
+    background-color 100ms ease,
+    color 100ms ease;
+}
+.app.compact .touch-controls .touch-key small {
+  font-family: "Noto Sans SC", "PingFang SC", system-ui, sans-serif;
+  color: var(--mist);
+  font-weight: 400;
+  opacity: 0.85;
+  font-size: 10px;
+}
+.app.compact .touch-controls :is(.touch-reset, .touch-restart) {
+  background: transparent;
+  color: var(--mist);
+}
+.app.compact .touch-controls .touch-jump {
+  color: #e2c99e;
+  background: #d4ba850e;
+}
+.app.compact .touch-controls .touch-axis {
+  color: #d5deda;
+  font-weight: 400;
+}
+.app.compact .touch-controls .touch-key:is(.held, :active) {
+  background: #d4ba8540;
+  color: #f2ddba;
+  box-shadow: none;
+  transform: none;
+}
+.app.compact .touch-controls .touch-key:is(.held, :active) small {
+  color: #ecdbbc;
+}
+
+.app.compact .mobile-toolbar button {
+  border: 0;
+  background: transparent;
+  color: var(--mist);
+  box-shadow: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app.compact .touch-controls .touch-key {
+    transition: none;
+  }
+}

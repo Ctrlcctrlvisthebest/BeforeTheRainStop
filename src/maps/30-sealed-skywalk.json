@@ -3,7 +3,7 @@
   "version": 1,
   "chapter": 30,
   "level": {
-    "name": "楼上开闸",
+    "name": "楼下有门",
     "sub": "门在脚下，踏板却在楼上；开闸后返回下层走新路。",
     "hint": "远程踏板 · 风柱登楼 · 开闸折返",
     "color": "#62798b",
@@ -407,7 +407,7 @@
     }
   ],
   "translations": {
-    "楼上开闸": "The Balcony Switch",
+    "楼下有门": "A Gate Below",
     "门在脚下，踏板却在楼上；开闸后返回下层走新路。": "The gate is below its switches: climb to open it, then return to the lower route.",
     "远程踏板 · 风柱登楼 · 开闸折返": "Remote plates · ride up to the balcony · return through the opened gate",
     "下层门暂时不开 · 先沿侧面登楼找踏板": "The lower gate is locked. Turn sideways and climb to its balcony switches",

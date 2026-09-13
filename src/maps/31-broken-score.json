@@ -3,7 +3,7 @@
   "version": 1,
   "chapter": 31,
   "level": {
-    "name": "碎拍长歌",
+    "name": "檐间四拍",
     "sub": "每扇檐下的火都唱着不同拍子，露天踏点连接短句。",
     "hint": "四段错拍 · 折桥换风 · 连跳收尾",
     "color": "#62798b",
@@ -695,7 +695,7 @@
     }
   ],
   "translations": {
-    "碎拍长歌": "A Score in Pieces",
+    "檐间四拍": "Four Beats Beneath the Eaves",
     "每扇檐下的火都唱着不同拍子，露天踏点连接短句。": "Each covered flame keeps a different beat between open ledges.",
     "四段错拍 · 折桥换风 · 连跳收尾": "Four fire rhythms · bridge into wind · final jumping phrase",
     "火熄再穿檐 · 出檐后才能起跳": "Cross while the fire is out; jump only after leaving the low roof",

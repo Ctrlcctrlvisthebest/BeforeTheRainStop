@@ -2,7 +2,7 @@
   "format": "before-the-rain-map",
   "version": 1,
   "level": {
-    "name": "天明折角",
+    "name": "折角云阶",
     "sub": "每次转面都换一条细脊，把最后的星光带回家。",
     "hint": "交替转面连跳 · 两处风口接力上升 · 沿低阶滑回灯岸",
     "color": "#526879",
@@ -576,7 +576,7 @@
     }
   ],
   "translations": {
-    "天明折角": "Dawn Switchbacks",
+    "折角云阶": "Turning Sky Steps",
     "每次转面都换一条细脊，把最后的星光带回家。": "Every turn reveals a narrow ridge; bring the last starlight home.",
     "折角小台需连续转面 · 支台取星再返回 · 最后一段滑降": "Turn at each narrow landing · return from star spurs · glide down the final stretch",
     "落稳再按 Q · 星台在主路侧面": "Land before pressing Q · star terraces branch off the ridge",

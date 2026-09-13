@@ -2,7 +2,7 @@
   "format": "before-the-rain-map",
   "version": 1,
   "level": {
-    "name": "残火回廊",
+    "name": "余烬石阶",
     "sub": "火有间歇，脚步要有分寸。",
     "hint": "间歇火堆看准时机 · 窄台连续跳跃 · 高处钥匙到下一架才存下",
     "color": "#526879",
@@ -426,7 +426,7 @@
     }
   ],
   "translations": {
-    "残火回廊": "Ember Intervals",
+    "余烬石阶": "Steps Among Embers",
     "火有间歇，脚步要有分寸。": "Wait for the embers. Place each step.",
     "间歇火堆看准时机 · 窄台连续跳跃 · 高处钥匙到下一架才存下": "Time the pulsing fires · chain narrow landings · save upper keys at the next rack",
     "火焰会熄灭 · 提前跳或等空档": "Fire pulses · jump early or wait",

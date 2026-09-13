@@ -3,7 +3,7 @@
   "version": 1,
   "chapter": 29,
   "level": {
-    "name": "返航火种",
+    "name": "原舟返岸",
     "sub": "去时记住码头，取齐高处的钥匙后乘原船回来。",
     "hint": "同舟往返 · 登岛绕行 · 归岸接桥",
     "color": "#62798b",
@@ -514,7 +514,7 @@
     }
   ],
   "translations": {
-    "返航火种": "The Return Ferry",
+    "原舟返岸": "The Same Boat Home",
     "去时记住码头，取齐高处的钥匙后乘原船回来。": "Remember your dock: gather the upper keys and return on the same ferry.",
     "同舟往返 · 登岛绕行 · 归岸接桥": "A round trip on one ferry · an island circuit · bridge home",
     "等渡台靠岸再跳 · 船上松开方向键 · 对岸近了再起跳": "Board as the ferry approaches; release movement aboard and jump near the far bank",

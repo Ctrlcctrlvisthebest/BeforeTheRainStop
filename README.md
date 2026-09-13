@@ -188,9 +188,9 @@ npm run test:leaderboard
 
 `npm run build:toy` 生成独立的 `dist-toy/`，只含游戏前端。包含 40 关、1 / 2 / 3 / 6 人玩法、音乐、手机操作、中英文与昵称审核；编辑器仍单独位于 GitHub Pages 的 `editor.html`。Toy 使用随包的 PNG 图标、音乐与背景资源，以及系统字体，避免等待外部字体站。所有包内路径相对当前目录，可部署到 `/toy/<slug>/index.html`。
 
-本地生成的 40 关 Toy 包连接 `https://before-the-rain-rooms-github.zoeli2010xl.workers.dev`，与新版 GitHub 共用服务。尚未更新的线上 17 关 Toy 继续连接旧服务 `https://before-the-rain-rooms.zoeli2010xl.workers.dev`，两个服务的房间码与全球榜不互通，旧服务及其成绩保持不变。`wrangler.github.jsonc` 的 `ALLOWED_ORIGINS` 同时包含外层网页 `https://www.bilibili.com` 和游戏实际内嵌来源 `https://www.bilibilitoy.com`，仍逐个精确匹配来源。只允许外层域名会使 Toy 内的榜单、上传和联机请求返回 403。不同网站的浏览器本地记录 / 匿名玩家标识不会自动互通；共享房间码与全球榜服务可以互通。
+本地生成的 40 关 Toy 包连接 `https://before-the-rain-rooms-github.zoeli2010xl.workers.dev`，与新版 GitHub 共用服务。旧版 17 关客户端连接旧服务 `https://before-the-rain-rooms.zoeli2010xl.workers.dev`，两个服务的房间码与全球榜不互通，旧服务及其成绩保持不变。`wrangler.github.jsonc` 的 `ALLOWED_ORIGINS` 同时包含外层网页 `https://www.bilibili.com` 和游戏实际内嵌来源 `https://www.bilibilitoy.com`，仍逐个精确匹配来源。只允许外层域名会使 Toy 内的榜单、上传和联机请求返回 403。不同网站的浏览器本地记录 / 匿名玩家标识不会自动互通；共享房间码与全球榜服务可以互通。
 
-发布：使用官方 Toy CLI 上传 `dist-toy/`，分类 `GAME`，标题「雨停之前」，slug `before-the-rain-stop`，图标和封面使用 `public/icons/icon-512.png`。先检查包，再创建预览，检查后才提交审核。Toy 不接受 `.ico`，构建脚本会从 Toy 的 HTML 和产物中移除它；普通网页构建仍保留。更新服务端允许来源后需重新部署 Worker。`npm run build` 继续生成 GitHub Pages / Worker 的 `dist/`，两种产物互不覆盖。
+发布：使用官方 Toy CLI 上传 `dist-toy/`，分类 `GAME`，标题「雨停之前」，slug `beforetherainstop`，图标和封面使用 `public/icons/icon-512.png`。先检查包，再创建预览，检查后才提交审核。Toy 不接受 `.ico`，构建脚本会从 Toy 的 HTML 和产物中移除它；普通网页构建仍保留。更新服务端允许来源后需重新部署 Worker。`npm run build` 继续生成 GitHub Pages / Worker 的 `dist/`，两种产物互不覆盖。
 
 需要 Node.js 24：
 
@@ -278,3 +278,7 @@ TEST_SERVER=https://before-the-rain-rooms-github.zoeli2010xl.workers.dev npm run
 ### GitHub 40 关发布配置
 
 GitHub Pages 保留原发布工作流，构建从 `.env.production` 的 `VITE_CAMPAIGN_SERVER_URL` 读取 `https://before-the-rain-rooms-github.zoeli2010xl.workers.dev`。普通本地构建的 `.env.production` 使用相同地址。执行 `npm run deploy:server` 会使用 `wrangler.github.jsonc` 发布独立服务；`wrangler.jsonc` 对应旧 Toy 服务，本次不部署它。更新 GitHub 不会自动上传 Toy 包。
+
+### 2.13.0 · 雨幕界面与关名审阅
+
+统一灰蓝界面与手机纸面按键，风口使用小片黄色叶子上升，雨幕正确覆盖高处关卡。逐关审阅全部 40 关，保留 21 个关名、调整 19 个；中英文同步。第 40 关为「旧灯归途」，不预设终章。历史存档和排行榜键保持兼容，地图与机关规则不变。详见 `docs/level-title-review.md`。

@@ -72,7 +72,7 @@ export const EXTRA_LEVELS: Level[] = [
     hazards: [{ x: 21.5, y: 0, z: -2, w: 0.7, d: 2.7 }],
   },
   {
-    name: "渡风灯船",
+    name: "渡上高廊",
     sub: "等一盏移动的灯，把愿望送上高处。",
     hint: "断口太宽 · 借移动渡台换脚 · 乘风登上高廊",
     color: "#667086",
@@ -179,7 +179,7 @@ export const EXTRA_LEVELS: Level[] = [
     hazards: [{ x: 21.7, y: 0, z: 6, w: 0.7, d: 2.7 }],
   },
   {
-    name: "回灯长夜",
+    name: "高廊归岸",
     sub: "最后一段雨路，每个愿望都要带回家。",
     hint: "高廊向左折返 · 下到远处灯岸 · 烤干后一起开门",
     color: "#4e627b",

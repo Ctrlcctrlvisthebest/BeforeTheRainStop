@@ -2,7 +2,7 @@
   "format": "before-the-rain-map",
   "version": 1,
   "level": {
-    "name": "双环邮戳",
+    "name": "重楼双环",
     "sub": "同一个路口，去时在脚下，回时在云上。",
     "hint": "下环跳岛盖邮戳 · 乘风上楼 · 借渡舟沿上环返程",
     "color": "#53697b",
@@ -709,7 +709,7 @@
     }
   ],
   "translations": {
-    "双环邮戳": "Two Postmarks",
+    "重楼双环": "Two Loops, Two Storeys",
     "同一个路口，去时在脚下，回时在云上。": "Pass the same crossing once below and once above.",
     "先走低环 · 东岸借风上高环 · 在高处横穿旧路": "Follow the lower loop · rise on the east bank · cross above the old path",
     "转到侧面，乘风去北侧高台 · 高环从旧路上方经过": "Turn sideways for the north ledge · the upper loop crosses above the old path",
