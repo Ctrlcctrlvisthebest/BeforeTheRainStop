@@ -13,6 +13,13 @@ export class TouchInput {
   private presses = new Map<number, Press>();
 
   press(id: number, field: TouchField, value: number | boolean, now: number) {
+    const held = this.presses.get(id);
+    if (
+      held?.field === field &&
+      held.value === value &&
+      held.until === undefined
+    )
+      return;
     this.presses.set(id, { field, value, started: now });
   }
 
@@ -40,15 +47,19 @@ export class TouchInput {
 
   read(now: number): Input {
     const result = idleInput();
+    let left = false,
+      right = false;
     for (const [id, press] of this.presses) {
       if (press.until !== undefined && now >= press.until) {
         this.presses.delete(id);
         continue;
       }
-      if (press.field === "axis") result.axis += Number(press.value);
-      else result[press.field] ||= Boolean(press.value);
+      if (press.field === "axis") {
+        left ||= Number(press.value) < 0;
+        right ||= Number(press.value) > 0;
+      } else result[press.field] ||= Boolean(press.value);
     }
-    result.axis = Math.sign(result.axis);
+    result.axis = Number(right) - Number(left);
     return result;
   }
 }

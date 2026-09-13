@@ -7,6 +7,7 @@ import {
   activeHazard,
   type Game,
   type Input,
+  type Mode,
 } from "../src/game";
 import { GUIDE_ROUTES } from "../src/guide";
 import { bankPoint, CROSSINGS } from "../src/bridges";
@@ -18,8 +19,9 @@ export function completeStormLevel(
   observe?: (g: Game) => void,
   beforeStep?: (g: Game, input: Input) => void,
   startDelay = 0,
+  mode: Mode = 1,
 ) {
-  const g = newGame(1, level),
+  const g = newGame(mode, level),
     p = g.players[0],
     l = LEVELS[level];
   let stage = "spawn";
@@ -36,15 +38,41 @@ export function completeStormLevel(
       time: g.time,
       keys: g.keys,
     });
-  const tick = (partial: Partial<Input> = {}, frames = 1) => {
+  const tick = (
+    partial: Partial<Input> = {},
+    frames = 1,
+    perPlayer?: (slot: number) => Partial<Input>,
+  ) => {
     for (let i = 0; i < frames; i++) {
       const input = { ...idleInput(), ...partial };
       beforeStep?.(g, input);
-      stepGame(g, { 0: input });
+      stepGame(
+        g,
+        Object.fromEntries(
+          g.players.map((q) => [
+            q.id,
+            perPlayer ? { ...idleInput(), ...perPlayer(q.id) } : input,
+          ]),
+        ),
+      );
       observe?.(g);
-      if (p.deaths)
-        throw new Error(`chapter ${level + 1} ${p.lastFailure}: ${detail()}`);
+      const failed = g.players.find((q) => q.deaths);
+      if (failed)
+        throw new Error(
+          `chapter ${level + 1}, slot ${failed.id} ${failed.lastFailure}: ${detail()}`,
+        );
     }
+  };
+  const steer = (slot: number, target: number, axis: "x" | "z") => ({
+    axis:
+      Math.max(-1, Math.min(1, ((target - g.players[slot][axis]) * 3) / 5.3)) *
+      (g.view === 0 ? 1 : -1),
+  });
+  const gather = (target: number, axis: "x" | "z") => {
+    for (let i = 0; i < 360; i++)
+      tick({}, 1, (slot) => steer(slot, target, axis));
+    if (g.players.some((q) => Math.abs(q[axis] - target) > 0.01))
+      throw new Error("group cannot gather " + detail());
   };
   const until = (
     done: () => boolean,
@@ -94,6 +122,7 @@ export function completeStormLevel(
     );
     tick({}, 8);
   };
+  if (mode > 1) gather(l.spawn.x, "x");
   tick({}, startDelay);
   for (const [index, s] of GUIDE_ROUTES[level].entries()) {
     stage = `${index} ${s.kind}`;
@@ -111,17 +140,30 @@ export function completeStormLevel(
     } else if (s.kind === "bridge") {
       const c = CROSSINGS[level];
       move(bankPoint(c, c.near)[axis]);
-      tick({ fold: true }, 130);
-      tick({}, 8);
-      move(s.target[axis]);
+      if (mode === 1) {
+        tick({ fold: true }, 130);
+        tick({}, 8);
+        move(s.target[axis]);
+      } else {
+        for (let i = 0; !g.bridgeLatched && i < 500; i++)
+          tick({}, 1, (slot) =>
+            slot === 0 ? { fold: true } : steer(slot, s.target[axis], axis),
+          );
+        tick({}, 8);
+        gather(s.target[axis], axis);
+      }
       if (!g.bridgeLatched) throw new Error("unlatched bridge");
     } else if (s.kind === "ferry") {
       const platform = l.platforms[s.id!],
-        sign = Math.sign(s.target[axis] - p[axis]);
+        sign = Math.sign(s.target[axis] - p[axis]),
+        other = axis === "x" ? "z" : "x",
+        transverse = platform.motion!.axis !== axis;
       // Board only while the ferry is approaching; wait under paper if needed.
       until(
         () =>
-          Math.abs(platformAt(platform, g.motionTime)[axis] - p[axis]) < 3.5,
+          Math.abs(platformAt(platform, g.motionTime)[axis] - p[axis]) < 3.5 &&
+          Math.abs(platformAt(platform, g.motionTime + 0.9)[other] - p[other]) <
+            0.6,
         () => ({ shelter: true }),
       );
       tick({ axis: sign * (g.view === 0 ? 1 : -1), jump: true });
@@ -140,12 +182,45 @@ export function completeStormLevel(
         240,
       );
       tick();
+      const pickup =
+        s.requiredKey === undefined ? undefined : l.keys[s.requiredKey];
+      if (pickup && pickup.y > platform.y + 1.8) {
+        until(
+          () => Math.abs(pickup[axis] - p[axis]) < 1.3,
+          () => ({ shelter: true }),
+        );
+        until(
+          () => g.keys.includes(s.requiredKey!),
+          () => ({
+            axis:
+              Math.abs(pickup[axis] - p[axis]) < 0.2
+                ? 0
+                : Math.sign(pickup[axis] - p[axis]) * (g.view === 0 ? 1 : -1),
+            jump: true,
+          }),
+        );
+        until(
+          () => p.support === s.id,
+          () => ({
+            axis:
+              Math.abs(platformAt(platform, g.motionTime)[axis] - p[axis]) < 0.2
+                ? 0
+                : Math.sign(
+                    platformAt(platform, g.motionTime)[axis] - p[axis],
+                  ) * (g.view === 0 ? 1 : -1),
+            jump: true,
+          }),
+        );
+        tick();
+      }
       until(
         () => s.requiredKey === undefined || g.keys.includes(s.requiredKey),
         () => ({ shelter: true }),
       );
       until(
-        () => Math.abs(s.target[axis] - p[axis]) < 4.3,
+        () =>
+          Math.abs(s.target[axis] - p[axis]) < (transverse ? 5.4 : 4.3) &&
+          Math.abs(s.target[other] - p[other]) < 0.3,
         () => ({ shelter: true }),
       );
       tick();
@@ -153,7 +228,22 @@ export function completeStormLevel(
       land();
     } else if (s.kind === "pads") {
       move(s.target[axis]);
-      tick({ shelter: true }, 250);
+      if (mode === 1) tick({ shelter: true }, 250);
+      else {
+        // Each teammate walks to a real plate; no position or gate state is injected.
+        const padAxis = l.pads[0].x !== l.pads[1].x ? "x" : "z";
+        if (padAxis !== axis)
+          throw new Error("gate approach must align with its plates");
+        for (let i = 0; i < 400; i++)
+          tick({}, 1, (slot) =>
+            slot === 0
+              ? { shelter: true }
+              : Math.abs(g.players[slot][axis] - l.pads[1][axis]) < 0.1
+                ? { shelter: true }
+                : steer(slot, l.pads[1][axis], axis),
+          );
+        gather(p[axis], axis);
+      }
       if (!g.gateOpen) throw new Error("gate did not open " + detail());
     } else {
       move(s.target[axis], s.kind === "jump");

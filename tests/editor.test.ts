@@ -120,7 +120,7 @@ test("all campaign maps round trip through the exact editor export format", () =
       JSON.parse(JSON.stringify(m)),
     );
   });
-  assert.equal(CHALLENGE_MAPS.length, 9);
+  assert.equal(CHALLENGE_MAPS.length, 19);
 });
 test("invalid imports fail cleanly before replacing a draft or running physics", () => {
   const valid = starterMap();
@@ -219,7 +219,7 @@ test("timed fire visuals use the same active window as damage", () => {
     );
   }
 });
-for (const level of [10, 11, 12, 13, 14, 15, 16].filter(
+for (const level of LEVELS.map((_, i) => i).filter(
   (level) => LEVELS[level].gate,
 ))
   for (const mode of [1, 2, 3, 6] as const)

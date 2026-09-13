@@ -1,8 +1,9 @@
 import { rankedClear } from "./score-rules";
+import { CAMPAIGN_VERSION } from "./campaign-version";
 import { LEVELS, MODES, isMode, type Game, type Mode } from "./game";
 import { save, stored } from "./storage";
 
-export const RECORDS_KEY = "rain-best-times-all-stars-v3";
+export const RECORDS_KEY = `rain-best-times-all-stars-v${CAMPAIGN_VERSION}`;
 export type BestTimes = Record<string, number>;
 // Names identify the built-in chapters independently of their menu position or UI language.
 const chapterNames = LEVELS.map((level) => level.name);
@@ -15,7 +16,26 @@ const validTime = (value: unknown): value is number =>
   typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 
 export function loadBestTimes(): BestTimes {
-  const value = stored<unknown>("local", RECORDS_KEY);
+  let value = stored<unknown>("local", RECORDS_KEY);
+  // The 14 untouched chapters keep their existing bests. Remade chapters get
+  // new records; keep the original v3 file intact as the historical copy.
+  if (value == null && CAMPAIGN_VERSION === 4) {
+    const legacy = stored<unknown>("local", "rain-best-times-all-stars-v3");
+    if (legacy && typeof legacy === "object" && !Array.isArray(legacy)) {
+      const unchanged = [
+        ...chapterNames.slice(0, 9),
+        ...chapterNames.slice(12, 17),
+      ];
+      value = Object.fromEntries(
+        MODES.flatMap((mode) =>
+          unchanged.map((name) => {
+            const key = `${mode}:${name}`;
+            return [key, (legacy as Record<string, unknown>)[key]];
+          }),
+        ),
+      );
+    }
+  }
   const times: BestTimes = {};
   if (!value || typeof value !== "object" || Array.isArray(value)) return times;
   for (const mode of MODES)

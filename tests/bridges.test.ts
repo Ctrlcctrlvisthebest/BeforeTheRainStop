@@ -130,11 +130,7 @@ for (const level of Object.keys(CROSSINGS).map(Number)) {
         g.players.forEach((p, i) =>
           Object.assign(p, { x: 13.1 - i * 0.1, y: 0, z: 6 }),
         );
-      if (level === 10)
-        g.players.forEach((p, i) =>
-          Object.assign(p, { x: 11.5 - i * 0.1, y: 0, z: 6 }),
-        );
-      if (level >= 12) {
+      if (level >= 9) {
         g.view = c.axis === "x" ? 0 : 1;
         const near = bankPoint(c, c.near);
         g.players.forEach((p, i) =>

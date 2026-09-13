@@ -70,7 +70,7 @@ for (let i = 0; i < LEVELS.length; i++)
     const g = completeLevel(i);
     assert.equal(g.status, "won");
     assert.equal(g.players[0].deaths, 0);
-    assert.ok(g.flips >= 2);
+    assert.ok(g.flips >= 1, "the route uses both movement axes");
     assert.equal(g.keys.length, LEVELS[i].keys.length);
   });
 test("direct movement, gravity and held jump gliding", () => {

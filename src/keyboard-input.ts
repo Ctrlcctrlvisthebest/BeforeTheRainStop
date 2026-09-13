@@ -10,6 +10,8 @@ const bindings: Record<string, readonly [TouchField, number | boolean]> = {
   KeyW: ["jump", true],
   ShiftLeft: ["fold", true],
   ShiftRight: ["fold", true],
+  Shift: ["fold", true],
+  KeyB: ["fold", true],
   KeyQ: ["turn", true],
   KeyE: ["turn", true],
   KeyR: ["reset", true],
@@ -18,6 +20,43 @@ const bindings: Record<string, readonly [TouchField, number | boolean]> = {
   KeyF: ["repair", true],
 };
 const codes = Object.keys(bindings);
+
+// Some embedded browsers omit code (or report "Unidentified"). Prefer the
+// physical key for keyboard layouts, then fall back to key and legacy keyCode.
+export function gameKeyCode(e: KeyboardEvent): string {
+  if (
+    (e.code !== "Shift" && Object.hasOwn(bindings, e.code)) ||
+    e.code === "Escape" ||
+    e.code === "KeyT"
+  )
+    return e.code;
+  if (e.code && e.code !== "Unidentified" && e.code !== "Shift") return e.code;
+  const key = e.key || "";
+  if (key === "Shift" || e.code === "Shift" || e.keyCode === 16)
+    return e.location === 1
+      ? "ShiftLeft"
+      : e.location === 2
+        ? "ShiftRight"
+        : "Shift";
+  if (/^[a-z]$/i.test(key)) return `Key${key.toUpperCase()}`;
+  if (key === " " || key === "Spacebar") return "Space";
+  if (key === "Esc") return "Escape";
+  if (key && key !== "Unidentified") return key;
+  const legacy: Record<number, string> = {
+    27: "Escape",
+    32: "Space",
+    37: "ArrowLeft",
+    38: "ArrowUp",
+    39: "ArrowRight",
+    40: "ArrowDown",
+  };
+  return (
+    legacy[e.keyCode] ||
+    (e.keyCode >= 65 && e.keyCode <= 90
+      ? `Key${String.fromCharCode(e.keyCode)}`
+      : "")
+  );
+}
 
 /** Keyboard aliases share touch's tap timing, but count each direction once. */
 export class KeyboardInput {
@@ -74,7 +113,8 @@ export function bindGameKeyboard(
       )
     )
       return;
-    if (e.code === "Escape") {
+    const code = gameKeyCode(e);
+    if (code === "Escape") {
       if (!e.repeat) {
         clear();
         options.escape();
@@ -82,7 +122,8 @@ export function bindGameKeyboard(
       return;
     }
     if (!options.enabled()) return;
-    if (e.code === "KeyT" && options.restart) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (code === "KeyT" && options.restart) {
       if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
       e.preventDefault();
       if (!e.repeat && !restartHeld) {
@@ -92,16 +133,23 @@ export function bindGameKeyboard(
       }
       return;
     }
-    if (!Object.hasOwn(bindings, e.code)) return;
+    if (!Object.hasOwn(bindings, code)) return;
     e.preventDefault();
-    if (keyboard.down(e.code, performance.now(), e.repeat)) {
-      if (bindings[e.code][0] === "jump") options.jump?.();
+    if (keyboard.down(code, performance.now(), e.repeat)) {
+      if (bindings[code][0] === "jump") options.jump?.();
       options.change?.();
     }
   };
   const up = (e: KeyboardEvent) => {
-    if (e.code === "KeyT") restartHeld = false;
-    keyboard.up(e.code, performance.now());
+    const code = gameKeyCode(e),
+      now = performance.now();
+    if (code === "KeyT") restartHeld = false;
+    keyboard.up(code, now);
+    // A release may omit the location supplied on keydown. shiftKey=false
+    // confirms that neither Shift is held; B remains an independent bridge key.
+    if (code.startsWith("Shift") && e.shiftKey === false)
+      for (const shift of ["Shift", "ShiftLeft", "ShiftRight"])
+        keyboard.up(shift, now);
     options.change?.();
   };
   window.addEventListener("keydown", down);

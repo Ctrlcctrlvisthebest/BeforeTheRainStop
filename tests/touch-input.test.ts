@@ -29,6 +29,26 @@ test("releasing one direction keeps the other finger's direction", () => {
   assert.equal(input.read(22).axis, 0);
 });
 
+test("extra fingers on the same arrow do not overpower the opposite direction", () => {
+  const input = new TouchInput();
+  input.press(1, "axis", 1, 0);
+  input.press(2, "axis", 1, 0);
+  input.press(3, "axis", -1, 0);
+  assert.equal(input.read(1).axis, 0);
+  input.release(1, 2);
+  assert.equal(input.read(3).axis, 0);
+  input.release(2, 4);
+  assert.equal(input.read(5).axis, -1);
+});
+
+test("touch moves during a long hold do not turn its release into a short tap", () => {
+  const input = new TouchInput();
+  input.press(1, "jump", true, 0);
+  input.press(1, "jump", true, 200);
+  input.release(1, 201);
+  assert.equal(input.read(202).jump, false);
+});
+
 test("a tap between simulation ticks turns the world exactly once", () => {
   const input = new TouchInput();
   const g = newGame(1);
@@ -86,4 +106,6 @@ test("phone instructions use the actual buttons without confusing Shift and S", 
     touchCopy("Hold Shift, S / Down, Q / E, SPACE, F, R", "en"),
     "Hold Bridge, Shelter, Turn, Jump, Mend, Return",
   );
+  assert.equal(touchCopy("Shift / B", "zh"), "「纸桥」");
+  assert.equal(touchCopy("Shift / B", "en"), "Bridge");
 });

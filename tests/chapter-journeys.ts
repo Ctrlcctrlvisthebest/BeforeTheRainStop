@@ -12,7 +12,7 @@ export function completeExtraLevel(
   observe?: (g: Game) => void,
   beforeStep?: (g: Game, input: Input) => void,
 ) {
-  if (level >= 12) return completeStormLevel(level, observe, beforeStep);
+  if (level >= 9) return completeStormLevel(level, observe, beforeStep);
   const g = newGame(1, level),
     b = g.players[0];
   const state = () => ({
@@ -198,97 +198,6 @@ export function completeExtraLevel(
     land();
     tick({}, 100);
     move(31);
-  } else if (level === 9) {
-    move(3.8);
-    ferry(2, 8.8, 15);
-    tick({}, 90);
-    move(17.3);
-    let n = 0;
-    while (b.y < 4.1 && n++ < 300) tick();
-    move(20, true);
-    land();
-    turn();
-    move(-6);
-    tick({}, 100);
-    turn();
-    move(18.7);
-    move(15, true);
-    land();
-    move(10, true);
-    land();
-    move(5, true);
-    land();
-    move(0, true);
-    land();
-    move(-2);
-  } else if (level === 10) {
-    move(3);
-    turn();
-    move(6);
-    turn();
-    move(8);
-    tick({}, 100);
-    move(11.8);
-    tick({ fold: true }, 130);
-    tick({}, 8);
-    move(16.4);
-    tick({}, 80);
-    move(17.2);
-    move(21, true);
-    land();
-    move(23);
-    turn();
-    move(8);
-    move(12, true);
-    land();
-    move(14);
-    tick({}, 100);
-    turn();
-    move(19, true);
-    land();
-    move(15, true);
-    land();
-    move(12, true);
-    land();
-    tick({}, 100);
-    move(11);
-    tick({ shelter: true }, 250);
-    move(9.8);
-  } else if (level === 11) {
-    move(3.5);
-    let n = 0;
-    while (b.y < 4.5 && n++ < 300) tick();
-    move(6, true);
-    land();
-    turn();
-    move(-2);
-    move(-6, true);
-    land();
-    move(-8);
-    tick({}, 100);
-    turn();
-    move(7.4);
-    move(12, true);
-    land();
-    move(17, true);
-    land();
-    move(18);
-    tick({}, 100);
-    move(19.8);
-    ferry(6, 25, 31);
-    move(32);
-    tick({}, 100);
-    move(33);
-    turn();
-    move(-10);
-    move(-14, true);
-    land();
-    move(-16);
-    tick({}, 100);
-    turn();
-    move(27);
-    tick({ shelter: true }, 250);
-    move(23);
   } else if (level === 7) {
     move(3.8);
     move(7.5, true);

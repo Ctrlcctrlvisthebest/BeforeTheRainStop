@@ -4,6 +4,7 @@ import { PaperScene } from "./scene";
 import { FrameBudget } from "./frame-budget";
 import { TouchInput, mergeInput, type TouchField } from "./touch-input";
 import { KeyboardInput, bindGameKeyboard } from "./keyboard-input";
+import { bindTouchControls } from "./touch-controls";
 import { installPreviewMap } from "./preview-map";
 import type { MapFile } from "./map-format";
 import { guideFor, newGuideTracker, words } from "./guide";
@@ -18,6 +19,7 @@ export default function MapPreview({
   const canvas = useRef<HTMLCanvasElement>(null),
     keyboard = useRef(new KeyboardInput()),
     touch = useRef(new TouchInput()),
+    touchRoot = useRef<HTMLDivElement>(null),
     pause = useRef(false);
   const [seed, setSeed] = useState(0),
     [paused, setPaused] = useState(false),
@@ -32,6 +34,10 @@ export default function MapPreview({
       cue: "",
     }),
     [error, setError] = useState("");
+  useEffect(() => {
+    if (touchRoot.current)
+      return bindTouchControls(touchRoot.current, touch.current);
+  }, [map, seed]);
   useEffect(() => {
     setError("");
     keyboard.current.clear();
@@ -122,14 +128,8 @@ export default function MapPreview({
     <button
       key={label}
       disabled={paused || hud.won}
-      onPointerDown={(e) => {
-        e.preventDefault();
-        e.currentTarget.setPointerCapture(e.pointerId);
-        touch.current.press(e.pointerId, field, value, performance.now());
-      }}
-      onPointerUp={(e) => touch.current.release(e.pointerId, performance.now())}
-      onPointerCancel={(e) => touch.current.cancel(e.pointerId)}
-      onLostPointerCapture={(e) => touch.current.cancel(e.pointerId)}
+      data-touch-field={field}
+      data-touch-value={String(value)}
     >
       {label}
     </button>
@@ -184,7 +184,7 @@ export default function MapPreview({
           ? "快离开火边，继续烤会脆裂！"
           : hud.wet >= 60
             ? "纸已经很湿，靠近小火烤干。"
-            : "方向键移动 · 空格跳跃/滑翔 · Q 转面 · Shift 纸桥 · S 挡雨 · F 修补 · R 回存档"}
+            : "方向键移动 · 空格跳跃/滑翔 · Q 转面 · Shift / B 纸桥 · S 挡雨 · F 修补 · R 回存档"}
       </div>
       {(hud.won || error) && (
         <div className="preview-result">
@@ -196,7 +196,7 @@ export default function MapPreview({
           <button onClick={onClose}>返回编辑</button>
         </div>
       )}
-      <div className="preview-controls">
+      <div ref={touchRoot} className="preview-controls">
         <div>
           {button("axis", -1, "←")}
           {button("axis", 1, "→")}

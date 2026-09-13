@@ -66,7 +66,7 @@ export const LESSONS: Record<Lesson, LessonData> = {
       "一人借出纸面，一人放下木桥",
       "One lends the paper; another lowers the deck",
     ],
-    keys: ["Shift", "→"],
+    keys: ["Shift / B", "→"],
     steps: [
       [
         "低檐断口跳不过。对齐金色桥钉，按住 Shift，整只纸鹤变成桥。",
@@ -253,9 +253,11 @@ export function GuideCard({
             <kbd key={i}>
               {compact
                 ? touchCopy(k, language)
-                : k === "空格"
-                  ? w(["空格", "Space"])
-                  : k}
+                : k === "Shift"
+                  ? "Shift / B"
+                  : k === "空格"
+                    ? w(["空格", "Space"])
+                    : k}
             </kbd>
           ))
         ) : (
@@ -396,7 +398,7 @@ function LessonDiagram({
           <Crane x={286} y={59} color="#779eaf" />
           <rect x="329" y="94" width="31" height="7" fill="#bd955e" />
           <text x="222" y="126">
-            Shift
+            Shift / B
           </text>
           <text x="362" y="67">
             2s
@@ -638,6 +640,14 @@ export function HowToPlay({
           ))}
         </ol>
         <p className="lesson-note">{w(data.note)}</p>
+        {!compact && lesson === "bridge" && (
+          <p className="lesson-note">
+            {w([
+              "若浏览器拦截 Shift，可改为按住 B，搭桥和松开还原的效果相同。",
+              "If your browser blocks Shift, hold B instead. Release it to refold, just like Shift.",
+            ])}
+          </p>
+        )}
       </div>
     </div>
   );

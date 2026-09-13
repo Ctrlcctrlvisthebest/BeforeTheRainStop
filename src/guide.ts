@@ -328,7 +328,16 @@ export function guideFor(
   // Route markers suggest a path. Rejoin a later landmark after a shortcut,
   // without demanding that the player visit every earlier rack or platform.
   if (p.grounded && !p.bridgeDock) {
-    for (let i = route.length - 1; i > tracker.index; i--) {
+    for (let i = tracker.index + 1; i < route.length; i++) {
+      // A return visit to the same corner must not skip the outward journey.
+      // Stop looking beyond an outstanding key, including one above a ferry.
+      const previous = route[i - 1];
+      if (
+        (previous.kind === "key" && !g.keys.includes(previous.id!)) ||
+        (previous.requiredKey !== undefined &&
+          !g.keys.includes(previous.requiredKey))
+      )
+        break;
       if (
         distance(p, route[i].target) < 0.65 &&
         Math.abs(p.y - route[i].target.y) < 0.6
@@ -351,7 +360,7 @@ export function guideFor(
   // A missed key still matters after reaching a later rack. Show its route on the map.
   const missingEarlier = route.findIndex(
     (s, i) =>
-      i < tracker.index &&
+      (i < tracker.index || distance(p, l.exit) < 1.2) &&
       ((s.kind === "key" && !g.keys.includes(s.id!)) ||
         (s.requiredKey !== undefined && !g.keys.includes(s.requiredKey))),
   );
@@ -415,10 +424,19 @@ export function guideFor(
     target = riding ? s.target : { ...platform };
     const hasKey =
       s.requiredKey === undefined || g.keys.includes(s.requiredKey);
-    const ferryAxis = l.platforms[s.id!].motion?.axis ?? "x";
+    const ferryAxis = s.view === 0 ? "x" : "z",
+      other = ferryAxis === "x" ? "z" : "x",
+      transverse = l.platforms[s.id!].motion?.axis !== ferryAxis;
     const canJump =
-      riding && hasKey && Math.abs(p[ferryAxis] - s.target[ferryAxis]) < 4.5;
-    waitForFerry = riding ? !canJump : distance(p, platform) > 4.5;
+      riding &&
+      hasKey &&
+      Math.abs(p[ferryAxis] - s.target[ferryAxis]) < (transverse ? 5.4 : 4.5) &&
+      Math.abs(p[other] - s.target[other]) < (transverse ? 0.6 : 1.2);
+    const landing = platformAt(l.platforms[s.id!], g.motionTime + 0.9);
+    waitForFerry = riding
+      ? !canJump
+      : Math.abs(p[ferryAxis] - platform[ferryAxis]) > 4.5 ||
+        Math.abs(p[other] - landing[other]) > 0.6;
     title = riding
       ? canJump
         ? ["现在跳向对岸", "Jump to the far bank now"]
@@ -439,6 +457,25 @@ export function guideFor(
         "别急着上岸，先站稳，让渡台把你送到钥匙旁；拿到后再看跳跃提示。",
         "Stay aboard until the ferry carries you through the key, then watch for the cue to jump ashore.",
       ];
+      const pickup = l.keys[s.requiredKey!];
+      if (pickup.y > platform.y + 1.8) {
+        const close = distance(p, pickup) < 1.3;
+        target = { ...pickup };
+        waitForFerry = !close;
+        title = close
+          ? [
+              "现在起跳，取走船上方的钥匙",
+              "Jump now for the key above the ferry",
+            ]
+          : [
+              "等渡台来到高钥匙下方",
+              "Wait until the ferry is below the high key",
+            ];
+        body = [
+          "这把钥匙需要起跳拾取。靠近时按空格，落回渡台后再去对岸。",
+          "Jump to collect this key. Land back on the moving deck before heading ashore.",
+        ];
+      }
     }
     keys = !waitForFerry ? ["空格"] : [];
   }

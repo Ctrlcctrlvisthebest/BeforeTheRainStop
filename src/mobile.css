@@ -10,8 +10,11 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: max(12px, env(safe-area-inset-left, 0px));
   --safe-right: max(12px, env(safe-area-inset-right, 0px));
-  --move-width: clamp(94px, 26vw, 124px);
-  --action-width: clamp(174px, 51vw, 234px);
+  --move-width: clamp(112px, 35vw, 180px);
+  --action-width: clamp(176px, 54vw, 294px);
+  --touch-gap: 8px;
+  --control-height: 156px;
+  --utility-height: 56px;
   -webkit-tap-highlight-color: transparent;
 }
 .compact button {
@@ -102,7 +105,7 @@
   overflow: hidden;
   overscroll-behavior: none;
   --scene-top: calc(var(--safe-top) + 134px);
-  --control-space: calc(124px + var(--safe-bottom));
+  --control-space: calc(var(--control-height) + 16px + var(--safe-bottom));
   --scene-bottom: calc(var(--control-space) + 28px);
   background: #253648;
 }
@@ -347,11 +350,11 @@
   position: absolute;
   left: var(--safe-left);
   right: var(--safe-right);
-  bottom: calc(var(--safe-bottom) + 8px);
-  height: 110px;
+  bottom: calc(var(--safe-bottom) + 10px);
+  height: var(--control-height);
   justify-content: space-between;
   align-items: stretch;
-  gap: 10px;
+  gap: var(--touch-gap);
   z-index: 5;
   user-select: none;
   -webkit-user-select: none;
@@ -360,16 +363,18 @@
 .compact .touch-controls .touch-movement {
   display: grid;
   width: var(--move-width);
+  flex-shrink: 0;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: 44px 60px;
-  gap: 6px;
+  grid-template-rows: var(--utility-height) minmax(0, 1fr);
+  gap: var(--touch-gap);
 }
 .compact .touch-controls .touch-actions {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-template-rows: repeat(2, 52px);
-  gap: 6px;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: var(--touch-gap);
   width: var(--action-width);
+  flex-shrink: 0;
   max-width: none;
 }
 .compact .touch-key {
@@ -377,7 +382,7 @@
   min-height: 44px;
   height: auto;
   padding: 4px 2px;
-  font-size: 12px;
+  font-size: 14px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -386,23 +391,23 @@
   border: 1px solid #9bb2c566;
   background: #2a3e51f5;
   color: #e1e7ea;
-  border-radius: 8px;
+  border-radius: 12px;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
   box-shadow: 0 3px 0 #101e2d;
 }
 .compact .touch-key small {
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 400;
   opacity: 0.72;
 }
 .compact .touch-axis {
-  font-size: 25px;
+  font-size: 32px;
 }
 .compact .touch-reset,
 .compact .touch-restart {
-  font-size: 11px;
+  font-size: 12px;
   background: #253647;
 }
 .compact .touch-restart {
@@ -413,7 +418,7 @@
   grid-column: span 2;
   background: #a25949;
   border-color: #d7987d;
-  font-size: 15px;
+  font-size: 18px;
 }
 .compact .touch-key:hover {
   transform: none;
@@ -531,9 +536,23 @@
   .compact .failure-notice,
   .compact .waiting,
   .compact .vote {
-    bottom: calc(var(--safe-bottom) + 124px);
+    bottom: var(--control-space);
   }
   .compact .help .lesson-diagram {
     max-height: 115px;
+  }
+}
+
+/* Short landscape phones retain large targets without squeezing out the HUD. */
+@media (orientation: landscape) and (max-width: 740px) {
+  .app.compact {
+    --move-width: clamp(144px, 24vw, 168px);
+    --action-width: clamp(222px, 40vw, 270px);
+  }
+}
+@media (orientation: landscape) and (max-height: 360px) {
+  .app.compact {
+    --control-height: 132px;
+    --utility-height: 48px;
   }
 }

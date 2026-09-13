@@ -1,6 +1,7 @@
 import { rankedClear } from "./score-rules";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
+import { AppErrorBoundary } from "./app-error-boundary";
 import {
   LEVELS,
   MAX_FOLDS,
@@ -20,6 +21,7 @@ import {
 import { api, Connection, validSession, type Session } from "./api";
 import { save, stored, forget } from "./storage";
 import { KeyboardInput, bindGameKeyboard } from "./keyboard-input";
+import { bindTouchControls } from "./touch-controls";
 import type { PublicRoom } from "./room";
 import type { PaperScene } from "./scene";
 import { loadScene, warmScene } from "./scene-loader";
@@ -114,6 +116,7 @@ function App() {
     input = useRef<Input>(idleInput()),
     keyboardInput = useRef(new KeyboardInput()),
     touchInput = useRef(new TouchInput()),
+    touchRoot = useRef<HTMLDivElement>(null),
     others = useRef<Inputs>({}),
     connection = useRef<Connection | null>(null),
     currentRoom = useRef<PublicRoom | null>(null),
@@ -402,7 +405,8 @@ function App() {
           if (cancelled) return;
           try {
             update(now);
-          } catch {
+          } catch (error) {
+            console.error("[BeforeTheRainStop] Game update failed", error);
             sceneReady.current = false;
             keyboardInput.current.clear();
             touchInput.current.clear();
@@ -415,7 +419,8 @@ function App() {
         };
         frame = requestAnimationFrame(loop);
       })
-      .catch(() => {
+      .catch((error) => {
+        console.error("[BeforeTheRainStop] Scene startup failed", error);
         if (!cancelled) setSceneStatus("error");
       });
     return () => {
@@ -425,6 +430,16 @@ function App() {
       scene?.dispose();
     };
   }, [phase]);
+  const syncInput = () => {
+    input.current = helpRef.current
+      ? idleInput()
+      : mergeInput(
+          keyboardInput.current.read(performance.now()),
+          touchInput.current.read(performance.now()),
+        );
+    if (phaseRef.current === "game" && currentSession.current)
+      connection.current?.input(game.current.id, input.current);
+  };
   useEffect(
     () =>
       bindGameKeyboard(keyboardInput.current, {
@@ -436,16 +451,7 @@ function App() {
         clear: () => touchInput.current.clear(),
         jump: () => sound(280),
         restart: () => restart(false),
-        change: () => {
-          input.current = helpRef.current
-            ? idleInput()
-            : mergeInput(
-                keyboardInput.current.read(performance.now()),
-                touchInput.current.read(performance.now()),
-              );
-          if (phaseRef.current === "game" && currentSession.current)
-            connection.current?.input(game.current.id, input.current);
-        },
+        change: syncInput,
       }),
     [],
   );
@@ -655,23 +661,21 @@ function App() {
           ? t("返回最近许愿架，未存档物品复位。湿度清零，耐折不会重置。")
           : undefined
       }
-      onPointerDown={(e) => {
-        if (e.pointerType === "mouse" && e.button !== 0) return;
-        e.preventDefault();
-        e.currentTarget.setPointerCapture(e.pointerId);
-        touchInput.current.press(e.pointerId, field, value, performance.now());
-      }}
-      onPointerUp={(e) =>
-        touchInput.current.release(e.pointerId, performance.now())
-      }
-      onPointerCancel={(e) => touchInput.current.cancel(e.pointerId)}
-      onLostPointerCapture={(e) => touchInput.current.cancel(e.pointerId)}
-      onContextMenu={(e) => e.preventDefault()}
+      data-touch-field={field}
+      data-touch-value={String(value)}
     >
       <span>{label}</span>
       {hint && <small>{hint}</small>}
     </button>
   );
+  useEffect(() => {
+    if (touchRoot.current)
+      return bindTouchControls(
+        touchRoot.current,
+        touchInput.current,
+        syncInput,
+      );
+  }, [isPlaying]);
   useEffect(() => {
     const sidebar = statusSidebar.current;
     if (!sidebar) return;
@@ -688,6 +692,7 @@ function App() {
     <main
       className={`app ${isPlaying ? "playing" : ""} ${compact ? "compact" : ""} ${toolsOpen ? "tools-open" : ""} ${mapOpen ? "map-open" : ""} ${guideEnabled ? "with-guide" : ""}`}
       lang={language === "zh" ? "zh-CN" : "en"}
+      translate="no"
     >
       <canvas
         ref={canvas}
@@ -1434,7 +1439,7 @@ function App() {
             {t("转动")}
             <kbd>S / ↓</kbd>
             {t("展纸挡雨")}
-            <kbd>Shift</kbd>
+            <kbd>Shift / B</kbd>
             {t("纸桥")}
             <kbd>F</kbd>
             {t("修补")}
@@ -1443,7 +1448,11 @@ function App() {
             <kbd>T</kbd>
             {t("快速重开")}
           </div>
-          <div className="touch-controls" aria-label={t("触控操作")}>
+          <div
+            ref={touchRoot}
+            className="touch-controls"
+            aria-label={t("触控操作")}
+          >
             <div className="touch-movement">
               {touch("reset", true, t("回存档"))}
               <button
@@ -1689,4 +1698,8 @@ function App() {
     </main>
   );
 }
-createRoot(document.getElementById("root")!).render(<App />);
+createRoot(document.getElementById("root")!).render(
+  <AppErrorBoundary>
+    <App />
+  </AppErrorBoundary>,
+);

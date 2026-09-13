@@ -11,10 +11,12 @@ export interface ApiResult {
   token?: string;
   slot?: number;
 }
-export const SERVICE = (import.meta.env?.VITE_ROOM_SERVER_URL ?? "").replace(
-  /\/$/,
-  "",
-);
+// Versioned deployments take precedence over legacy CI server settings.
+export const SERVICE = (
+  import.meta.env?.VITE_CAMPAIGN_SERVER_URL ??
+  import.meta.env?.VITE_ROOM_SERVER_URL ??
+  ""
+).replace(/\/$/, "");
 export async function api(
   path: string,
   body?: unknown,

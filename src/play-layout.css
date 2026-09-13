@@ -136,7 +136,9 @@
   .compact.playing .status-sidebar {
     width: 220px;
     right: auto;
-    max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 186px);
+    max-height: calc(
+      100dvh - var(--safe-top) - 62px - var(--control-space) - 8px
+    );
     overflow-y: auto;
   }
   .compact .status-sidebar .meter-heading {
@@ -167,5 +169,14 @@
   }
   .compact .status-sidebar .guide-warning button {
     min-height: 30px;
+  }
+}
+
+/* A left-inset canvas puts the crane under the action cluster on narrow
+   landscape phones. Use the full width so it stays between the thumb areas. */
+@media (orientation: landscape) and (max-width: 740px) {
+  .compact.playing canvas {
+    left: 0;
+    width: 100%;
   }
 }

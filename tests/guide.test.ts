@@ -267,3 +267,45 @@ test("solo gate cue counts down on its visible plate even with the earlier bridg
     "jumping off a plate does not count as holding it",
   );
 });
+
+test("the first visit to a loop junction does not skip to its return leg", () => {
+  for (const level of [10, 17, 20, 24, 25, 26]) {
+    const g = newGame(1, level),
+      t = newGuideTracker();
+    const firstKey = GUIDE_ROUTES[level].findIndex(
+      (s) => s.kind === "key" || s.requiredKey !== undefined,
+    );
+    const guide = guideFor(g, 0, t);
+    assert.ok(
+      guide.step <= firstKey + 1,
+      `chapter ${level + 1} skipped the outward route`,
+    );
+  }
+});
+
+test("the high ferry key is prompted as a jump, not a passive ride", () => {
+  const g = newGame(1, 11),
+    p = g.players[0],
+    t = newGuideTracker();
+  Object.assign(p, { x: 15, y: 0, z: 0, support: 1 });
+  const guide = guideFor(g, 0, t);
+  assert.equal(guide.kind, "ferry");
+  assert.match(words(guide.title, "en"), /Jump now/);
+  assert.ok(guide.keys.includes("空格"));
+});
+
+test("sideways ferry disembarkation waits for the quay to align on the other axis", () => {
+  const g = newGame(1, 18),
+    p = g.players[0],
+    t = newGuideTracker();
+  Object.assign(p, { x: 3.8, z: 0 });
+  guideFor(g, 0, t);
+  Object.assign(p, { x: 6.8, y: 0, z: -8, support: 1 });
+  let guide = guideFor(g, 0, t);
+  assert.equal(guide.kind, "ferry");
+  assert.equal(guide.direction, "stay");
+  p.z = -12;
+  guide = guideFor(g, 0, t);
+  assert.ok(guide.keys.includes("空格"));
+  assert.equal(guide.direction, "right");
+});

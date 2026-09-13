@@ -8,7 +8,7 @@ import { validateMap } from "../src/map-format";
 import { translate } from "../src/i18n";
 import { command, joinRoom, makeRoom } from "../src/room";
 
-for (let level = 12; level < 17; level++) {
+for (let level = 9; level < LEVELS.length; level++) {
   test(`chapter ${level + 1}: valid bilingual editor export and safe six-player spawn`, () => {
     const map = CHALLENGE_MAPS[level - 8];
     assert.deepEqual(validateMap(map).errors, []);
@@ -92,8 +92,8 @@ for (let level = 12; level < 17; level++) {
   });
 }
 
-test("chapter 12 advances into the five new chapters; only chapter 17 wraps to the start", () => {
-  for (const level of [11, 12, 13, 14, 15, 16]) {
+test("the entire campaign advances in order and only chapter 27 wraps to the start", () => {
+  for (const level of LEVELS.map((_, i) => i)) {
     const room = makeRoom("ABCDEFGH", 2, level, "A", "a", 0);
     joinRoom(room, "B", "b", 0);
     room.phase = "game";
@@ -113,6 +113,77 @@ test("chapter 12 advances into the five new chapters; only chapter 17 wraps to t
       1,
       "next",
     );
-    assert.equal(next.level, level === 16 ? 0 : level + 1);
+    assert.equal(next.level, level === LEVELS.length - 1 ? 0 : level + 1);
   }
+});
+
+const revisedAndNew = [
+  9,
+  10,
+  11,
+  ...Array.from({ length: 10 }, (_, i) => i + 17),
+];
+for (const level of revisedAndNew)
+  for (const mode of [2, 3, 6] as const)
+    test(`chapter ${level + 1}: ${mode} players collect every star and finish using only controls`, () => {
+      const g = completeStormLevel(level, undefined, undefined, 90, mode);
+      assert.equal(g.status, "won");
+      assert.equal(g.stars.length, LEVELS[level].stars.length);
+      assert.ok(g.players.every((p) => p.arrived && p.deaths === 0));
+    });
+
+test("the expanded campaign has 27 unique names and valid, supported maps", () => {
+  assert.equal(LEVELS.length, 27);
+  assert.equal(CHALLENGE_MAPS.length, 19);
+  assert.equal(new Set(LEVELS.map((l) => l.name)).size, 27);
+  assert.equal(new Set(LEVELS.map((l) => translate("en", l.name))).size, 27);
+  for (const map of CHALLENGE_MAPS)
+    assert.deepEqual(validateMap(map), { errors: [], warnings: [] });
+});
+
+// Normalize translation, reflection and swapping the movement axes. This catches
+// literal layout clones; the gameplay/topology audit is documented separately.
+function terrainSignature(index: number) {
+  const l = LEVELS[index],
+    variants: string[] = [];
+  for (const swap of [false, true])
+    for (const sx of [-1, 1])
+      for (const sz of [-1, 1]) {
+        const axis = swap ? "z" : "x",
+          other = swap ? "x" : "z";
+        variants.push(
+          JSON.stringify(
+            l.platforms
+              .map((p) => [
+                +(sx * (p[axis] - l.spawn[axis])).toFixed(3),
+                +(sz * (p[other] - l.spawn[other])).toFixed(3),
+                +(p.y - l.spawn.y).toFixed(3),
+                swap ? p.d : p.w,
+                swap ? p.w : p.d,
+                p.h,
+                p.motion
+                  ? [
+                      p.motion.axis === axis ? "x" : "z",
+                      p.motion.range,
+                      p.motion.period,
+                    ]
+                  : null,
+              ])
+              .sort((a, b) =>
+                JSON.stringify(a).localeCompare(JSON.stringify(b)),
+              ),
+          ),
+        );
+      }
+  return variants.sort()[0];
+}
+test("new and redesigned levels are not translated, mirrored or axis-swapped terrain copies", () => {
+  for (const level of revisedAndNew)
+    for (let other = 0; other < LEVELS.length; other++)
+      if (other !== level)
+        assert.notEqual(
+          terrainSignature(level),
+          terrainSignature(other),
+          `${level + 1} duplicates ${other + 1}`,
+        );
 });

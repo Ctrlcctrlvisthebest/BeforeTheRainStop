@@ -256,3 +256,19 @@ test("missing or duplicate stars never create or replace records, and legacy rec
     assert.equal(writes(), 1);
     assert.equal(disk.get("rain-best-times-v1"), legacy);
   }));
+
+test("the new campaign retains unchanged bests, isolates remade maps and preserves v3 history", () =>
+  withStorage((disk) => {
+    const old = JSON.stringify({
+      [`1:${LEVELS[0].name}`]: 500,
+      "1:一线风铃": 400,
+      [`1:${LEVELS[9].name}`]: 300,
+    });
+    disk.set("rain-best-times-all-stars-v3", old);
+    const records = new LocalRecords();
+    assert.equal(bestTimeFor(records.times, 0, 1), 500);
+    assert.equal(bestTimeFor(records.times, 9, 1), undefined);
+    records.record(finish(30, 9));
+    assert.equal(disk.get("rain-best-times-all-stars-v3"), old);
+    assert.equal(bestTimeFor(new LocalRecords().times, 9, 1), 30000);
+  }));
