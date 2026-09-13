@@ -298,3 +298,29 @@ for (const version of [4, 5])
       assert.equal(bestTimeFor(new LocalRecords().times, 19, 1), 45000);
       assert.equal(disk.get(`rain-best-times-all-stars-v${version}`), old);
     }));
+
+test("v7 carries forward every v6 chapter and mode without importing scores for new maps", () =>
+  withStorage((disk) => {
+    const legacy = JSON.stringify(
+      Object.fromEntries(
+        MODES.flatMap((mode) =>
+          LEVELS.map((level, index) => [
+            `${mode}:${level.name}`,
+            1000 + index * 100 + mode,
+          ]),
+        ),
+      ),
+    );
+    disk.set("rain-best-times-all-stars-v6", legacy);
+    const records = new LocalRecords();
+    for (const mode of MODES)
+      for (let index = 0; index < LEVELS.length; index++)
+        assert.equal(
+          bestTimeFor(records.times, index, mode),
+          index < 27 ? 1000 + index * 100 + mode : undefined,
+        );
+    records.record(finish(75, 39));
+    assert.equal(bestTimeFor(new LocalRecords().times, 39, 1), 75000);
+    assert.equal(bestTimeFor(new LocalRecords().times, 26, 6), 3606);
+    assert.equal(disk.get("rain-best-times-all-stars-v6"), legacy);
+  }));

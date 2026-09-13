@@ -1,3 +1,16 @@
+import chapter40 from "./maps/40-beyond-the-last-rain.json";
+import chapter39 from "./maps/39-night-watch.json";
+import chapter38 from "./maps/38-storm-loom.json";
+import chapter37 from "./maps/37-suspended-cipher.json";
+import chapter36 from "./maps/36-three-leaf-tide.json";
+import chapter35 from "./maps/35-needle-eye.json";
+import chapter34 from "./maps/34-reverse-waterfall.json";
+import chapter33 from "./maps/33-four-season-rigging.json";
+import chapter32 from "./maps/32-cloud-dovetail.json";
+import chapter31 from "./maps/31-broken-score.json";
+import chapter30 from "./maps/30-sealed-skywalk.json";
+import chapter29 from "./maps/29-ember-docks.json";
+import chapter28 from "./maps/28-sky-stitch.json";
 import chapter18 from "./maps/18-wishing-ring.json";
 import chapter19 from "./maps/19-cross-current.json";
 import chapter20 from "./maps/20-lantern-workshop.json";
@@ -41,6 +54,19 @@ export const CHALLENGE_MAPS = [
   chapter25,
   chapter26,
   chapter27,
+  chapter28,
+  chapter29,
+  chapter30,
+  chapter31,
+  chapter32,
+  chapter33,
+  chapter34,
+  chapter35,
+  chapter36,
+  chapter37,
+  chapter38,
+  chapter39,
+  chapter40,
 ].map((map, index) => parseMap(map, index + 9));
 export const CHALLENGE_START = 8;
 export const MAP_TRANSLATIONS = Object.assign(

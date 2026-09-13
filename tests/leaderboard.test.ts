@@ -24,7 +24,7 @@ import {
 import { makeRoom, publicRoom, command, joinRoom } from "../src/room";
 import { completeLevel } from "./journey";
 test("rebuilt maps and all-star rules use a new replay version and separate leaderboard storage", () => {
-  assert.equal(RANKING_VERSION, 6);
+  assert.equal(RANKING_VERSION, 7);
   for (let level = 0; level < LEVELS.length; level++)
     for (const mode of MODES)
       assert.equal(

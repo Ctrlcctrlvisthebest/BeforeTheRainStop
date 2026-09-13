@@ -234,3 +234,41 @@ test("chapter 20: local Worker verifies the rebuilt route and rejects the previo
     ),
   );
 });
+
+test("chapter 40: local Worker verifies the expert finale and rejects the previous replay version", async () => {
+  const recorder = new ReplayRecorder();
+  const game = completeLevel(39, undefined, (g, input) =>
+    recorder.record(g, input),
+  );
+  const body = {
+    version: RANKING_VERSION,
+    level: 39,
+    replay: recorder.snapshot(game),
+    playerToken: crypto.randomUUID(),
+    name: "天阶旅人",
+  };
+  const post = async (version: number) => {
+    // This expanded suite can exhaust the real 20/minute score allowance.
+    // Wait for renewal without weakening the production limit.
+    for (let attempt = 0; ; attempt++) {
+      const response = await fetch(`${base}/api/leaderboard`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...body, version }),
+      });
+      if (response.status !== 429 || attempt >= 6) return response;
+      await response.text();
+      await new Promise((resolve) => setTimeout(resolve, 10000));
+    }
+  };
+  assert.equal((await post(RANKING_VERSION - 1)).status, 409);
+  const accepted = await post(RANKING_VERSION);
+  assert.equal(accepted.status, 200, await accepted.clone().text());
+  const board = (await accepted.json()) as LeaderboardData;
+  assert.equal(board.level, 39);
+  assert.ok(
+    board.entries.some(
+      (entry) => entry.timeMs === Math.round(game.time * 1000),
+    ),
+  );
+});

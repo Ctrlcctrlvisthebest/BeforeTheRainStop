@@ -92,7 +92,7 @@ for (let level = 9; level < LEVELS.length; level++) {
   });
 }
 
-test("the entire campaign advances in order and only chapter 27 wraps to the start", () => {
+test("the entire campaign advances in order and only chapter 40 wraps to the start", () => {
   for (const level of LEVELS.map((_, i) => i)) {
     const room = makeRoom("ABCDEFGH", 2, level, "A", "a", 0);
     joinRoom(room, "B", "b", 0);
@@ -117,7 +117,10 @@ test("the entire campaign advances in order and only chapter 27 wraps to the sta
   }
 });
 
-const revisedAndNew = Array.from({ length: 18 }, (_, i) => i + 9);
+const revisedAndNew = Array.from(
+  { length: LEVELS.length - 9 },
+  (_, i) => i + 9,
+);
 for (const level of revisedAndNew)
   for (const mode of [2, 3, 6] as const)
     test(`chapter ${level + 1}: ${mode} players collect every star and finish using only controls`, () => {
@@ -127,11 +130,11 @@ for (const level of revisedAndNew)
       assert.ok(g.players.every((p) => p.arrived && p.deaths === 0));
     });
 
-test("the expanded campaign has 27 unique names and valid, supported maps", () => {
-  assert.equal(LEVELS.length, 27);
-  assert.equal(CHALLENGE_MAPS.length, 19);
-  assert.equal(new Set(LEVELS.map((l) => l.name)).size, 27);
-  assert.equal(new Set(LEVELS.map((l) => translate("en", l.name))).size, 27);
+test("the expanded campaign has 40 unique names and valid, supported maps", () => {
+  assert.equal(LEVELS.length, 40);
+  assert.equal(CHALLENGE_MAPS.length, 32);
+  assert.equal(new Set(LEVELS.map((l) => l.name)).size, 40);
+  assert.equal(new Set(LEVELS.map((l) => translate("en", l.name))).size, 40);
   for (const map of CHALLENGE_MAPS)
     assert.deepEqual(validateMap(map), { errors: [], warnings: [] });
 });

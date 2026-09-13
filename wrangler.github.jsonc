@@ -1,4 +1,4 @@
-// Separate 27-chapter service; the existing Toy release still uses the legacy Worker.
+// Separate 40-chapter service; the existing Toy release still uses the legacy Worker.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "before-the-rain-rooms-github",
