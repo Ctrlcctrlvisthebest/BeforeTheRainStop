@@ -298,16 +298,16 @@ test("a valid clear without all stars cannot claim a ranked score", () => {
   const ctx = context(),
     board = new RainLeaderboard(ctx, {}),
     recorder = new ReplayRecorder();
-  const game = completeLevel(0, undefined, (g, input) =>
+  const game = completeLevel(2, undefined, (g, input) =>
     recorder.record(g, input),
   );
-  assert.ok(game.stars.length < LEVELS[0].stars.length);
+  assert.ok(game.stars.length < LEVELS[2].stars.length);
   const result = board.submitSolo(
     {
-      level: 0,
+      level: 2,
       version: RANKING_VERSION,
       name: "Paper",
-      stars: LEVELS[0].stars.map((_, id) => id),
+      stars: LEVELS[2].stars.map((_, id) => id),
       replay: recorder.snapshot(game),
     },
     "A",

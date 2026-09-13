@@ -1,3 +1,4 @@
+import { interactiveModules } from "./map-rules";
 import React, {
   lazy,
   Suspense,
@@ -52,6 +53,7 @@ const GUIDE_PREF = "rain-map-editor-guide-v1";
 const templates = LEVELS.map((level, i): MapFile => ({
   format: "before-the-rain-map",
   version: 1,
+  chapter: i + 1,
   level,
   weather: WEATHER[i],
   ...(CROSSINGS[i] ? { crossing: CROSSINGS[i] } : {}),
@@ -929,6 +931,20 @@ function App() {
               }
             />
           </label>
+          {numberField(
+            "目标关卡",
+            map.chapter ?? 1,
+            (n) =>
+              changeMap((m) => {
+                m.chapter = n;
+              }),
+            1,
+          )}
+          <p className="hint">
+            平台宽、深和连续直路均不得超过 9。第 11
+            关起至少需要两个路线中使用的独立互动模块；同类型可重复。当前{" "}
+            {interactiveModules(map).length} 个。
+          </p>
           <details>
             <summary>背景与雨势</summary>
             <label>

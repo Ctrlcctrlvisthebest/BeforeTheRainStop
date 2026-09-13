@@ -223,7 +223,7 @@ test("chapter 20: local Worker verifies the rebuilt route and rejects the previo
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...body, version }),
     });
-  assert.equal((await post(4)).status, 409);
+  assert.equal((await post(RANKING_VERSION - 1)).status, 409);
   const accepted = await post(RANKING_VERSION);
   assert.equal(accepted.status, 200, await accepted.clone().text());
   const board = (await accepted.json()) as LeaderboardData;

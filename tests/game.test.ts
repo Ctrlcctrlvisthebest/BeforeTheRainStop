@@ -98,7 +98,7 @@ test("Q rotates movement axis without teleporting and holding Q turns only once"
   assert.equal(b.x, -1);
   assert.ok(b.z < -0.1);
 });
-test("wall blocks running, but the side corridor is physically open", () => {
+test("wall blocks running; turning and jumping opens the side route", () => {
   const g = newGame(1);
   const b = g.players[0];
   Object.assign(b, { x: 11, y: 0, z: 0 });
@@ -106,7 +106,8 @@ test("wall blocks running, but the side corridor is physically open", () => {
   assert.ok(b.x < 12);
   Object.assign(b, { x: 11, y: 0, z: 0 });
   tick(g, { turn: true }, 55);
-  tick(g, { axis: 1 }, 75);
+  tick(g, { axis: 1 }, 14);
+  tick(g, { axis: 1, jump: true }, 62);
   assert.ok(b.z < -6);
   assert.equal(b.deaths, 0);
 });

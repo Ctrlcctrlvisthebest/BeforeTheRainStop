@@ -4,7 +4,7 @@
   "level": {
     "name": "借舟摘月",
     "sub": "那把钥匙比船高，经过时还要轻轻一跃。",
-    "hint": "乘长渡舟 · 船上起跳取高钥匙 · 岸后绕至月台",
+    "hint": "借长程渡舟跃取月钥 · 再乘风登上归灯台",
     "color": "#53697b",
     "sky": "#28394b",
     "spawn": {
@@ -14,7 +14,7 @@
     },
     "exit": {
       "x": 18.5,
-      "y": 0.7,
+      "y": 3.9,
       "z": -7
     },
     "platforms": [
@@ -51,9 +51,9 @@
       {
         "x": 27.0,
         "y": 0,
-        "z": -3.5,
+        "z": -6.35,
         "w": 3,
-        "d": 10,
+        "d": 4.3,
         "h": 1
       },
       {
@@ -66,10 +66,18 @@
       },
       {
         "x": 19,
-        "y": 0.7,
+        "y": 3.9,
         "z": -7,
         "w": 4,
         "d": 4,
+        "h": 1
+      },
+      {
+        "x": 27.0,
+        "y": 0,
+        "z": -0.65,
+        "w": 3,
+        "d": 4.3,
         "h": 1
       }
     ],
@@ -86,7 +94,7 @@
       },
       {
         "x": 19,
-        "y": 1.4,
+        "y": 4.6,
         "z": -7
       }
     ],
@@ -108,7 +116,7 @@
       },
       {
         "x": 19,
-        "y": 1.4,
+        "y": 4.6,
         "z": -7
       }
     ],
@@ -134,7 +142,16 @@
       }
     ],
     "pads": [],
-    "winds": [],
+    "winds": [
+      {
+        "x": 22,
+        "y": 0.7,
+        "z": -7,
+        "w": 0.7,
+        "d": 1.6,
+        "height": 5.1
+      }
+    ],
     "hazards": []
   },
   "weather": {
@@ -211,6 +228,24 @@
       "target": {
         "x": 27,
         "y": 0,
+        "z": -2.35
+      },
+      "view": 1
+    },
+    {
+      "kind": "jump",
+      "target": {
+        "x": 27,
+        "y": 0,
+        "z": -4.8
+      },
+      "view": 1
+    },
+    {
+      "kind": "walk",
+      "target": {
+        "x": 27,
+        "y": 0,
         "z": -7
       },
       "view": 1
@@ -245,19 +280,24 @@
       "view": 0
     },
     {
-      "kind": "jump",
+      "kind": "wind",
       "target": {
         "x": 19,
-        "y": 0.7,
+        "y": 3.9,
         "z": -7
       },
-      "view": 0
+      "view": 0,
+      "from": {
+        "x": 22,
+        "y": 0.7,
+        "z": -7
+      }
     },
     {
       "kind": "key",
       "target": {
         "x": 19,
-        "y": 0.7,
+        "y": 3.9,
         "z": -7
       },
       "view": 0,
@@ -267,7 +307,7 @@
       "kind": "exit",
       "target": {
         "x": 18.5,
-        "y": 0.7,
+        "y": 3.9,
         "z": -7
       },
       "view": 0
@@ -277,6 +317,8 @@
     "借舟摘月": "Pluck the Moon",
     "那把钥匙比船高，经过时还要轻轻一跃。": "The key hangs above the ferry: jump as the deck passes beneath it.",
     "乘长渡舟 · 船上起跳取高钥匙 · 岸后绕至月台": "Ride the long ferry · jump aboard for the high key · circle to the moon terrace",
-    "船到钥匙下方时起跳 · 落回船上再靠岸": "Jump below the high key · land back on the ferry before going ashore"
-  }
+    "船到钥匙下方时起跳 · 落回船上再靠岸": "Jump below the high key · land back on the ferry before going ashore",
+    "借长程渡舟跃取月钥 · 再乘风登上归灯台": "Ride the long ferry for the moon key, then take the updraft to the home lantern."
+  },
+  "chapter": 12
 }

@@ -22,7 +22,18 @@ export function completeLevel(
       observe?.(g);
     }
   }
-  function state(_label: string) {}
+  function state(label: string) {
+    if (process.env.JOURNEY_TRACE)
+      console.log(level + 1, label, {
+        x: b.x,
+        y: b.y,
+        z: b.z,
+        wet: b.wetness,
+        heat: b.heat,
+        deaths: b.deaths,
+        keys: g.keys,
+      });
+  }
   function move(target: number, jump = false, max = 400) {
     const a = g.view === 0 ? "x" : "z",
       d = g.view === 0 ? 1 : -1;
@@ -32,7 +43,10 @@ export function completeLevel(
       tick({ axis: sign * d, jump });
     tick({}, 8);
     state("move " + target);
-    if (n >= max) throw Error("stuck");
+    if (n >= max)
+      throw Error(
+        `stuck moving to ${target}: ${JSON.stringify({ x: b.x, y: b.y, z: b.z, deaths: b.deaths })}`,
+      );
   }
   function turn() {
     tick({ turn: true });
@@ -63,6 +77,9 @@ export function completeLevel(
     waitGround();
     move(11);
     turn();
+    move(-1.3);
+    move(-3.8, true);
+    waitGround();
     move(-7);
     turn();
   } else if (level === 2) {
@@ -87,8 +104,18 @@ export function completeLevel(
       tick({ fold: true }, 130);
       tick({}, 8);
       move(-8);
-    } else move(-7);
+    } else {
+      move(-1.3);
+      move(-3.8, true);
+      waitGround();
+      move(-7);
+    }
     turn();
+  }
+  if (level === 0 || level === 1 || level === 3) {
+    move(12.25);
+    move(14.7, true);
+    waitGround();
   }
   if (level === 3) {
     move(15);

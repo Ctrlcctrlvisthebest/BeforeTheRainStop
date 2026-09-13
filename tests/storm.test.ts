@@ -117,12 +117,7 @@ test("the entire campaign advances in order and only chapter 27 wraps to the sta
   }
 });
 
-const revisedAndNew = [
-  9,
-  10,
-  11,
-  ...Array.from({ length: 10 }, (_, i) => i + 17),
-];
+const revisedAndNew = Array.from({ length: 18 }, (_, i) => i + 9);
 for (const level of revisedAndNew)
   for (const mode of [2, 3, 6] as const)
     test(`chapter ${level + 1}: ${mode} players collect every star and finish using only controls`, () => {

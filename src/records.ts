@@ -1,5 +1,5 @@
 import { rankedClear } from "./score-rules";
-import { CAMPAIGN_VERSION } from "./campaign-version";
+import { CAMPAIGN_VERSION, UNCHANGED_LEVELS_V6 } from "./campaign-version";
 import { LEVELS, MODES, isMode, type Game, type Mode } from "./game";
 import { save, stored } from "./storage";
 
@@ -17,20 +17,16 @@ const validTime = (value: unknown): value is number =>
 
 export function loadBestTimes(): BestTimes {
   let value = stored<unknown>("local", RECORDS_KEY);
-  // Migrate only comparable maps; leave historical stores intact. Version 5
-  // replaces chapter 20, while v3 predates the remakes of chapters 10–12.
+  // Preserve historical stores and carry forward only maps with identical terrain.
   if (value == null) {
-    for (const version of [4, 3]) {
+    for (const version of [5, 4, 3]) {
       const legacy = stored<unknown>(
         "local",
         `rain-best-times-all-stars-v${version}`,
       );
       if (!legacy || typeof legacy !== "object" || Array.isArray(legacy))
         continue;
-      const unchanged =
-        version === 4
-          ? chapterNames.filter((_, index) => index !== 19)
-          : [...chapterNames.slice(0, 9), ...chapterNames.slice(12, 17)];
+      const unchanged = UNCHANGED_LEVELS_V6.map((index) => chapterNames[index]);
       value = Object.fromEntries(
         MODES.flatMap((mode) =>
           unchanged.map((name) => {

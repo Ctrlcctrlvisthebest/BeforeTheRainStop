@@ -41,7 +41,7 @@ export const CHALLENGE_MAPS = [
   chapter25,
   chapter26,
   chapter27,
-].map(parseMap);
+].map((map, index) => parseMap(map, index + 9));
 export const CHALLENGE_START = 8;
 export const MAP_TRANSLATIONS = Object.assign(
   {},

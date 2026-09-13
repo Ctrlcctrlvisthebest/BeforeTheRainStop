@@ -4,7 +4,7 @@
   "level": {
     "name": "归岸折桥",
     "sub": "出发时留下的断口，回程时才接得起来。",
-    "hint": "绕行南岸取钥匙 · 从右岸搭桥 · 带愿望回起点",
+    "hint": "外廊跳断口、乘渡舟 · 取齐钥匙后折纸桥归岸",
     "color": "#53697b",
     "sky": "#28394b",
     "spawn": {
@@ -19,35 +19,35 @@
     },
     "platforms": [
       {
-        "x": 1,
+        "x": 1.15,
         "y": 0,
         "z": 0,
-        "w": 7,
+        "w": 6.7,
         "d": 4,
         "h": 1
       },
       {
         "x": 1.0,
         "y": 0,
-        "z": 4.0,
+        "z": 0.85,
         "w": 3,
-        "d": 11,
+        "d": 4.7,
         "h": 1
       },
       {
-        "x": 7.0,
+        "x": 1,
         "y": 0,
-        "z": 8.0,
-        "w": 15,
+        "z": 8,
+        "w": 3,
         "d": 3,
-        "h": 1
+        "h": 0.8
       },
       {
         "x": 13.0,
         "y": 0,
-        "z": 4.0,
+        "z": 0.85,
         "w": 3,
-        "d": 11,
+        "d": 4.7,
         "h": 1
       },
       {
@@ -59,10 +59,10 @@
         "h": 1
       },
       {
-        "x": -4,
+        "x": -4.7,
         "y": 0,
         "z": 0,
-        "w": 4,
+        "w": 2.6,
         "d": 4,
         "h": 1
       },
@@ -92,6 +92,44 @@
         "d": 0.4,
         "h": 12,
         "kind": "wall"
+      },
+      {
+        "x": 7,
+        "y": 0,
+        "z": 8,
+        "w": 2.6,
+        "d": 3,
+        "h": 0.8,
+        "kind": "moving",
+        "motion": {
+          "axis": "x",
+          "range": 2.5,
+          "period": 5.6
+        }
+      },
+      {
+        "x": -2.1,
+        "y": 0,
+        "z": 0,
+        "w": 0.2,
+        "d": 4,
+        "h": 1
+      },
+      {
+        "x": 1.0,
+        "y": 0,
+        "z": 7.15,
+        "w": 3,
+        "d": 4.7,
+        "h": 1
+      },
+      {
+        "x": 13.0,
+        "y": 0,
+        "z": 7.15,
+        "w": 3,
+        "d": 4.7,
+        "h": 1
       }
     ],
     "keys": [
@@ -224,6 +262,24 @@
       "target": {
         "x": 1,
         "y": 0,
+        "z": 2.75
+      },
+      "view": 1
+    },
+    {
+      "kind": "jump",
+      "target": {
+        "x": 1,
+        "y": 0,
+        "z": 5.4
+      },
+      "view": 1
+    },
+    {
+      "kind": "walk",
+      "target": {
+        "x": 1,
+        "y": 0,
         "z": 8
       },
       "view": 1
@@ -251,20 +307,21 @@
     {
       "kind": "walk",
       "target": {
-        "x": 9,
+        "x": 1.8,
         "y": 0,
         "z": 8
       },
       "view": 0
     },
     {
-      "kind": "walk",
+      "kind": "ferry",
       "target": {
         "x": 13,
         "y": 0,
         "z": 8
       },
-      "view": 0
+      "view": 0,
+      "id": 9
     },
     {
       "kind": "key",
@@ -285,6 +342,24 @@
       },
       "view": 0,
       "id": 1
+    },
+    {
+      "kind": "walk",
+      "target": {
+        "x": 13,
+        "y": 0,
+        "z": 5.25
+      },
+      "view": 1
+    },
+    {
+      "kind": "jump",
+      "target": {
+        "x": 13,
+        "y": 0,
+        "z": 2.6
+      },
+      "view": 1
     },
     {
       "kind": "walk",
@@ -334,6 +409,24 @@
       "view": 0
     },
     {
+      "kind": "walk",
+      "target": {
+        "x": -1.7499999999999998,
+        "y": 0,
+        "z": 0
+      },
+      "view": 0
+    },
+    {
+      "kind": "jump",
+      "target": {
+        "x": -4.0,
+        "y": 0,
+        "z": 0
+      },
+      "view": 0
+    },
+    {
       "kind": "exit",
       "target": {
         "x": -4,
@@ -347,7 +440,8 @@
     "归岸折桥": "A Bridge Home",
     "出发时留下的断口，回程时才接得起来。": "The gap beside home is crossed only on the return journey.",
     "绕行南岸取钥匙 · 从右岸搭桥 · 带愿望回起点": "Explore the southern bank · bridge from the right · bring the wishes home",
-    "先向南绕行 · 右边断桥留给归途": "Go south first · save the bridge to the right for your return"
+    "先向南绕行 · 右边断桥留给归途": "Go south first · save the bridge to the right for your return",
+    "外廊跳断口、乘渡舟 · 取齐钥匙后折纸桥归岸": "Jump the outer breaks and ride the ferry; fold the return bridge after collecting the keys."
   },
   "crossing": {
     "x": 5.5,
@@ -357,5 +451,6 @@
     "near": 1,
     "span": 2,
     "depth": 2.8
-  }
+  },
+  "chapter": 11
 }

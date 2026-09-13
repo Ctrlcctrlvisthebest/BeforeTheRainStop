@@ -59,10 +59,10 @@
         "h": 0.6
       },
       {
-        "x": 18.6,
+        "x": 19.2,
         "y": 4.3,
         "z": -9,
-        "w": 10.2,
+        "w": 9,
         "d": 3.6,
         "h": 0.6
       },
@@ -470,5 +470,6 @@
     "踩板保持四秒 · 多人分别站到两块踏板": "Hold for four seconds · teammates take both plates",
     "等踏台靠岸再跳 · 站稳后随它移动": "Wait for the deck to approach · land and ride with it",
     "Q 转面 · 下面的独立窗台有最后一把钥匙": "Q to turn · the lower ledge holds the last key"
-  }
+  },
+  "chapter": 20
 }

@@ -24,10 +24,13 @@ import {
 import { makeRoom, publicRoom, command, joinRoom } from "../src/room";
 import { completeLevel } from "./journey";
 test("rebuilt maps and all-star rules use a new replay version and separate leaderboard storage", () => {
-  assert.equal(RANKING_VERSION, 5);
+  assert.equal(RANKING_VERSION, 6);
   for (let level = 0; level < LEVELS.length; level++)
     for (const mode of MODES)
-      assert.equal(boardName(level, mode), `v2:${mode}:${LEVELS[level].name}`);
+      assert.equal(
+        boardName(level, mode),
+        `v${level === 13 || level === 14 ? 2 : 3}:${mode}:${LEVELS[level].name}`,
+      );
 });
 
 test("every legal combination of gameplay inputs survives replay encoding", () => {

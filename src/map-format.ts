@@ -2,11 +2,19 @@ import type { Level, Point } from "./game";
 import type { Weather } from "./weather";
 import type { BridgeCrossing } from "./bridges";
 import type { RouteStep } from "./guide";
+import {
+  MAX_PLATFORM_SPAN,
+  MIN_INTERACTIVE_CHAPTER,
+  interactiveModules,
+  oversizedGroundRuns,
+} from "./map-rules";
 
 /** The file consumed by the campaign and exported by the standalone editor. */
 export interface MapFile {
   format: "before-the-rain-map";
   version: 1;
+  /** One-based intended campaign position; registration also checks its real slot. */
+  chapter?: number;
   level: Level;
   weather: Weather;
   crossing?: BridgeCrossing;
@@ -32,7 +40,10 @@ export const MAP_LIMITS = {
 } as const;
 const object = (v: unknown): v is Record<string, any> =>
   !!v && typeof v === "object" && !Array.isArray(v);
-export function validateMap(value: unknown): MapReport {
+export function validateMap(
+  value: unknown,
+  campaignChapter?: number,
+): MapReport {
   const errors: string[] = [],
     warnings: string[] = [];
   const fail = (path: string, message: string) =>
@@ -61,7 +72,8 @@ export function validateMap(value: unknown): MapReport {
   const platform = (v: unknown, path: string) => {
     point(v, path);
     if (!object(v)) return;
-    size(v, path);
+    num(v.w, path + ".w", 0.1, MAX_PLATFORM_SPAN);
+    num(v.d, path + ".d", 0.1, MAX_PLATFORM_SPAN);
     num(v.h, path + ".h", 0.1, 30);
     if (
       v.kind !== undefined &&
@@ -94,6 +106,19 @@ export function validateMap(value: unknown): MapReport {
   if (!object(value)) return { errors: ["地图必须是 JSON 对象"], warnings };
   if (value.format !== "before-the-rain-map" || value.version !== 1)
     fail("version", "需要 before-the-rain-map 第 1 版格式");
+  if (
+    value.chapter !== undefined &&
+    (!Number.isInteger(value.chapter) ||
+      value.chapter < 1 ||
+      value.chapter > 999)
+  )
+    fail("chapter", "目标关卡需要 1–999 之间的整数");
+  if (
+    campaignChapter !== undefined &&
+    value.chapter !== undefined &&
+    campaignChapter !== value.chapter
+  )
+    fail("chapter", `目标关卡与实际注册的第 ${campaignChapter} 关不一致`);
   const l = value.level,
     w = value.weather;
   if (!object(l) || !object(w))
@@ -231,6 +256,20 @@ export function validateMap(value: unknown): MapReport {
   }
   if (errors.length) return { errors, warnings };
   const m = value as MapFile;
+  for (const run of oversizedGroundRuns(m.level.platforms))
+    fail(
+      `platforms[${run.platforms.join(",")}]`,
+      `同高连续地面沿 ${run.axis.toUpperCase()} 长 ${(run.end - run.start).toFixed(2)}，不能超过 ${MAX_PLATFORM_SPAN}；请加入可跳断口或转折（小于 0.8 的接缝仍计为连续地面）`,
+    );
+  const chapter = campaignChapter ?? m.chapter;
+  if (chapter !== undefined && chapter >= MIN_INTERACTIVE_CHAPTER) {
+    const count = interactiveModules(m).length;
+    if (count < 2)
+      fail(
+        "route",
+        `第 ${chapter} 关至少需要 2 个路线中使用的独立互动模块，当前 ${count} 个（渡舟、风柱、纸桥或石踏板门；可以同类型）`,
+      );
+  }
   const supported = (q: Point) =>
     m.level.platforms.some(
       (p) =>
@@ -269,8 +308,8 @@ export function validateMap(value: unknown): MapReport {
     warnings.push("起点右侧需容纳 6 人；目前末位纸鹤可能没有落脚平台。");
   return { errors, warnings };
 }
-export function parseMap(value: unknown): MapFile {
-  const report = validateMap(value);
+export function parseMap(value: unknown, campaignChapter?: number): MapFile {
+  const report = validateMap(value, campaignChapter);
   if (report.errors.length) throw new Error(report.errors.join("\n"));
   // Validation covers schema fields only. Never let unknown target/motion
   // properties reach the editor's generic inspector or coordinate helpers.
@@ -297,6 +336,7 @@ export function parseMap(value: unknown): MapFile {
   return {
     format: m.format,
     version: m.version,
+    ...(m.chapter !== undefined ? { chapter: m.chapter } : {}),
     level: {
       ...pick(m.level, ["name", "sub", "hint", "color", "sky"]),
       spawn: point(m.level.spawn),
@@ -351,6 +391,7 @@ export function starterMap(): MapFile {
   return {
     format: "before-the-rain-map",
     version: 1,
+    chapter: 1,
     level: {
       name: "我的雨中小径",
       sub: "从一张纸开始。",
@@ -358,8 +399,8 @@ export function starterMap(): MapFile {
       color: "#53697b",
       sky: "#28394b",
       spawn: { x: -1, y: 0, z: 0 },
-      exit: { x: 9, y: 0, z: 0 },
-      platforms: [{ x: 4, y: 0, z: 0, w: 14, d: 4, h: 1 }],
+      exit: { x: 5, y: 0, z: 0 },
+      platforms: [{ x: 1, y: 0, z: 0, w: 9, d: 4, h: 1 }],
       keys: [],
       stars: [],
       checkpoints: [],
@@ -373,6 +414,6 @@ export function starterMap(): MapFile {
       zones: [],
       awnings: [{ x: 0.5, y: 3.4, z: 0, w: 7, d: 3.8 }],
     },
-    route: [{ kind: "exit", target: { x: 9, y: 0, z: 0 }, view: 0 }],
+    route: [{ kind: "exit", target: { x: 5, y: 0, z: 0 }, view: 0 }],
   };
 }

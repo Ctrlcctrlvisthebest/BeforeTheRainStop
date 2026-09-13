@@ -4,7 +4,7 @@
   "level": {
     "name": "断檐短步",
     "sub": "檐下收起翅膀，只有天光露出的地方能起跳。",
-    "hint": "低檐里走 · 露天处跳 · 落地后松开跳跃",
+    "hint": "檐口短跳接纸桥 · 转面穿檐 · 末段借风升台",
     "color": "#53697b",
     "sky": "#28394b",
     "spawn": {
@@ -14,31 +14,31 @@
     },
     "exit": {
       "x": 19,
-      "y": 1.2,
+      "y": 4.8,
       "z": -17
     },
     "platforms": [
       {
-        "x": 1,
+        "x": 0.3,
         "y": 0,
         "z": 0,
-        "w": 7,
+        "w": 5.6,
         "d": 4,
         "h": 1
       },
       {
-        "x": 5.0,
+        "x": 2.3,
         "y": 0,
         "z": 0.0,
-        "w": 7,
+        "w": 1.6,
         "d": 3,
         "h": 1
       },
       {
-        "x": 5.5,
+        "x": 6.3,
         "y": 12,
         "z": 0,
-        "w": 2,
+        "w": 1.2,
         "d": 3.4,
         "h": 10.99,
         "kind": "low-roof"
@@ -120,10 +120,45 @@
       },
       {
         "x": 19,
-        "y": 1.2,
+        "y": 4.8,
         "z": -16,
         "w": 4,
         "d": 4,
+        "h": 1
+      },
+      {
+        "x": 17,
+        "y": 12.5,
+        "z": 0,
+        "w": 3,
+        "d": 3.4,
+        "h": 10.99,
+        "kind": "low-roof"
+      },
+      {
+        "x": 17,
+        "y": 12.5,
+        "z": -1.7,
+        "w": 3,
+        "d": 0.2,
+        "h": 12,
+        "kind": "railing"
+      },
+      {
+        "x": 17,
+        "y": 12.5,
+        "z": 1.7,
+        "w": 3,
+        "d": 0.2,
+        "h": 12,
+        "kind": "railing"
+      },
+      {
+        "x": 6.5,
+        "y": 0,
+        "z": 0.0,
+        "w": 4.0,
+        "d": 3,
         "h": 1
       }
     ],
@@ -162,7 +197,7 @@
       },
       {
         "x": 19,
-        "y": 1.9,
+        "y": 5.5,
         "z": -16
       }
     ],
@@ -193,7 +228,16 @@
       }
     ],
     "pads": [],
-    "winds": [],
+    "winds": [
+      {
+        "x": 19,
+        "y": 1.2,
+        "z": -12,
+        "w": 1.6,
+        "d": 1.6,
+        "height": 5.6
+      }
+    ],
     "hazards": []
   },
   "weather": {
@@ -227,9 +271,9 @@
       {
         "x": 19,
         "y": 3.9,
-        "z": 0,
+        "z": -2.1,
         "w": 3.8,
-        "d": 3.8,
+        "d": 6.4,
         "floor": 0.5
       },
       {
@@ -243,6 +287,24 @@
     ]
   },
   "route": [
+    {
+      "kind": "walk",
+      "target": {
+        "x": 2.65,
+        "y": 0,
+        "z": 0
+      },
+      "view": 0
+    },
+    {
+      "kind": "jump",
+      "target": {
+        "x": 5.1,
+        "y": 0,
+        "z": 0
+      },
+      "view": 0
+    },
     {
       "kind": "walk",
       "target": {
@@ -291,9 +353,9 @@
       "view": 0
     },
     {
-      "kind": "jump",
+      "kind": "bridge",
       "target": {
-        "x": 19,
+        "x": 18,
         "y": 0.5,
         "z": 0
       },
@@ -367,19 +429,24 @@
       "view": 1
     },
     {
-      "kind": "jump",
+      "kind": "wind",
       "target": {
         "x": 19,
-        "y": 1.2,
+        "y": 4.8,
         "z": -16
       },
-      "view": 1
+      "view": 1,
+      "from": {
+        "x": 19,
+        "y": 1.2,
+        "z": -12
+      }
     },
     {
       "kind": "exit",
       "target": {
         "x": 19,
-        "y": 1.2,
+        "y": 4.8,
         "z": -17
       },
       "view": 1
@@ -389,6 +456,17 @@
     "断檐短步": "Steps Between Eaves",
     "檐下收起翅膀，只有天光露出的地方能起跳。": "Keep low beneath the eaves; leap where the sky opens.",
     "低檐里走 · 露天处跳 · 落地后松开跳跃": "Walk beneath eaves · jump through open sky · release jump after landing",
-    "到檐外再起跳 · 下一次跳跃前先松手": "Jump after clearing the eave · release before the next leap"
-  }
+    "到檐外再起跳 · 下一次跳跃前先松手": "Jump after clearing the eave · release before the next leap",
+    "檐口短跳接纸桥 · 转面穿檐 · 末段借风升台": "Hop to the paper bridge, turn through the eaves, then rise on the final updraft."
+  },
+  "crossing": {
+    "x": 17,
+    "y": 0.5,
+    "z": 0,
+    "axis": "x",
+    "near": -1,
+    "span": 1,
+    "depth": 3
+  },
+  "chapter": 24
 }

@@ -35,7 +35,7 @@ export const TOOL_HELP: Partial<
 > = {
   platforms: {
     title: "先搭出能站稳的路",
-    body: "平台提供落脚面，也会阻挡纸鹤。宽度 W 沿 X，深度 D 沿 Z；高度 Y 是顶面。",
+    body: "平台提供落脚面，也会阻挡纸鹤。宽度 W 沿 X，深度 D 沿 Z，二者都不超过 9；相连直路也不能超过 9。高度 Y 是顶面。",
     topic: "platform",
   },
   moving: {
@@ -667,7 +667,7 @@ export function EditorHelp({
 const steps = [
   {
     title: "摆出路线",
-    body: "先沿现有直路加一块平台。点左侧组件，再点画布；放完会自动回到选择模式，拖动物件即可改位置。",
+    body: "先隔着断口加一块平台，落脚面宽深和连续直路都不要超过 9。点左侧组件，再点画布；放完会自动回到选择模式，拖动物件即可改位置。",
     action: "选择平台，开始放置",
     tool: "platforms",
   },

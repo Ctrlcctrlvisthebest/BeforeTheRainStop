@@ -260,9 +260,9 @@ export function addEntity(
     next.level.platforms.push(
       platform(p.x - 3.3, p.z, 4, 3),
       platform(p.x + 3.3, p.z, 4, 3),
-      { ...platform(p.x, p.z, 10.6, 3.4, p.y + 12, 10.99), kind: "low-roof" },
-      { ...platform(p.x, p.z - 1.7, 10.6, 0.2, p.y + 12, 12), kind: "railing" },
-      { ...platform(p.x, p.z + 1.7, 10.6, 0.2, p.y + 12, 12), kind: "railing" },
+      { ...platform(p.x, p.z, 8.8, 3.4, p.y + 12, 10.99), kind: "low-roof" },
+      { ...platform(p.x, p.z - 1.7, 8.8, 0.2, p.y + 12, 12), kind: "railing" },
+      { ...platform(p.x, p.z + 1.7, 8.8, 0.2, p.y + 12, 12), kind: "railing" },
     );
     next.route.splice(Math.max(0, next.route.length - 1), 0, {
       kind: "bridge",

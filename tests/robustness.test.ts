@@ -88,7 +88,7 @@ test("unknown imported properties cannot override coordinates or activate inspec
   parsed.level.platforms[0].x = 99;
   assert.equal(
     map.level.platforms[0].x,
-    4,
+    1,
     "imported maps are independent copies",
   );
 });
