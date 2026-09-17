@@ -180,3 +180,52 @@
     width: 100%;
   }
 }
+
+/* Keep actionable instructions readable on phones, especially at turns. */
+.compact .status-sidebar .guide-action h2 {
+  font-size: 14px;
+  line-height: 1.45;
+}
+.compact .status-sidebar .journey-guide:is(.lesson-turn, .lesson-wind) > p:not(.guide-warning) {
+  display: block;
+  grid-column: 1 / -1;
+  margin: 3px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #d4dce2;
+}
+.compact.playing.map-open .compass {
+  width: calc(100% - var(--safe-left) - var(--safe-right));
+  max-height: calc(100dvh - var(--safe-top) - var(--safe-bottom) - 76px);
+  overflow-y: auto;
+}
+.compact .compass svg {
+  height: clamp(180px, 38dvh, 340px);
+}
+@media (orientation: landscape) {
+  .compact.playing .status-sidebar {
+    width: 196px;
+    max-height: calc(100dvh - var(--safe-top) - 62px - var(--control-space) - 8px);
+  }
+  .compact.playing canvas {
+    left: calc(var(--safe-left) + 208px);
+    width: calc(100% - var(--safe-left) - 208px);
+  }
+  .compact.playing.map-open .compass {
+    width: min(600px, calc(100% - var(--safe-left) - var(--safe-right)));
+  }
+  .compact .compass svg { height: 45dvh; }
+}
+@media (orientation: landscape) and (max-width: 740px) {
+  .compact.playing canvas { left: 0; width: 100%; }
+}
+/* The expanded map is a reading surface; scenery and HUD must not show
+   through its labels. Its existing close button remains within reach. */
+.app.compact.playing.map-open .compass {
+  background: #233747;
+  padding: 16px;
+  z-index: 20;
+}
+.compact.playing.map-open .status-sidebar {
+  visibility: hidden;
+}

@@ -227,7 +227,7 @@ export function GuideCard({
     l = LEVELS[g.level];
   return (
     <section
-      className={`journey-guide ${guide.warning ? "has-warning" : ""}`}
+      className={`journey-guide direction-${guide.direction} lesson-${guide.lesson} ${guide.warning ? "has-warning" : ""}`}
       aria-label={w(["当前玩法引导", "Current gameplay guide"])}
     >
       <div className="guide-heading">

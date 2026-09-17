@@ -137,7 +137,7 @@ export const GUIDE_ROUTES: RouteStep[][] = [
     jump(7.5, 0, 0),
     wind(11, 0, 4.1, pt(8.5, 0, 0)),
     key(2, 0, 0),
-    walk(11, -7, 1, 0),
+    { ...wind(11, -7, 1.8, pt(11, -6, 0)), view: 1 },
     jump(16, -7, 1.2),
     rack(2, 1),
     walk(20, -7, 0, 1.2),
@@ -480,6 +480,12 @@ export function guideFor(
       "The wind lifts you automatically. Once above the ledge, move sideways onto it.",
     ];
   }
+  if (g.level === 2 && s.kind === "wind" && s.view === 1) {
+    title = p.y < s.target.y + 0.45
+      ? ["进入第二处黄叶，先升高", "Enter the second rising leaves and gain height"]
+      : ["向右到路标，准备转面", "Move right to the marker, ready to turn"];
+    body = ["先让风托起你；到上方路标后再转面，不用连续按 Q。", "Let the wind lift you. Reach the upper marker before turning; do not keep pressing Q."];
+  }
   if (s.kind === "ferry") {
     lesson = "wind";
     const platform = platformAt(l.platforms[s.id!], g.motionTime),
@@ -742,6 +748,14 @@ export function guideFor(
         "Press Q once, then keep gliding along the new axis to the platform.",
       ];
       keys = ["Q", "空格"];
+    }
+    if (g.level === 2 && g.keys.includes(0)) {
+      title = requiredView === 1
+        ? ["拿到钥匙，转向侧廊", "Key collected: turn toward the side path"]
+        : ["升到高处，转向右侧平台", "Turn toward the raised platform on the right"];
+      body = requiredView === 1
+        ? ["按一次 Q，再向右沿侧廊前进，寻找第二处上升的黄叶。", "Press Q once, then move right along the side path toward the second rising leaves."]
+        : ["按一次 Q，向右跳并按住空格滑翔，落到高台上的许愿架。", "Press Q once, jump right and hold Space to glide onto the raised checkpoint platform."];
     }
     direction = "turn";
   } else if (direction !== "stay")

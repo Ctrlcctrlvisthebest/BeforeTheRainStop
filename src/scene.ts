@@ -742,21 +742,16 @@ export class PaperScene {
     this.windLeaves = new WindLeaves(l.winds);
     this.root.add(this.windLeaves);
     this.portal = new THREE.Group();
-    for (const s of [-1, 1]) {
-      const post = new THREE.Mesh(
-        new THREE.BoxGeometry(0.22, 2.6, 0.35),
-        material("#705245"),
-      );
-      post.position.set(s * 0.8, 1.3, 0);
-      this.portal.add(post);
+    for (const x of [-0.8, 0.8]) {
+      for (const z of [-0.65, 0.65]) {
+        this.portal.add(box(0.18, 2.6, 0.18, "#705245", x, 1.3, z));
+      }
+      this.portal.add(box(0.18, 0.2, 1.6, "#705245", x, 2.6, 0));
     }
-    const top = new THREE.Mesh(
-      new THREE.BoxGeometry(1.85, 0.25, 0.35),
-      material("#705245"),
-    );
-    top.position.y = 2.6;
+    for (const z of [-0.65, 0.65])
+      this.portal.add(box(1.85, 0.2, 0.18, "#705245", 0, 2.6, z));
     const door = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.4, 2.5),
+      new THREE.CylinderGeometry(0.22, 0.27, 0.5, 6),
       new THREE.MeshBasicMaterial({
         color: "#f7d786",
         transparent: true,
@@ -764,7 +759,7 @@ export class PaperScene {
         side: THREE.DoubleSide,
       }),
     );
-    door.position.y = 1.3;
+    door.position.y = 2.12;
     door.name = "glow";
     const doorText = textSprite(
       translate(this.language, "一起到家"),
@@ -773,7 +768,16 @@ export class PaperScene {
     );
     doorText.name = "exit-label";
     doorText.position.y = 3.15;
-    this.portal.add(top, door, doorText);
+    // An open timber gateway: the lit lantern marks the destination without
+    // filling the walk-through opening with a wall-like sheet of color.
+    this.portal.add(door, doorText);
+    this.portal.add(box(1.9, 0.12, 1.7, "#8a7861", 0, 0.06, 0));
+    for (const side of [-1, 1]) {
+      const roof = box(2.3, 0.13, 1.05, "#414b58", 0, 2.86, side * 0.47);
+      roof.rotation.x = side * 0.16;
+      this.portal.add(roof);
+      this.portal.add(box(0.32, 0.06, 0.32, "#705245", 0, 2.12 + side * 0.28, 0));
+    }
     this.portal.position.set(l.exit.x, l.exit.y, l.exit.z);
     this.root.add(this.portal);
     for (const p of g.players) {
@@ -1336,7 +1340,7 @@ export class PaperScene {
     const glow = this.portal.getObjectByName("glow") as THREE.Mesh;
     const pm = glow.material as THREE.MeshBasicMaterial;
     const opened = g.keys.length === l.keys.length;
-    pm.opacity = opened ? 0.52 + Math.sin(this.clock * 2) * 0.12 : 0.12;
+    pm.opacity = opened ? 0.9 + Math.sin(this.clock * 2) * 0.08 : 0.35;
     if (this.rain) {
       const movingCovers: RainCover[] = this.movingPlatforms.map((raw) => {
         const p = platformAt(raw, g.motionTime);

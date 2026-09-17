@@ -377,3 +377,26 @@ test("the midair corner cue keeps the glide held while requesting a view change"
   assert.deepEqual(landing.target, corner.target);
   assert.ok(landing.keys.includes("空格"));
 });
+
+test("chapter three explains both turns and the second updraft before the raised landing", () => {
+  const g = newGame(1, 2), p = g.players[0], tracker = newGuideTracker();
+  g.keys = [0];
+  Object.assign(p, { x: 11, z: 0, y: 4.1, grounded: true });
+  let cue = guideFor(g, 0, tracker);
+  assert.equal(cue.direction, "turn");
+  assert.match(cue.title[0], /拿到钥匙/);
+  g.view = 1;
+  Object.assign(p, { x: 11, z: -6, y: 0, grounded: true });
+  cue = guideFor(g, 0, tracker);
+  assert.equal(cue.kind, "wind");
+  assert.match(cue.title[0], /第二处黄叶/);
+  assert.notEqual(cue.direction, "turn");
+  Object.assign(p, { z: -7, y: 2.3, grounded: false });
+  cue = guideFor(g, 0, tracker);
+  assert.equal(cue.direction, "turn");
+  assert.match(cue.title[0], /升到高处/);
+  g.view = 0;
+  cue = guideFor(g, 0, tracker);
+  assert.equal(cue.kind, "jump");
+  assert.equal(cue.direction, "right");
+});
