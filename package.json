@@ -15,7 +15,10 @@
     "test:leaderboard": "tsx --test tests/leaderboard-integration.test.ts",
     "build:toy": "npm run check:maps && tsc --noEmit && VITE_CAMPAIGN_SERVER_URL=https://before-the-rain-rooms-github.zoeli2010xl.workers.dev vite build --mode toy && node scripts/clean-build.mjs dist-toy",
     "test:ui": "node --test tests/browser-compatibility.test.mjs tests/audio-controls.test.mjs",
-    "check:maps": "node --import tsx scripts/check-maps.ts"
+    "check:maps": "node --import tsx scripts/check-maps.ts",
+    "build:minitool": "npm run check:maps && tsc --noEmit && node scripts/build-minitool.mjs && node scripts/build-minitool.mjs --silent && node scripts/package-minitool.mjs",
+    "test:minitool": "node --test tests/minitool.test.mjs",
+    "build:itch": "npm run check:maps && tsc --noEmit && vite build --mode itch && node scripts/clean-build.mjs dist-itch && node scripts/package-itch.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",
@@ -34,6 +37,8 @@
     "tsx": "^4.23.13",
     "typescript": "^7.0.2",
     "vite": "^8.2.2",
-    "wrangler": "^4.129.0"
+    "wrangler": "^4.129.0",
+    "lightningcss": "^1.33.0",
+    "postcss": "^8.5.28"
   }
 }

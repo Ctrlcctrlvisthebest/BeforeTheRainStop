@@ -113,7 +113,11 @@ export class LocalRecords {
     const improved = previousMs === undefined || timeMs < previousMs;
     const bestMs = improved ? timeMs : previousMs;
     times[key] = bestMs;
-    const persisted = disk[key] === bestMs || save("local", RECORDS_KEY, times);
+    // A previous quota failure may have left another chapter's best only in
+    // memory. Retry the entire pending store even when this run is slower.
+    const persisted =
+      Object.entries(times).every(([key, time]) => disk[key] === time) ||
+      save("local", RECORDS_KEY, times);
     this.times = times;
     this.last = {
       gameId: game.id,

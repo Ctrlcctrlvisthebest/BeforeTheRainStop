@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { Connection, validSession } from "../src/api";
 import { idleInput } from "../src/game";
+import { rankingRequest, RankingError } from "../src/ranking-client";
 
 const session = {
   code: "ABCDEFGH",
@@ -92,5 +93,48 @@ test("late callbacks from a closed connection cannot change a new room or send i
     if (previousLocation)
       Object.defineProperty(globalThis, "location", previousLocation);
     else Reflect.deleteProperty(globalThis, "location");
+  }
+});
+
+test("leaderboard responses reject malformed rows before reaching the interface", async () => {
+  const original = globalThis.fetch;
+  const entry = {
+    id: "run",
+    names: ["旅人"],
+    timeMs: 12345,
+    achievedAt: 100,
+  };
+  const board = { level: 0, mode: 1, entries: [entry] };
+  try {
+    for (const malformed of [
+      null,
+      [],
+      {},
+      { ...board, level: -1 },
+      { ...board, mode: 4 },
+      { ...board, entries: null },
+      { ...board, entries: {} },
+      { ...board, entries: [null] },
+      { ...board, entries: [{ ...entry, id: {} }] },
+      { ...board, entries: [{ ...entry, names: "旅人" }] },
+      { ...board, entries: [{ ...entry, names: [{}] }] },
+      { ...board, entries: [{ ...entry, timeMs: "12345" }] },
+      { ...board, entries: [{ ...entry, timeMs: -1 }] },
+      { ...board, entries: [{ ...entry, achievedAt: null }] },
+    ]) {
+      globalThis.fetch = async () => Response.json(malformed);
+      await assert.rejects(rankingRequest("?level=0&mode=1"));
+    }
+    for (const valid of [board, { ...board, entries: [] }]) {
+      globalThis.fetch = async () => Response.json(valid);
+      assert.deepEqual(await rankingRequest("?level=0&mode=1"), valid);
+    }
+    globalThis.fetch = async () => new Response("unavailable", { status: 503 });
+    await assert.rejects(
+      rankingRequest("?level=0&mode=1"),
+      (error: unknown) => error instanceof RankingError && error.status === 503,
+    );
+  } finally {
+    globalThis.fetch = original;
   }
 });

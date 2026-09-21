@@ -34,10 +34,11 @@ export default defineConfig(({ mode }) => ({
       : []),
   ],
   build: {
-    outDir: mode === "toy" ? "dist-toy" : "dist",
+    outDir:
+      mode === "toy" ? "dist-toy" : mode === "itch" ? "dist-itch" : "dist",
     rolldownOptions: {
       input:
-        mode === "toy"
+        mode === "toy" || mode === "itch"
           ? "index.html"
           : { game: "index.html", editor: "editor.html" },
     },

@@ -52,8 +52,15 @@ export class RainLeaderboard extends DurableObject<Env> {
       score.version !== RANKING_VERSION ||
       !Array.isArray(score.stars) ||
       !hasAllStars(score.level, score.stars) ||
+      typeof score.participant !== "string" ||
       !score.participant ||
+      typeof score.id !== "string" ||
+      !score.id ||
+      !Array.isArray(score.names) ||
       score.names.length !== score.mode ||
+      score.names.some((name) => typeof name !== "string") ||
+      !Number.isSafeInteger(score.achievedAt) ||
+      score.achievedAt < 0 ||
       !Number.isSafeInteger(score.timeMs) ||
       score.timeMs <= 0
     )

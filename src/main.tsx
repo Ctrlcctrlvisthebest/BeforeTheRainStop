@@ -1,3 +1,5 @@
+import { MINITOOL } from "./build-target";
+import { editionCopy } from "./edition-copy";
 import { rankedClear } from "./score-rules";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -60,7 +62,9 @@ import {
 } from "./guide";
 import { GuideCard, HowToPlay, GoalFlow } from "./guide-ui";
 const KEY = "rain-action-session-v2";
-const initialCode = new URLSearchParams(location.search).get("room") ?? "";
+const initialCode = MINITOOL
+  ? ""
+  : (new URLSearchParams(location.search).get("room") ?? "");
 function App() {
   const compact = useCompactControls();
   const statusSidebar = useRef<HTMLDivElement>(null);
@@ -73,7 +77,7 @@ function App() {
   );
   const languageRef = useRef(language);
   languageRef.current = language;
-  const t = (text: string) => translate(language, text);
+  const t = (text: string) => translate(language, editionCopy(text));
   useEffect(() => {
     save("local", "rain-language", language);
     document.documentElement.lang = language === "zh" ? "zh-CN" : "en";
@@ -94,7 +98,7 @@ function App() {
     if (result) {
       setBestTimes(records.times);
       setCompletion(result);
-      if (g.mode === 1) {
+      if (!MINITOOL && g.mode === 1) {
         const trace = replay.snapshot(g);
         void ranking.submit(
           g.id,
@@ -272,6 +276,7 @@ function App() {
     connection.current = new Connection(s, receive, setConnected, setError);
   }
   useEffect(() => {
+    if (MINITOOL) return;
     const attempt = sessionAttempt.current;
     let cancelled = false;
     const s = stored<unknown>("session", KEY);
@@ -295,6 +300,7 @@ function App() {
     let cancelled = false,
       frame = 0,
       scene: PaperScene | null = null;
+    let visibility: (() => void) | undefined;
     sceneReady.current = false;
     setSceneStatus("loading");
     void loadScene()
@@ -325,7 +331,9 @@ function App() {
           if (
             !budget.ready(
               now,
-              helpRef.current && !currentSession.current ? 30 : 60,
+              MINITOOL || (helpRef.current && !currentSession.current)
+                ? 30
+                : 60,
             )
           )
             return;
@@ -346,7 +354,7 @@ function App() {
               while (acc >= 1 / 60) {
                 const before =
                   game.current.keys.length + game.current.stars.length;
-                replay.record(game.current, input.current);
+                if (!MINITOOL) replay.record(game.current, input.current);
                 stepGame(game.current, { 0: input.current });
                 if (
                   game.current.keys.length + game.current.stars.length >
@@ -403,7 +411,7 @@ function App() {
           }
         };
         const loop = (now: number) => {
-          if (cancelled) return;
+          if (cancelled || (MINITOOL && document.hidden)) return;
           try {
             update(now);
           } catch (error) {
@@ -418,7 +426,20 @@ function App() {
           }
           frame = requestAnimationFrame(loop);
         };
-        frame = requestAnimationFrame(loop);
+        if (MINITOOL) {
+          visibility = () => {
+            cancelAnimationFrame(frame);
+            last = performance.now();
+            acc = 0;
+            keyboardInput.current.clear();
+            touchInput.current.clear();
+            input.current = idleInput();
+            if (!document.hidden && !cancelled)
+              frame = requestAnimationFrame(loop);
+          };
+          document.addEventListener("visibilitychange", visibility);
+          visibility();
+        } else frame = requestAnimationFrame(loop);
       })
       .catch((error) => {
         console.error("[BeforeTheRainStop] Scene startup failed", error);
@@ -428,6 +449,8 @@ function App() {
       cancelled = true;
       sceneReady.current = false;
       cancelAnimationFrame(frame);
+      if (visibility)
+        document.removeEventListener("visibilitychange", visibility);
       scene?.dispose();
     };
   }, [phase]);
@@ -457,13 +480,13 @@ function App() {
     [],
   );
   async function create() {
-    if (!acceptName()) return;
+    if (!MINITOOL && !acceptName()) return;
     sessionAttempt.current++;
     warmScene();
     void audio.start();
     setError("");
     save("local", "rain-name", name);
-    if (mode === 1) {
+    if (MINITOOL || mode === 1) {
       soloName.current = nameReview.ok ? nameReview.name : "旅人";
       connection.current?.close();
       currentSession.current = null;
@@ -583,6 +606,7 @@ function App() {
     }
   }
   async function copyInvite() {
+    if (MINITOOL) return;
     const u = new URL(location.href);
     u.search = `?room=${session?.code}`;
     try {
@@ -691,7 +715,7 @@ function App() {
   }, [isPlaying, compact]);
   return (
     <main
-      className={`app ${isPlaying ? "playing" : ""} ${compact ? "compact" : ""} ${toolsOpen ? "tools-open" : ""} ${mapOpen ? "map-open" : ""} ${guideEnabled ? "with-guide" : ""}`}
+      className={`app ${MINITOOL ? "minitool" : ""} ${isPlaying ? "playing" : ""} ${compact ? "compact" : ""} ${toolsOpen ? "tools-open" : ""} ${mapOpen ? "map-open" : ""} ${guideEnabled ? "with-guide" : ""}`}
       lang={language === "zh" ? "zh-CN" : "en"}
       translate="no"
     >
@@ -805,12 +829,20 @@ function App() {
               <p>
                 {t("一张纸，一个愿望。")}
                 <br />
-                {t("在雨幕与许愿架之间，替同伴留一片干燥。")}
+                {t(
+                  MINITOOL
+                    ? "在雨幕与许愿架之间，带着愿望前行。"
+                    : "在雨幕与许愿架之间，替同伴留一片干燥。",
+                )}
               </p>
               <span className="intro-players">
-                {t("1 / 2 / 3 / 6 人 · 纸上合作冒险")}
+                {t(
+                  MINITOOL
+                    ? "单人探索 · 40 段雨中旅途"
+                    : "1 / 2 / 3 / 6 人 · 纸上合作冒险",
+                )}
               </span>
-              <GoalFlow language={language} />
+              <GoalFlow language={language} soloOnly={MINITOOL} />
               <div className="intro-controls">
                 <kbd>{t("空格")}</kbd> {t("起飞")} <kbd>Q</kbd> {t("转面")}{" "}
                 <kbd>S</kbd> {t("展纸挡雨")}
@@ -859,49 +891,53 @@ function App() {
                 {t("第一次玩？先看图解")} ↗
               </button>
             </div>
-            <label>
-              {t("你的名字")}
-              <input
-                ref={nameInput}
-                value={name}
-                maxLength={NAME_LIMIT}
-                placeholder={t("旅人")}
-                aria-invalid={nameTouched && !nameReview.ok}
-                aria-describedby="nickname-hint"
-                onBlur={() => setNameTouched(true)}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  setRejectedName(null);
-                  if (error === NAME_REJECTED || error === NAME_TOO_LONG)
-                    setError("");
-                }}
-              />
-            </label>
-            <small
-              id="nickname-hint"
-              className={`ranking-name-hint${nameTouched && !nameReview.ok ? " name-error" : ""}`}
-              role="status"
-            >
-              {t(
-                nameTouched && !nameReview.ok
-                  ? nameReview.error
-                  : "昵称会公开显示，请使用友善的名字。",
-              )}
-            </small>
-            <label>{t("同行人数")}</label>
-            <div className="modes">
-              {MODES.map((m) => (
-                <button
-                  key={m}
-                  className={mode === m ? "selected" : ""}
-                  aria-pressed={mode === m}
-                  onClick={() => setMode(m)}
+            {!MINITOOL && (
+              <>
+                <label>
+                  {t("你的名字")}
+                  <input
+                    ref={nameInput}
+                    value={name}
+                    maxLength={NAME_LIMIT}
+                    placeholder={t("旅人")}
+                    aria-invalid={nameTouched && !nameReview.ok}
+                    aria-describedby="nickname-hint"
+                    onBlur={() => setNameTouched(true)}
+                    onChange={(e) => {
+                      setName(e.target.value);
+                      setRejectedName(null);
+                      if (error === NAME_REJECTED || error === NAME_TOO_LONG)
+                        setError("");
+                    }}
+                  />
+                </label>
+                <small
+                  id="nickname-hint"
+                  className={`ranking-name-hint${nameTouched && !nameReview.ok ? " name-error" : ""}`}
+                  role="status"
                 >
-                  <strong>{m}</strong>
-                  <span>{t(m === 1 ? "独自探索" : "好友联机")}</span>
-                </button>
-              ))}
-            </div>
+                  {t(
+                    nameTouched && !nameReview.ok
+                      ? nameReview.error
+                      : "昵称会公开显示，请使用友善的名字。",
+                  )}
+                </small>
+                <label>{t("同行人数")}</label>
+                <div className="modes">
+                  {MODES.map((m) => (
+                    <button
+                      key={m}
+                      className={mode === m ? "selected" : ""}
+                      aria-pressed={mode === m}
+                      onClick={() => setMode(m)}
+                    >
+                      <strong>{m}</strong>
+                      <span>{t(m === 1 ? "独自探索" : "好友联机")}</span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
             <button
               className="primary"
               disabled={busy}
@@ -912,24 +948,30 @@ function App() {
               {t(busy ? "正在连接…" : mode === 1 ? "开始冒险" : "创建好友房间")}
               <span>↗</span>
             </button>
-            <div className="separator">{t("已有同伴在等你")}</div>
-            <div className="join">
-              <input
-                aria-label={t("房间码")}
-                maxLength={8}
-                placeholder={t("输入 8 位房间码")}
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-              />
-              <button disabled={busy} onClick={join}>
-                {t("加入 →")}
-              </button>
-            </div>
-            <p className="fine">
-              {t("每人一只纸鹤 · 用房间码邀请好友 · 不需要注册")}
-            </p>
+            {!MINITOOL && (
+              <>
+                <div className="separator">{t("已有同伴在等你")}</div>
+                <div className="join">
+                  <input
+                    aria-label={t("房间码")}
+                    maxLength={8}
+                    placeholder={t("输入 8 位房间码")}
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.toUpperCase())}
+                  />
+                  <button disabled={busy} onClick={join}>
+                    {t("加入 →")}
+                  </button>
+                </div>
+                <p className="fine">
+                  {t("每人一只纸鹤 · 用房间码邀请好友 · 不需要注册")}
+                </p>
+              </>
+            )}
             <details className="journey-records">
-              <summary>{t("通关记录与排行榜")}</summary>
+              <summary>
+                {t(MINITOOL ? "本地通关记录" : "通关记录与排行榜")}
+              </summary>
               <div className="chapter-record" aria-label={t("本关通关记录")}>
                 <div>
                   <span>
@@ -941,22 +983,34 @@ function App() {
                       : formatTime(selectedBest)}
                   </strong>
                 </div>
-                <small>{t("全星通关才计入记录 · 按人数分别记录")}</small>
+                <small>
+                  {t(
+                    MINITOOL
+                      ? "全星通关才计入记录 · 仅保存在此设备"
+                      : "全星通关才计入记录 · 按人数分别记录",
+                  )}
+                </small>
               </div>
-              <Leaderboard level={level} mode={mode} language={language} />
+              {!MINITOOL && (
+                <Leaderboard level={level} mode={mode} language={language} />
+              )}
             </details>
           </section>
           <footer>
-            {t("把愿望系在檐下，把同伴带回家。")}
+            {t(
+              MINITOOL
+                ? "把愿望系在檐下，沿着灯火归家。"
+                : "把愿望系在檐下，把同伴带回家。",
+            )}
             <span>{t("纸鹤 · 许愿架 · 雨中归途")}</span>
           </footer>
         </>
       )}
-      {phase === "lobby" && room && (
+      {!MINITOOL && phase === "lobby" && room && (
         <section className="panel lobby">
           <span className="eyebrow">{t("等同伴系好愿望，一起出发")}</span>
           <h2>{t(LEVELS[room.level].name)}</h2>
-          <GoalFlow language={language} />
+          <GoalFlow language={language} soloOnly={MINITOOL} />
           <p className="lobby-guide">
             {t(LEVELS[room.level].hint)}{" "}
             <button
@@ -1516,7 +1570,9 @@ function App() {
           <section className="panel win">
             <span className="eyebrow">{t("所有愿望，都到家了")}</span>
             <div className="big-star">✦</div>
-            <h2>{t("这一程，我们一起走过。")}</h2>
+            <h2>
+              {t(MINITOOL ? "这一程，平安抵达。" : "这一程，我们一起走过。")}
+            </h2>
             <p>
               {t(l.name)} · {hud.flips} {t("次转面")}
             </p>
@@ -1526,7 +1582,11 @@ function App() {
                   {t("本次用时")} · {formatTime(Math.round(hud.time * 1000))}
                 </p>
                 <p role="status">
-                  {t("未收齐星星：本次通关不计入记录，也不会上传排行榜。")}
+                  {t(
+                    MINITOOL
+                      ? "未收齐星星：本次通关不计入本地记录。"
+                      : "未收齐星星：本次通关不计入记录，也不会上传排行榜。",
+                  )}
                 </p>
               </div>
             )}
@@ -1571,7 +1631,7 @@ function App() {
                 </small>
               </div>
             )}
-            {rankedClear(hud) && (
+            {!MINITOOL && rankedClear(hud) && (
               <div className="ranking-upload" role="status">
                 {t(
                   rankingStatus === "saved"
@@ -1610,12 +1670,14 @@ function App() {
                 )}
               </div>
             )}
-            <Leaderboard
-              level={hud.level}
-              mode={hud.mode}
-              language={language}
-              refresh={`${hud.id}:${rankingStatus === "saved"}`}
-            />
+            {!MINITOOL && (
+              <Leaderboard
+                level={hud.level}
+                mode={hud.mode}
+                language={language}
+                refresh={`${hud.id}:${rankingStatus === "saved"}`}
+              />
+            )}
             <div className="score">
               {"✦".repeat(hud.stars.length)}
               <span>
@@ -1681,6 +1743,7 @@ function App() {
             <HowToPlay
               language={language}
               initialLesson={helpLesson}
+              soloOnly={MINITOOL}
               freeCheckpoints={isPlaying && !!LEVELS[hud.level].freeCheckpoints}
               playing={isPlaying}
               multiplayer={!!session}

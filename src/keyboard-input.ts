@@ -108,6 +108,8 @@ export function bindGameKeyboard(
   };
   const down = (e: KeyboardEvent) => {
     if (
+      e.isComposing ||
+      e.keyCode === 229 ||
       (e.target as HTMLElement)?.closest?.(
         "input,select,textarea,[contenteditable='true']",
       )
@@ -124,7 +126,7 @@ export function bindGameKeyboard(
     if (!options.enabled()) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (code === "KeyT" && options.restart) {
-      if (e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+      if (e.shiftKey) return;
       e.preventDefault();
       if (!e.repeat && !restartHeld) {
         clear();

@@ -186,11 +186,14 @@ export class RainRoom extends DurableObject<Env> {
       }
     }
     // Share the room's single alarm between expiry and durable score retries.
-    const expiresAt = this.room?.expiresAt ?? Date.now() + LIFE;
+    const now = Date.now();
+    const expiresAt = this.room?.expiresAt ?? now + LIFE;
     await this.ctx.storage.setAlarm(
       this.hasPendingScores()
-        ? Date.now() + 60000
-        : Math.max(Date.now() + 1000, expiresAt),
+        ? expiresAt > now
+          ? Math.min(now + 60000, expiresAt)
+          : now + 60000
+        : Math.max(now + 1000, expiresAt),
     );
   }
   private save(room: Room): void {
@@ -273,6 +276,7 @@ export class RainRoom extends DurableObject<Env> {
     if (
       this.timer ||
       !this.room?.game ||
+      Date.now() >= this.room.expiresAt ||
       this.room.game.status !== "playing" ||
       this.room.players.some((p) => !p.online)
     )
@@ -281,6 +285,7 @@ export class RainRoom extends DurableObject<Env> {
       const r = this.room;
       if (
         !r?.game ||
+        Date.now() >= r.expiresAt ||
         r.game.status !== "playing" ||
         r.players.some((p) => !p.online)
       ) {
@@ -535,7 +540,13 @@ async function boundedJson(
   request: Request,
   maxBytes = 8192,
 ): Promise<Record<string, unknown>> {
-  if (!request.headers.get("content-type")?.includes("application/json"))
+  if (
+    request.headers
+      .get("content-type")
+      ?.split(";", 1)[0]
+      .trim()
+      .toLowerCase() !== "application/json"
+  )
     throw new RoomError("需要 JSON 格式");
   const reader = request.body?.getReader();
   if (!reader) return {};
@@ -668,19 +679,19 @@ export default {
         const ip = request.headers.get("CF-Connecting-IP") ?? "local";
         if (!(await env.ROOM_REQUEST_LIMIT.limit({ key: ip })).success)
           throw new RoomError("连接过于频繁", 429);
-        return env.ROOMS.getByName("v2:" + roomCode).fetch(request);
+        return await env.ROOMS.getByName("v2:" + roomCode).fetch(request);
       }
       const body = request.method === "POST" ? await boundedJson(request) : {};
       const token =
-        request.headers.get("authorization")?.replace(/^Bearer /, "") ?? "";
+        request.headers.get("authorization")?.match(/^Bearer +(.+)$/i)?.[1] ??
+        "";
       const ip = request.headers.get("CF-Connecting-IP") ?? "local";
       const limiter =
         kind === "create" ? env.ROOM_CREATION_LIMIT : env.ROOM_REQUEST_LIMIT;
       if (!(await limiter.limit({ key: ip })).success)
         throw new RoomError("操作太频繁，请稍后重试", 429);
       if (kind === "state" || kind === "command" || kind === "score") {
-        if (!/^[a-f0-9-]{36}$/.test(token))
-          throw new RoomError("请先加入房间", 401);
+        if (!validPlayerToken(token)) throw new RoomError("请先加入房间", 401);
       }
       if (kind === "command" && body.rulesVersion !== CAMPAIGN_VERSION)
         throw new RoomError("地图与计分规则已更新，请刷新页面重新加入。", 409);

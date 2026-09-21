@@ -191,7 +191,88 @@ export const LESSONS: Record<Lesson, LessonData> = {
     ],
   },
 };
-export function GoalFlow({ language }: { language: Language }) {
+// Offline edition explains the existing solo rules; the maps and physics stay shared.
+const SOLO_LESSONS: Partial<Record<Lesson, Partial<LessonData>>> = {
+  turn: {
+    note: [
+      "转面后，左右键控制另一条方向。先站稳，再看清落脚处。",
+      "After turning, movement follows the other axis. Land before choosing your next step.",
+    ],
+  },
+  bridge: {
+    title: ["借出纸面，接通断口", "Lend your paper to bridge the gap"],
+    steps: [
+      [
+        "对齐金色桥钉，按住 Shift / B，纸鹤会展开成桥。",
+        "Line up with the gold pins and hold Shift / B to unfold a bridge.",
+      ],
+      [
+        "保持 2 秒，木桥会自动接通。",
+        "Hold for 2 seconds to lower the wooden deck automatically.",
+      ],
+      [
+        "看到「木桥接通」后松开，沿木桥继续前进。提前松手会退回原岸。",
+        "Release once the deck is ready, then cross it. Releasing early returns you to the original bank.",
+      ],
+    ],
+    note: [
+      "每次折桥消耗耐折。若能直接跨过断口，也可以继续前进。",
+      "Each fold uses durability. You can also cross by any other reachable route.",
+    ],
+  },
+  rain: {
+    steps: [
+      LESSONS.rain.steps[0],
+      LESSONS.rain.steps[1],
+      [
+        "地面按住 S / ↓ 可以展纸，期间不能移动、跳跃或挡火，自己仍会慢慢淋湿。",
+        "Hold S / Down to unfold on the ground. You cannot move, jump or block fire, and still get wet slowly.",
+      ],
+    ],
+  },
+  save: {
+    steps: [
+      [
+        "靠近钥匙或星星自动拾取。找齐钥匙即可通关；收齐全部星星才计入本地记录。",
+        "Touch items to collect them. All keys unlock the exit; all stars are required for local records.",
+      ],
+      LESSONS.save.steps[1],
+      LESSONS.save.steps[2],
+    ],
+    note: [
+      "回旧架子或按 F 不会补存新物品。灯门保存最后一段收集。记录只存在此设备，清理数据可能会丢失。",
+      "Old racks and F do not save new pickups. The exit saves the final items. Records are local and can be lost when app data is cleared.",
+    ],
+  },
+  gate: {
+    title: [
+      "踩住石踏板，打开前方闸门",
+      "Hold a stone plate to open the barrier",
+    ],
+    steps: [
+      LESSONS.gate.steps[0],
+      [
+        "站在任意一块门形石踏板上，保持 4 秒。提前离开会重新计时。",
+        "Stand on any doorway-marked stone plate for 4 seconds. Leaving early resets the timer.",
+      ],
+      [
+        "闸门打开后会保持打开。带齐钥匙，到达金色灯门即可通关。",
+        "The opened barrier stays open. Collect every key and reach the gold lantern gate to finish.",
+      ],
+    ],
+    note: [
+      "金色木踏板用于接桥；小火旁的光圈表示烘干范围。",
+      "Gold wooden plates lower bridges; rings beside small fires mark the drying area.",
+    ],
+  },
+};
+export function GoalFlow({
+  language,
+  soloOnly = false,
+}: {
+  language: Language;
+  soloOnly?: boolean;
+}) {
   const w = (c: Copy) => words(c, language);
   return (
     <div className="goal-flow" aria-label={w(["通关目标", "How to finish"])}>
@@ -204,7 +285,12 @@ export function GoalFlow({ language }: { language: Language }) {
       </span>
       <i>→</i>
       <span>
-        <b>3</b> {w(["全员到灯门", "Everyone home"])}
+        <b>3</b>{" "}
+        {w(
+          soloOnly
+            ? ["抵达灯门", "Reach the lantern gate"]
+            : ["全员到灯门", "Everyone home"],
+        )}
       </span>
     </div>
   );
@@ -320,11 +406,13 @@ function LessonDiagram({
   language,
   compact = false,
   freeCheckpoints = false,
+  soloOnly = false,
 }: {
   lesson: Lesson;
   language: Language;
   compact?: boolean;
   freeCheckpoints?: boolean;
+  soloOnly?: boolean;
 }) {
   const w = (c: Copy) =>
     compact ? touchCopy(words(c, language), language) : words(c, language);
@@ -401,7 +489,7 @@ function LessonDiagram({
             strokeWidth="9"
           />
           <path d="M151 96H317" stroke="#c97f6c" strokeWidth="8" />
-          <Crane x={286} y={59} color="#779eaf" />
+          {!soloOnly && <Crane x={286} y={59} color="#779eaf" />}
           <rect x="329" y="94" width="31" height="7" fill="#bd955e" />
           <text x="222" y="126">
             Shift / B
@@ -530,7 +618,7 @@ function LessonDiagram({
             </g>
           ))}
           <Crane x={55} y={69} />
-          <Crane x={145} y={69} color="#779eaf" />
+          {!soloOnly && <Crane x={145} y={69} color="#779eaf" />}
           <path
             d="M187 83H222"
             stroke="#b38b52"
@@ -572,7 +660,11 @@ function LessonDiagram({
             {w(["② 闸门移开", "② Barrier opens"])}
           </text>
           <text x="408" y="28">
-            {w(["③ 一起到终点", "③ All reach exit"])}
+            {w(
+              soloOnly
+                ? ["③ 抵达灯门", "③ Reach the exit"]
+                : ["③ 一起到终点", "③ All reach exit"],
+            )}
           </text>
           <Crane x={408} y={76} />
         </>
@@ -587,8 +679,10 @@ export function HowToPlay({
   multiplayer = false,
   compact = false,
   freeCheckpoints = false,
+  soloOnly = false,
 }: {
   language: Language;
+  soloOnly?: boolean;
   initialLesson?: Lesson;
   freeCheckpoints?: boolean;
   playing?: boolean;
@@ -596,28 +690,36 @@ export function HowToPlay({
   compact?: boolean;
 }) {
   const [lesson, setLesson] = useState<Lesson>(initialLesson),
+    base = soloOnly
+      ? { ...LESSONS[lesson], ...SOLO_LESSONS[lesson] }
+      : LESSONS[lesson],
     data: LessonData =
       lesson === "save" && freeCheckpoints
         ? {
-            ...LESSONS.save,
+            ...base,
             title: [
               "带回任何许愿架，都能存下新收集",
               "Return to any rack to save your finds",
             ],
             steps: [
-              LESSONS.save.steps[0],
+              base.steps[0],
               [
                 "本关允许回访许愿架。靠近任何架子都会存下随身物品；死亡或按 R 返回最近停靠的架子。",
                 "Racks in this chapter can be revisited. Any rack saves carried items; death or R returns you to the most recently visited rack.",
               ],
               LESSONS.save.steps[2],
             ],
-            note: [
-              "同一架子反复存物不会自动恢复耐折，需要时按住 F 修补。队友携带和已存物品不受你的死亡影响。",
-              "Saving again at the same rack does not refill folds: hold F to mend. Your death leaves teammates' carried and saved items intact.",
-            ],
+            note: soloOnly
+              ? [
+                  "同一架子反复存物不会自动恢复耐折，需要时按住 F 修补。",
+                  "Saving again at the same rack does not refill folds: hold F to mend.",
+                ]
+              : [
+                  "同一架子反复存物不会自动恢复耐折，需要时按住 F 修补。队友携带和已存物品不受你的死亡影响。",
+                  "Saving again at the same rack does not refill folds: hold F to mend. Your death leaves teammates' carried and saved items intact.",
+                ],
           }
-        : LESSONS[lesson],
+        : base,
     w = (c: Copy) =>
       compact ? touchCopy(words(c, language), language) : words(c, language);
   return (
@@ -626,7 +728,7 @@ export function HowToPlay({
       <h2>
         {w(["先看目标，再学眼前这一步", "Know the goal. Learn the next step."])}
       </h2>
-      <GoalFlow language={language} />
+      <GoalFlow language={language} soloOnly={soloOnly} />
       {playing && (
         <p className="guide-pause-note">
           {w(
@@ -671,6 +773,7 @@ export function HowToPlay({
           language={language}
           compact={compact}
           freeCheckpoints={freeCheckpoints}
+          soloOnly={soloOnly}
         />
         <ol>
           {data.steps.map((s, i) => (

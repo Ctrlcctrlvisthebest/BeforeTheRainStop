@@ -426,3 +426,27 @@ for (const level of [4, 5, 6, 7])
       stepGame(g, {});
       assert.equal(g.status, "won");
     });
+
+test("game creation rejects coerced and inherited level indexes", () => {
+  for (const level of [
+    "0",
+    "length",
+    "map",
+    "__proto__",
+    -1,
+    0.5,
+    NaN,
+    Infinity,
+    LEVELS.length,
+  ])
+    assert.throws(() => newGame(1, level as number), /无效模式或关卡/);
+});
+
+test("invalid simulation deltas leave the entire run unchanged", () => {
+  for (const dt of [0, -1, NaN, Infinity, -Infinity]) {
+    const game = newGame(1);
+    const before = structuredClone(game);
+    stepGame(game, { 0: { ...idleInput(), axis: 1, jump: true } }, dt);
+    assert.deepEqual(game, before);
+  }
+});

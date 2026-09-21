@@ -32,8 +32,10 @@ import {
   platformStylePatch,
   platformMotionPatch,
   duplicateEntity,
+  syncRoute,
 } from "../src/editor-model";
 import { campfire, animateFire } from "../src/fire-scene";
+import { installPreviewMap } from "../src/preview-map";
 
 test("choosing the ferry style exports a platform that actually carries players", () => {
   const map = starterMap();
@@ -286,4 +288,66 @@ test("round-trip saves, moving-deck transfers and midair corners survive editor 
   const corner = cornerMap.route.find((s) => s.via)!;
   corner.via!.x++;
   assert.match(validateMap(cornerMap).errors.join(), /via/);
+});
+
+test("new games attach every spawn to its actual platform, regardless of array order", () => {
+  for (const firstPlatformMoves of [true, false]) {
+    const map = starterMap();
+    const deck = {
+      ...map.level.platforms[0],
+      x: 20,
+      motion: { axis: "x" as const, range: 2, period: 6 },
+    };
+    const floor = map.level.platforms[0];
+    map.level.platforms = firstPlatformMoves ? [deck, floor] : [floor, deck];
+    map.level.spawn = { x: firstPlatformMoves ? -1 : 19, y: 0, z: 0 };
+    const preview = installPreviewMap(map);
+    try {
+      const game = newGame(3, preview.index);
+      const before = game.players.map((p) => p.x);
+      stepGame(game, {});
+      const movement = firstPlatformMoves
+        ? 0
+        : platformAt(deck, game.motionTime).x - deck.x;
+      game.players.forEach((p, i) => {
+        assert.ok(Math.abs(p.x - before[i] - movement) < 1e-10);
+        assert.equal(p.support, 1);
+      });
+    } finally {
+      preview.restore();
+    }
+  }
+});
+
+test("stopping a referenced ferry removes obsolete rides and transfers without touching other route steps", () => {
+  const map = structuredClone(CHALLENGE_MAPS[36 - 9]);
+  syncRoute(map);
+  const transfer = map.route.find((s) => s.landingId !== undefined)!;
+  for (const platformIndex of [transfer.id!, transfer.landingId!]) {
+    const selection = { kind: "platforms" as const, index: platformIndex };
+    const edited = editEntity(
+      map,
+      selection,
+      platformMotionPatch(map.level.platforms[platformIndex], false),
+    );
+    assert.equal(edited.level.platforms[platformIndex].motion, undefined);
+    assert.ok(
+      !edited.route.some(
+        (s) =>
+          s.kind === "ferry" &&
+          (s.id === platformIndex || s.landingId === platformIndex),
+      ),
+    );
+    assert.deepEqual(
+      edited.route.filter((s) => s.kind !== "ferry"),
+      map.route.filter((s) => s.kind !== "ferry"),
+    );
+    assert.ok(
+      map.level.platforms[platformIndex].motion,
+      "original draft keeps its motion",
+    );
+    // This operation changes the chapter's mechanism count, so validate as a custom map.
+    delete edited.chapter;
+    assert.deepEqual(validateMap(edited).errors, []);
+  }
 });

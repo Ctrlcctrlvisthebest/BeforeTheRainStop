@@ -7,12 +7,13 @@ import {
   bankCollectibles,
   dropCollectibles,
 } from "./collectibles";
+import { isOnGatePad } from "./gate-state";
 import {
   CROSSINGS,
   bankPoint,
   bridgePlank,
   dockBank,
-  isOnBridgePlate,
+  isBridgePlatePressed,
 } from "./bridges";
 import {
   rainfall,
@@ -357,7 +358,9 @@ export function isMode(v: unknown): v is Mode {
   return MODES.includes(v as Mode);
 }
 export function newGame(mode: Mode, level = 0, id = "solo"): Game {
-  if (!isMode(mode) || !LEVELS[level]) throw new Error("无效模式或关卡");
+  if (!isMode(mode) || !Number.isInteger(level) || !LEVELS[level])
+    throw new Error("无效模式或关卡");
+  const l = LEVELS[level];
   return {
     rulesVersion: CAMPAIGN_VERSION,
     id,
@@ -380,8 +383,8 @@ export function newGame(mode: Mode, level = 0, id = "solo"): Game {
     status: "playing",
     players: Array.from({ length: mode }, (_, i) => ({
       id: i,
-      ...LEVELS[level].spawn,
-      x: LEVELS[level].spawn.x + i * 0.75,
+      ...l.spawn,
+      x: l.spawn.x + i * 0.75,
       vx: 0,
       vz: 0,
       vy: 0,
@@ -415,7 +418,13 @@ export function newGame(mode: Mode, level = 0, id = "solo"): Game {
       wasTurn: false,
       wasReset: false,
       invulnerable: 0,
-      support: 0,
+      support: l.platforms.findIndex(
+        (platform) =>
+          Math.abs(platform.y - l.spawn.y) < 0.065 &&
+          Math.abs(platform.x - (l.spawn.x + i * 0.75)) <
+            platform.w / 2 + 0.279 &&
+          Math.abs(platform.z - l.spawn.z) < platform.d / 2 + 0.279,
+      ),
     })),
   };
 }
@@ -430,10 +439,11 @@ export function platformAt(p: Platform, time: number): Platform {
 }
 export function bodies(g: Game): Platform[] {
   const l = LEVELS[g.level];
+  const plank = bridgePlank(g);
   return [
     ...l.platforms.map((p) => platformAt(p, g.motionTime)),
     ...(l.gate && !g.gateOpen ? [l.gate] : []),
-    ...(bridgePlank(g) ? [bridgePlank(g)!] : []),
+    ...(plank ? [plank] : []),
   ];
 }
 export function height(p: Bird): number {
@@ -500,7 +510,7 @@ function respawn(g: Game, p: Bird, reason: Bird["lastFailure"] = "fall"): void {
   p.deaths++;
 }
 export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
-  if (g.status !== "playing") return;
+  if (g.status !== "playing" || !Number.isFinite(dt) || dt <= 0) return;
   initializeCollectibles(g);
   g.gateCharge ??= 0;
   g.bridgeLatched ??= false;
@@ -633,7 +643,6 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
     p[other] = 0;
     p[velocity] += Math.max(-48 * dt, Math.min(48 * dt, speed - p[velocity]));
     if (input.axis) p.facing = input.axis;
-    const prev = p[axis];
     p[axis] += p[velocity] * dt;
     for (const b of solid) {
       if (
@@ -782,15 +791,14 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
       p.vy = 0;
     }
     if (!Number.isFinite(p.x + p.y + p.z)) {
-      p[axis] = prev;
       respawn(g, p);
     }
   }
   const crossing = CROSSINGS[g.level];
   if (crossing && !g.bridgeLatched) {
     const holder = g.players.find((p) => p.bridgeDock && p.folded);
-    // The far plate responds to whoever reaches it, regardless of their route.
-    const releasing = g.players.some((p) => isOnBridgePlate(crossing, p));
+    // Solo players must hold a paper bridge; the far plate is for teammates.
+    const releasing = isBridgePlatePressed(g);
     g.bridgeCharge =
       releasing || (g.mode === 1 && holder)
         ? Math.min(2, g.bridgeCharge + dt)
@@ -803,14 +811,7 @@ export function stepGame(g: Game, inputs: Inputs, dt = 1 / 60): void {
     const required = Math.min(g.mode, l.pads.length);
     const lit = l.pads
       .slice(0, required)
-      .filter((pad) =>
-        g.players.some(
-          (p) =>
-            !p.arrived &&
-            Math.hypot(pad.x - p.x, pad.z - p.z) < 0.75 &&
-            Math.abs(pad.y - p.y) < 0.4,
-        ),
-      );
+      .filter((pad) => g.players.some((p) => isOnGatePad(p, pad)));
     g.gateCharge = lit.length === required ? Math.min(4, g.gateCharge + dt) : 0;
     if (g.gateCharge >= 4) g.gateOpen = true;
   }

@@ -43,7 +43,7 @@ for (const level of Object.keys(CROSSINGS).map(Number)) {
   test(`chapter ${level + 1}: the far bridge plate works for any arrival route and needs no bridge holder`, () => {
     const c = CROSSINGS[level];
     const far = bankPoint(c, c.near === -1 ? 1 : -1);
-    for (const mode of [1, 2, 3, 6] as const) {
+    for (const mode of [2, 3, 6] as const) {
       const g = newGame(mode, level);
       Object.assign(g.players[mode - 1], far);
       const inputs = Object.fromEntries(
@@ -59,6 +59,41 @@ for (const level of Object.keys(CROSSINGS).map(Number)) {
       assert.equal(g.bridgeLatched, true);
       assert.ok(g.players.every((p) => !p.bridgeDock));
     }
+  });
+  test(`chapter ${level + 1}: solo cannot lower the bridge by standing on either bank without folding`, () => {
+    const c = CROSSINGS[level];
+    for (const side of [-1, 1] as const)
+      for (const shelter of [false, true]) {
+        const g = newGame(1, level),
+          p = g.players[0];
+        Object.assign(p, bankPoint(c, side));
+        g.view = c.axis === "x" ? 0 : 1;
+        for (let n = 0; n < 150; n++)
+          stepGame(g, { 0: { ...idleInput(), shelter } });
+        assert.equal(g.bridgeCharge, 0, `bank ${side}, shelter ${shelter}`);
+        assert.equal(g.bridgeLatched, false);
+        assert.equal(p.folded, false);
+        assert.equal(p.bridgeDock, false);
+      }
+  });
+  test(`chapter ${level + 1}: solo releasing fold at the far bank cancels charging`, () => {
+    const g = newGame(1, level),
+      c = CROSSINGS[level],
+      p = g.players[0];
+    Object.assign(p, bankPoint(c, c.near === -1 ? 1 : -1));
+    g.view = c.axis === "x" ? 0 : 1;
+    const { inputs, tick } = controls(g);
+    inputs[0].fold = true;
+    tick(65);
+    assert.ok(g.bridgeCharge > 0 && g.bridgeCharge < 2);
+    inputs[0].fold = false;
+    tick();
+    assert.equal(g.bridgeCharge, 0);
+    tick(150);
+    assert.equal(g.bridgeLatched, false);
+    inputs[0].fold = true;
+    tick(125);
+    assert.equal(g.bridgeLatched, true);
   });
   test(`chapter ${level + 1}: low corridor defeats running, jumping and held gliding across the gap`, () => {
     const c = CROSSINGS[level],

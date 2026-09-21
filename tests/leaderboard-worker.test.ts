@@ -1,4 +1,5 @@
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { build } from "esbuild";
@@ -33,8 +34,12 @@ const bundle = await build({
     },
   ],
 });
-const { RainLeaderboard, RainRoom } = await import(
-  `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString("base64")}`
+const {
+  default: worker,
+  RainLeaderboard,
+  RainRoom,
+} = await import(
+  `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text + "\n//# sourceURL=worker-under-test.js").toString("base64")}`
 );
 
 function context(db = new DatabaseSync(":memory:")) {
@@ -115,6 +120,43 @@ test("SQLite keeps the global fastest three; faster replacements, ties and persi
   );
   assert.deepEqual(new RainLeaderboard(ctx, {}).top(), board.top());
   assert.ok(board.top().every((s: any) => !("participant" in s)));
+  ctx.db.close();
+});
+
+test("verified score metadata is validated before SQLite can persist malformed ranking entries", () => {
+  const ctx = context();
+  const board = new RainLeaderboard(ctx, {});
+  const score = {
+    version: RANKING_VERSION,
+    stars: LEVELS[0].stars.map((_, id) => id),
+    participant: "player",
+    timeMs: 1000,
+    achievedAt: 100,
+    id: "run",
+    level: 0,
+    mode: 1,
+    names: ["Paper"],
+  };
+  for (const invalid of [
+    { achievedAt: "yesterday" },
+    { achievedAt: -1 },
+    { achievedAt: 1.5 },
+    { achievedAt: Number.NaN },
+    { achievedAt: Number.POSITIVE_INFINITY },
+    { id: 123 },
+    { id: "" },
+    { participant: 123 },
+    { names: null },
+    { names: { length: 1 } },
+    { names: [123] },
+  ]) {
+    assert.throws(
+      () => board.submitVerified({ ...score, ...invalid }),
+      /成绩无效/,
+    );
+    assert.deepEqual(board.top(), []);
+  }
+  assert.equal(board.submitVerified(score).length, 1);
   ctx.db.close();
 });
 
@@ -372,4 +414,268 @@ test("old map sessions return to lobby and old queued scores stay out of new boa
     1,
   );
   ctx.db.close();
+});
+
+test("itch CDN origins pass the real Worker boundary; lookalikes and unknown origins fail", async () => {
+  const config = readFileSync(
+    new URL("../wrangler.github.jsonc", import.meta.url),
+    "utf8",
+  );
+  const ALLOWED_ORIGINS = config.match(/"ALLOWED_ORIGINS": "([^"]+)"/)![1];
+  for (const origin of [
+    "https://html-classic.itch.zone",
+    "https://html.itch.zone",
+    "https://ctrlcctrlvisthebest.github.io",
+    "https://www.bilibilitoy.com",
+  ]) {
+    const response = await worker.fetch(
+      new Request("https://game.example/api/rooms", {
+        method: "OPTIONS",
+        headers: {
+          Origin: origin,
+          "Access-Control-Request-Method": "POST",
+          "Access-Control-Request-Headers": "content-type,authorization",
+        },
+      }),
+      { ALLOWED_ORIGINS },
+    );
+    assert.equal(response.status, 204);
+    assert.equal(response.headers.get("Access-Control-Allow-Origin"), origin);
+    const health = await worker.fetch(
+      new Request("https://game.example/api/health", {
+        headers: { Origin: origin },
+      }),
+      { ALLOWED_ORIGINS },
+    );
+    assert.equal(health.status, 200);
+    assert.equal((await health.json()).ok, true);
+    const denied = await worker.fetch(
+      new Request("https://game.example/api/health", {
+        headers: { Origin: `${origin}.attacker.example` },
+      }),
+      { ALLOWED_ORIGINS },
+    );
+    assert.equal(denied.status, 403);
+    assert.equal(denied.headers.get("Access-Control-Allow-Origin"), null);
+  }
+});
+
+test("HTTP JSON and Bearer parsing accepts case-insensitive standards and rejects lookalike media types", async () => {
+  const calls: { kind: string; token: string }[] = [];
+  const limiter = { limit: async () => ({ success: true }) };
+  const env = {
+    ALLOWED_ORIGINS: "",
+    ROOM_CREATION_LIMIT: limiter,
+    ROOM_REQUEST_LIMIT: limiter,
+    ROOMS: {
+      getByName: () => ({
+        operate: async (kind: string, _code: string, token: string) => {
+          calls.push({ kind, token });
+          return { status: 200, data: {} };
+        },
+      }),
+    },
+  };
+  for (const contentType of [
+    "application/json",
+    "Application/JSON; charset=utf-8",
+  ]) {
+    const response = await worker.fetch(
+      new Request("https://game.example/api/rooms", {
+        method: "POST",
+        headers: { "Content-Type": contentType },
+        body: "{}",
+      }),
+      env,
+    );
+    assert.equal(response.status, 200, contentType);
+  }
+  for (const contentType of [
+    "application/jsonp",
+    "text/plain; application/json",
+  ]) {
+    const response = await worker.fetch(
+      new Request("https://game.example/api/rooms", {
+        method: "POST",
+        headers: { "Content-Type": contentType },
+        body: "{}",
+      }),
+      env,
+    );
+    assert.equal(response.status, 400, contentType);
+  }
+  assert.equal(calls.length, 2);
+  const token = "12345678-1234-1234-1234-123456789abc";
+  for (const authorization of [
+    `Bearer ${token}`,
+    `bearer ${token}`,
+    `BEARER  ${token}`,
+  ]) {
+    const response = await worker.fetch(
+      new Request("https://game.example/api/rooms/ABCDEFGH", {
+        headers: { Authorization: authorization },
+      }),
+      env,
+    );
+    assert.equal(response.status, 200, authorization);
+    assert.deepEqual(calls.at(-1), { kind: "state", token });
+  }
+  for (const authorization of [
+    token,
+    `Bearer ${"-".repeat(36)}`,
+    `Basic ${token}`,
+  ]) {
+    const response = await worker.fetch(
+      new Request("https://game.example/api/rooms/ABCDEFGH", {
+        headers: { Authorization: authorization },
+      }),
+      env,
+    );
+    assert.equal(response.status, 401, authorization);
+  }
+  assert.equal(calls.length, 5);
+});
+
+test("a rejected WebSocket backend promise uses the standard HTTP error boundary", async () => {
+  const response = await worker.fetch(
+    new Request("https://game.example/api/rooms/ABCDEFGH/ws", {
+      headers: { Upgrade: "websocket" },
+    }),
+    {
+      ALLOWED_ORIGINS: "",
+      ROOM_REQUEST_LIMIT: { limit: async () => ({ success: true }) },
+      ROOMS: {
+        getByName: () => ({
+          fetch: async () => {
+            throw new Error("backend temporarily unavailable");
+          },
+        }),
+      },
+    },
+  );
+  assert.equal(response.status, 500);
+  assert.deepEqual(await response.json(), {
+    error: "房间服务暂时不可用，请稍后重试",
+  });
+  assert.equal(response.headers.get("Cache-Control"), "no-store");
+});
+
+test("malformed, oversized, outdated and rate-limited HTTP requests never reach room storage", async () => {
+  let calls = 0;
+  let limited = false;
+  const limiter = { limit: async () => ({ success: !limited }) };
+  const env = {
+    ALLOWED_ORIGINS: "",
+    ROOM_CREATION_LIMIT: limiter,
+    ROOM_REQUEST_LIMIT: limiter,
+    ROOMS: {
+      getByName: () => {
+        calls++;
+        throw new Error("invalid request reached room storage");
+      },
+    },
+  };
+  for (const [body, status] of [
+    ["{", 400],
+    ["null", 400],
+    ["[]", 400],
+    ['"name"', 400],
+    ["", 400],
+    [JSON.stringify({ name: "雨".repeat(2800) }), 413],
+  ] as const) {
+    const response = await worker.fetch(
+      new Request("https://game.example/api/rooms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+      }),
+      env,
+    );
+    assert.equal(response.status, status);
+    assert.equal(typeof (await response.json()).error, "string");
+  }
+  const outdated = await worker.fetch(
+    new Request("https://game.example/api/rooms/ABCDEFGH/command", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer 12345678-1234-1234-1234-123456789abc",
+      },
+      body: JSON.stringify({ type: "start", rulesVersion: -1 }),
+    }),
+    env,
+  );
+  assert.equal(outdated.status, 409);
+  limited = true;
+  const rateLimited = await worker.fetch(
+    new Request("https://game.example/api/rooms", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    }),
+    env,
+  );
+  assert.equal(rateLimited.status, 429);
+  assert.equal(calls, 0);
+});
+
+test("score retries preserve a room's earlier expiry alarm", async () => {
+  const ctx = context();
+  const object = new RainRoom(ctx, {
+    LEADERBOARDS: {
+      getByName: () => ({
+        submitVerified: async () => {
+          throw new Error("temporary outage");
+        },
+      }),
+    },
+  });
+  await ctx.ready();
+  await object.operate("create", "ABCDEFGH", "", {
+    capacity: 2,
+    level: 0,
+    name: "Paper",
+  });
+  const room = object.room as Room;
+  room.expiresAt = Date.now() + 10000;
+  room.game = newGame(2, 0, "expiry-score");
+  room.game.status = "won";
+  room.game.stars = LEVELS[0].stars.map((_, id) => id);
+  room.game.time = 10;
+  object.enqueueScore(room);
+  await ctx.drain();
+  assert.equal(await ctx.storage.getAlarm(), room.expiresAt);
+  room.expiresAt = Date.now() - 1;
+  await object.publishScores();
+  assert.ok((await ctx.storage.getAlarm())! > Date.now() + 59000);
+  ctx.db.close();
+});
+
+test("expired rooms cannot start or continue the simulation while an alarm is delayed", async (t) => {
+  t.mock.timers.enable({ apis: ["setInterval", "Date"], now: Date.now() });
+  const ctx = context();
+  const object = new RainRoom(ctx, {});
+  await ctx.ready();
+  await object.operate("create", "ABCDEFGH", "", {
+    capacity: 2,
+    level: 0,
+    name: "Paper",
+  });
+  const room = object.room as Room;
+  room.game = newGame(2, 0, "expiry-game");
+  room.players[0].online = true;
+  room.expiresAt = Date.now();
+  try {
+    object.run();
+    assert.equal(object.timer, null);
+    room.expiresAt = Date.now() + 1000;
+    object.run();
+    assert.notEqual(object.timer, null);
+    t.mock.timers.tick(1000);
+    assert.equal(room.game.tick, 0);
+    assert.equal(object.timer, null);
+  } finally {
+    object.stop();
+    ctx.db.close();
+  }
 });

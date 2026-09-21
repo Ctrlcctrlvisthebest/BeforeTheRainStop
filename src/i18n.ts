@@ -1,6 +1,28 @@
 import { MAP_TRANSLATIONS } from "./challenge-maps";
 export type Language = "zh" | "en";
 const english: Record<string, string> = {
+  "屋檐挡雨 · 小火烤干": "Roofs shelter · small fires dry",
+  "低檐断口跳不过 · 按住 Shift 2 秒自动接桥":
+    "Low eaves block jumping · hold Shift for 2s to lower the bridge",
+  "桥钉旁按住 Shift 2 秒 · 自动接桥":
+    "Hold Shift at the pins for 2s · lower the bridge",
+  沿台阶跳上高处拿钥匙: "Jump up the steps to reach the key",
+  "庭心分三路 · 带回各处钥匙":
+    "Three paths from the courtyard · bring back each key",
+  "檐下按住 Shift / B 2 秒 · 自动接桥":
+    "Hold Shift / B beneath the eaves for 2s · lower the bridge",
+  "在雨幕与许愿架之间，带着愿望前行。":
+    "Carry your wish through rain and wishing racks.",
+  "单人探索 · 40 段雨中旅途": "Solo exploration · 40 rainy journeys",
+  本地通关记录: "Local records",
+  "全星通关才计入记录 · 仅保存在此设备":
+    "All stars to record · saved on this device only",
+  "把愿望系在檐下，沿着灯火归家。":
+    "Tie your wish beneath the eaves; follow the lanterns home.",
+  "这一程，平安抵达。": "This journey, safely home.",
+  "未收齐星星：本次通关不计入本地记录。":
+    "Some stars are missing: this clear does not count toward local records.",
+
   ...MAP_TRANSLATIONS,
   通关记录与排行榜: "Records and leaderboard",
   "地图与计分规则已更新，请刷新页面重新加入。":

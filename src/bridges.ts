@@ -62,3 +62,13 @@ export function isOnBridgePlate(c: BridgeCrossing, p: Bird): boolean {
     Math.abs(p.y - far.y) < 0.35
   );
 }
+
+/** Only teammates lower the deck by standing on the far plate. */
+export function isBridgePlatePressed(g: Game): boolean {
+  const crossing = CROSSINGS[g.level];
+  return (
+    g.mode > 1 &&
+    !!crossing &&
+    g.players.some((p) => isOnBridgePlate(crossing, p))
+  );
+}

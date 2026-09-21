@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "three";
+import { ExitGlow } from "../src/exit-glow";
 import { FrameBudget } from "../src/frame-budget";
+import { PaperScene } from "../src/scene";
 import { colorSlab, mergeDecorations } from "../src/render-geometry";
 import { rainFloorAt } from "../src/rain-occlusion";
 import { LEVELS, platformAt, type Platform } from "../src/game";
@@ -17,6 +19,112 @@ import {
 } from "../src/scene-resources";
 import { stabilizeTerrain, styleTerrainDepth } from "../src/terrain-scene";
 import { TerrainEdges, topOutline } from "../src/terrain-edges";
+
+test("leaving a scene releases light shadow targets before disposing the renderer", () => {
+  const scene = new THREE.Scene();
+  const root = new THREE.Group();
+  const sun = new THREE.DirectionalLight();
+  sun.shadow.map = new THREE.WebGLRenderTarget(16, 16);
+  sun.shadow.mapPass = new THREE.WebGLRenderTarget(16, 16);
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(),
+    new THREE.MeshBasicMaterial(),
+  );
+  root.add(mesh);
+  scene.add(root, sun);
+  const disposed: string[] = [];
+  sun.shadow.map.addEventListener("dispose", () => disposed.push("shadow"));
+  sun.shadow.mapPass.addEventListener("dispose", () =>
+    disposed.push("shadow-pass"),
+  );
+  mesh.geometry.addEventListener("dispose", () => disposed.push("geometry"));
+  mesh.material.addEventListener("dispose", () => disposed.push("material"));
+  // Run the actual teardown without requiring a GPU to allocate the targets.
+  const view = Object.create(PaperScene.prototype) as PaperScene;
+  Object.assign(view, {
+    scene,
+    root,
+    resize: { disconnect: () => disposed.push("observer") },
+    renderer: { dispose: () => disposed.push("renderer") },
+  });
+  view.dispose();
+  assert.equal(disposed.at(-1), "renderer");
+  assert.deepEqual(disposed.slice().sort(), [
+    "geometry",
+    "material",
+    "observer",
+    "renderer",
+    "shadow",
+    "shadow-pass",
+  ]);
+});
+
+test("exit glow opens in both views, resets when locked, and keeps lights and buffers stable", () => {
+  const glow = new ExitGlow();
+  const meshes = glow.children.filter(
+    (child): child is THREE.Mesh => child instanceof THREE.Mesh,
+  );
+  const light = glow.children.find(
+    (child): child is THREE.PointLight => child instanceof THREE.PointLight,
+  )!;
+  const resources = meshes.map((mesh) => [mesh.geometry, mesh.material]);
+  assert.ok(meshes.every((mesh) => !mesh.visible));
+  assert.equal(light.intensity, 0);
+  glow.update(true, 1);
+  assert.ok(light.intensity > 0 && light.visible);
+  assert.ok(meshes.every((mesh) => mesh.visible));
+  assert.deepEqual(
+    meshes.slice(0, 2).map((mesh) => mesh.rotation.y),
+    [0, Math.PI / 2],
+  );
+  for (const mesh of meshes) {
+    const material = mesh.material as THREE.MeshBasicMaterial;
+    assert.ok(material.opacity > 0 && material.opacity < 1);
+    assert.equal(material.depthWrite, false);
+  }
+  glow.update(true, 2, true);
+  const intensity = light.intensity;
+  const opacity = (meshes[0].material as THREE.MeshBasicMaterial).opacity;
+  glow.update(true, 9, true);
+  assert.equal(light.intensity, intensity);
+  assert.equal(
+    (meshes[0].material as THREE.MeshBasicMaterial).opacity,
+    opacity,
+  );
+  glow.update(false, 10);
+  assert.equal(light.intensity, 0);
+  assert.ok(
+    light.visible,
+    "locked exits retain the light to avoid shader recompilation",
+  );
+  assert.ok(meshes.every((mesh) => !mesh.visible));
+  meshes.forEach((mesh, i) => {
+    assert.equal(mesh.geometry, resources[i][0]);
+    assert.equal(mesh.material, resources[i][1]);
+  });
+  disposeObjectTree(glow);
+});
+
+test("changing scenes releases each instance buffer and shared geometry once", () => {
+  const root = new THREE.Group();
+  const geometry = new THREE.BoxGeometry(),
+    material = new THREE.MeshBasicMaterial();
+  const a = new THREE.InstancedMesh(geometry, material, 3),
+    b = new THREE.InstancedMesh(geometry, material, 6);
+  let instances = 0,
+    geometries = 0,
+    materials = 0;
+  a.addEventListener("dispose", () => instances++);
+  b.addEventListener("dispose", () => instances++);
+  geometry.addEventListener("dispose", () => geometries++);
+  material.addEventListener("dispose", () => materials++);
+  root.add(a, b);
+  disposeObjectTree(root);
+  assert.deepEqual(
+    { instances, geometries, materials },
+    { instances: 2, geometries: 1, materials: 1 },
+  );
+});
 
 function outlineLength(vertices: ArrayLike<number>) {
   let length = 0;

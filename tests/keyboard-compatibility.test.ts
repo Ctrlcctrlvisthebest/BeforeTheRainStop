@@ -5,7 +5,7 @@ import {
   gameKeyCode,
   KeyboardInput,
 } from "../src/keyboard-input";
-import { MAX_FOLDS, newGame, stepGame } from "../src/game";
+import { MAX_FOLDS, idleInput, newGame, stepGame } from "../src/game";
 import { bankPoint, CROSSINGS } from "../src/bridges";
 
 function withKeyboard(
@@ -138,5 +138,21 @@ test("B does not steal browser shortcuts or revive a hold after focus loss", () 
     key("keyup", { key: "b" });
     key("keydown", { key: "b" });
     assert.equal(keyboard.read(0).fold, true);
+  });
+});
+
+test("IME composition keydowns cannot trigger game actions, but keyup still releases a prior hold", () => {
+  withKeyboard((keyboard, key) => {
+    for (const data of [
+      { code: "KeyB", isComposing: true },
+      { code: "KeyR", keyCode: 229 },
+    ]) {
+      assert.equal(key("keydown", data).defaultPrevented, false);
+      assert.deepEqual(keyboard.read(performance.now()), idleInput());
+    }
+    key("keydown", { code: "KeyB" });
+    assert.equal(keyboard.read(performance.now()).fold, true);
+    key("keyup", { code: "KeyB", isComposing: true });
+    assert.equal(keyboard.read(performance.now()).fold, false);
   });
 });

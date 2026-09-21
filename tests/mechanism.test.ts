@@ -52,6 +52,21 @@ test("solo bridge shows progress only while holding and hides on interruption or
   assert.deepEqual(mechanismFeedback(g, 0, "zh"), []);
 });
 
+test("solo standing on the far bridge plate does not show lowering feedback", () => {
+  for (const [index, crossing] of Object.entries(CROSSINGS)) {
+    const g = newGame(1, Number(index));
+    g.view = crossing.axis === "x" ? 0 : 1;
+    Object.assign(
+      g.players[0],
+      bankPoint(crossing, crossing.near === -1 ? 1 : -1),
+    );
+    assert.equal(
+      mechanismFeedback(g, 0, "zh").some((item) => item.id === "bridge"),
+      false,
+    );
+  }
+});
+
 test("multiplayer bridge explains waiting, then counts a far plate reached by any route", () => {
   const g = newGame(2, 1),
     c = CROSSINGS[1];

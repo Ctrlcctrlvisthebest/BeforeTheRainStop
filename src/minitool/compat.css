@@ -1,0 +1,83 @@
+html,
+body,
+#root {
+  min-height: 100%;
+}
+body {
+  -webkit-text-size-adjust: 100%;
+}
+/* Shared styles remain authoritative. Only engines missing the original
+   sizing functions use these layout fallbacks. */
+@supports not (width: max(1px, 2px)) {
+  .app.minitool.compact {
+    --safe-top: 0px;
+    --safe-bottom: 0px;
+    --safe-left: 12px;
+    --safe-right: 12px;
+  }
+  @supports (padding: env(safe-area-inset-top)) {
+    .app.minitool.compact {
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --safe-left: calc(12px + env(safe-area-inset-left, 0px));
+      --safe-right: calc(12px + env(safe-area-inset-right, 0px));
+    }
+  }
+}
+/* Chrome 61 has Grid gap, but no Flex gap. Only the measured legacy path adds
+   margins; Grid controls retain their existing large hit areas and spacing. */
+.no-flex-gap .tools > *,
+.no-flex-gap .mobile-toolbar > * {
+  margin-left: 5px;
+}
+.no-flex-gap .stage > *,
+.no-flex-gap .stats > * {
+  margin-right: 7px;
+}
+.no-flex-gap .intro > * {
+  margin-right: 24px;
+}
+.no-flex-gap .intro-title > * {
+  margin-right: 18px;
+}
+.no-flex-gap .goal-flow > * {
+  margin: 6px;
+}
+.no-flex-gap .lesson-tabs > *,
+.no-flex-gap .guide-keys > * {
+  margin: 3px;
+}
+.no-flex-gap .status-sidebar > * {
+  margin-bottom: 6px;
+}
+.no-flex-gap .guide-action > * {
+  margin-right: 7px;
+}
+.no-flex-gap .fold-pips > * {
+  margin-right: 4px;
+}
+/* Equivalent to the shared clamp() widths, including in Chrome 61. */
+@supports not (width: clamp(1px, 2vw, 3px)) {
+  .app.minitool.compact .touch-movement {
+    width: 35vw;
+    min-width: 112px;
+    max-width: 180px;
+  }
+  .app.minitool.compact .touch-actions {
+    width: 54vw;
+    min-width: 176px;
+    max-width: 294px;
+  }
+  @media (orientation: landscape) and (max-width: 740px) {
+    .app.minitool.compact .touch-movement {
+      width: 24vw;
+      min-width: 144px;
+      max-width: 168px;
+    }
+    .app.minitool.compact .touch-actions {
+      width: 40vw;
+      min-width: 222px;
+      max-width: 270px;
+    }
+  }
+}

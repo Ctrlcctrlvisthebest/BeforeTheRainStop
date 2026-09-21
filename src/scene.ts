@@ -1,3 +1,4 @@
+import { editionCopy } from "./edition-copy";
 import { mergeDecorations, colorSlab } from "./render-geometry";
 import type { RainCover } from "./rain-occlusion";
 import { RainCurtain, WindLeaves } from "./weather-scene";
@@ -12,7 +13,13 @@ import { stabilizeTerrain, styleTerrainDepth } from "./terrain-scene";
 import { TerrainEdges, topOutline } from "./terrain-edges";
 import { translate, type Language } from "./i18n";
 import { touchCopy } from "./mobile";
-import { CROSSINGS, bankPoint, bridgePlank, isOnBridgePlate } from "./bridges";
+import {
+  CROSSINGS,
+  bankPoint,
+  bridgePlank,
+  isBridgePlatePressed,
+} from "./bridges";
+import { ExitGlow } from "./exit-glow";
 import {
   WEATHER,
   rainStrength,
@@ -442,6 +449,7 @@ export class PaperScene {
   private gate: THREE.Group | null = null;
   private gateLabel: THREE.Sprite | null = null;
   private portal = new THREE.Group();
+  private exitGlow: ExitGlow | null = null;
   private guideMarker = new THREE.Group();
   private signs: THREE.Sprite[] = [];
   private resize: ResizeObserver;
@@ -464,7 +472,7 @@ export class PaperScene {
   private wetColor = new THREE.Color("#586f82");
   private heatColor = new THREE.Color("#553725");
   private text(text: string) {
-    const translated = translate(this.language, text);
+    const translated = translate(this.language, editionCopy(text));
     return this.compact ? touchCopy(translated, this.language) : translated;
   }
   constructor(canvas: HTMLCanvasElement) {
@@ -768,15 +776,17 @@ export class PaperScene {
     );
     doorText.name = "exit-label";
     doorText.position.y = 3.15;
-    // An open timber gateway: the lit lantern marks the destination without
-    // filling the walk-through opening with a wall-like sheet of color.
-    this.portal.add(door, doorText);
+    // Keep the open timber gateway, with a yellow glow once all keys are found.
+    this.exitGlow = new ExitGlow();
+    this.portal.add(door, doorText, this.exitGlow);
     this.portal.add(box(1.9, 0.12, 1.7, "#8a7861", 0, 0.06, 0));
     for (const side of [-1, 1]) {
       const roof = box(2.3, 0.13, 1.05, "#414b58", 0, 2.86, side * 0.47);
       roof.rotation.x = side * 0.16;
       this.portal.add(roof);
-      this.portal.add(box(0.32, 0.06, 0.32, "#705245", 0, 2.12 + side * 0.28, 0));
+      this.portal.add(
+        box(0.32, 0.06, 0.32, "#705245", 0, 2.12 + side * 0.28, 0),
+      );
     }
     this.portal.position.set(l.exit.x, l.exit.y, l.exit.z);
     this.root.add(this.portal);
@@ -1211,9 +1221,7 @@ export class PaperScene {
           preview,
           dt,
         );
-      const pressed = g.players.some((p) =>
-        isOnBridgePlate(CROSSINGS[g.level], p),
-      );
+      const pressed = isBridgePlatePressed(g);
       (this.crossingPad.material as THREE.MeshStandardMaterial).color.set(
         g.bridgeLatched ? "#acc0ac" : pressed ? "#89e0d6" : "#b68b55",
       );
@@ -1341,6 +1349,7 @@ export class PaperScene {
     const pm = glow.material as THREE.MeshBasicMaterial;
     const opened = g.keys.length === l.keys.length;
     pm.opacity = opened ? 0.9 + Math.sin(this.clock * 2) * 0.08 : 0.35;
+    this.exitGlow?.update(opened, this.clock, this.reducedMotion.matches);
     if (this.rain) {
       const movingCovers: RainCover[] = this.movingPlatforms.map((raw) => {
         const p = platformAt(raw, g.motionTime);
@@ -1400,7 +1409,7 @@ export class PaperScene {
   }
   dispose() {
     this.resize.disconnect();
-    disposeObjectTree(this.root);
+    disposeObjectTree(this.scene);
     this.renderer.dispose();
   }
 }

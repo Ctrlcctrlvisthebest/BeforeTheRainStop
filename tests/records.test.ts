@@ -226,6 +226,34 @@ test("a write quota failure retains the previous saved best", () =>
     assert.equal(disk.get(RECORDS_KEY), original);
   }));
 
+test("a later completion retries unsaved bests from other chapters after storage recovers", () =>
+  withStorage((disk, writes) => {
+    const records = new LocalRecords();
+    records.record(finish(30, 1));
+    const setItem = localStorage.setItem;
+    localStorage.setItem = () => {
+      throw new Error("quota");
+    };
+    assert.equal(records.record(finish(20))!.persisted, false);
+    assert.equal(bestTimeFor(new LocalRecords().times, 0, 1), undefined);
+    assert.equal(
+      records.record(finish(40, 1))!.persisted,
+      false,
+      "a saved current chapter does not hide pending writes for another one",
+    );
+    localStorage.setItem = setItem;
+
+    // This slower run needs no update of its own, but chapter one's pending
+    // best must still be flushed before the completion reports persistence.
+    const result = records.record(finish(40, 1))!;
+    assert.equal(result.improved, false);
+    assert.equal(result.persisted, true);
+    assert.equal(writes(), 2);
+    assert.equal(bestTimeFor(new LocalRecords().times, 0, 1), 20000);
+    assert.equal(bestTimeFor(new LocalRecords().times, 1, 1), 30000);
+    assert.ok(disk.has(RECORDS_KEY));
+  }));
+
 test("time display rounds to one decimal and carries into the next minute", () => {
   assert.equal(formatTime(0), "00:00.0");
   assert.equal(formatTime(59949), "00:59.9");

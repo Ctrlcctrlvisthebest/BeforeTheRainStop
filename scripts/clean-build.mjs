@@ -10,7 +10,7 @@ async function clean(directory) {
   }
 }
 const output = process.argv[2] ?? "dist";
-if (!["dist", "dist-toy"].includes(output))
+if (!["dist", "dist-toy", "dist-itch"].includes(output))
   throw new Error("Unknown build directory");
 const directory = fileURLToPath(new URL(`../${output}`, import.meta.url));
 await clean(directory);

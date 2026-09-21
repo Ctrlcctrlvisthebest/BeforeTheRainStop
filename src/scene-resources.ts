@@ -116,6 +116,10 @@ export function disposeObjectTree(root: THREE.Object3D) {
   const materials = new Set<THREE.Material>();
   const textures = new Set<THREE.Texture>();
   root.traverse((object) => {
+    // Shadow render targets belong to their lights, not the renderer or meshes.
+    if (object instanceof THREE.Light) object.dispose();
+    // Instance matrices are owned by the mesh, not its shared geometry.
+    if (object instanceof THREE.InstancedMesh) object.dispose();
     if (
       object instanceof THREE.Mesh ||
       object instanceof THREE.Line ||

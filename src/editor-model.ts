@@ -154,7 +154,19 @@ export function editEntity(
     if (x !== undefined) item.target.x = x;
     if (y !== undefined) item.target.y = y;
     if (z !== undefined) item.target.z = z;
-  } else Object.assign(item, patch);
+  } else {
+    const stoppedFerry =
+      s.kind === "platforms" &&
+      item.motion &&
+      Object.hasOwn(patch, "motion") &&
+      !patch.motion;
+    Object.assign(item, patch);
+    if (stoppedFerry)
+      next.route = next.route.filter(
+        (r) =>
+          r.kind !== "ferry" || (r.id !== s.index && r.landingId !== s.index),
+      );
+  }
   syncRoute(next);
   return next;
 }

@@ -11,3 +11,8 @@ worker-configuration.d.ts
 
 .DS_Store
 work/
+
+dist-minitool/
+dist-minitool-silent/
+
+dist-itch/

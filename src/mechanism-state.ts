@@ -6,7 +6,12 @@ import {
   type Game,
   type Point,
 } from "./game";
-import { CROSSINGS, bankPoint, dockBank, isOnBridgePlate } from "./bridges";
+import {
+  CROSSINGS,
+  bankPoint,
+  dockBank,
+  isBridgePlatePressed,
+} from "./bridges";
 import { gateState } from "./gate-state";
 import type { Language } from "./i18n";
 
@@ -65,7 +70,7 @@ export function mechanismFeedback(
     const holder = g.players.find(
       (p) => !p.arrived && p.bridgeDock && p.folded,
     );
-    const pressed = g.players.some((p) => isOnBridgePlate(crossing, p));
+    const pressed = isBridgePlatePressed(g);
     if (holder || pressed) {
       const charging = pressed || (g.mode === 1 && !!holder);
       items.push({

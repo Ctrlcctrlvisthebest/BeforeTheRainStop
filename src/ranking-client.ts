@@ -6,6 +6,7 @@ import {
   type LeaderboardData,
 } from "./leaderboard";
 import type { Replay } from "./replay";
+import { LEVELS, isMode } from "./game";
 
 export function playerIdentity() {
   const saved = stored<unknown>("local", "rain-player-token-v1");
@@ -25,6 +26,36 @@ export class RankingError extends Error {
     super("排行榜暂时不可用");
   }
 }
+
+function validLeaderboardData(value: unknown): value is LeaderboardData {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const data = value as Record<string, unknown>;
+  return (
+    typeof data.level === "number" &&
+    Number.isInteger(data.level) &&
+    data.level >= 0 &&
+    data.level < LEVELS.length &&
+    isMode(data.mode) &&
+    Array.isArray(data.entries) &&
+    data.entries.every((entry: unknown) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry))
+        return false;
+      const row = entry as Record<string, unknown>;
+      return (
+        typeof row.id === "string" &&
+        Array.isArray(row.names) &&
+        row.names.every((name: unknown) => typeof name === "string") &&
+        typeof row.timeMs === "number" &&
+        Number.isSafeInteger(row.timeMs) &&
+        row.timeMs > 0 &&
+        typeof row.achievedAt === "number" &&
+        Number.isSafeInteger(row.achievedAt) &&
+        row.achievedAt >= 0
+      );
+    })
+  );
+}
+
 export async function rankingRequest(
   path: string,
   body?: SoloScore,
@@ -41,5 +72,8 @@ export async function rankingRequest(
       : AbortSignal.timeout(20000),
   });
   if (!response.ok) throw new RankingError(response.status);
-  return response.json();
+  const data: unknown = await response.json();
+  // Do not let invalid network data reach the leaderboard's array rendering.
+  if (!validLeaderboardData(data)) throw new Error("排行榜返回的数据无效");
+  return data;
 }
