@@ -20,10 +20,12 @@ export function completeStormLevel(
   beforeStep?: (g: Game, input: Input) => void,
   startDelay = 0,
   mode: Mode = 1,
+  parallelDetour?: { start: number; end: number },
 ) {
   const g = newGame(mode, level),
-    p = g.players[0],
     l = LEVELS[level];
+  let p = g.players[0];
+  let holdingGate = false;
   let stage = "spawn";
   const detail = () =>
     JSON.stringify({
@@ -51,7 +53,9 @@ export function completeStormLevel(
         Object.fromEntries(
           g.players.map((q) => [
             q.id,
-            perPlayer ? { ...idleInput(), ...perPlayer(q.id) } : input,
+            holdingGate && q.id < 2
+              ? { ...idleInput(), shelter: true }
+              : perPlayer ? { ...idleInput(), ...perPlayer(q.id) } : input,
           ]),
         ),
       );
@@ -126,6 +130,24 @@ export function completeStormLevel(
   tick({}, startDelay);
   for (const [index, s] of GUIDE_ROUTES[level].entries()) {
     stage = `${index} ${s.kind}`;
+    if (index === parallelDetour?.start) {
+      if (mode < 3 || g.view !== 1 || l.pads.length !== 2)
+        throw new Error("parallel detour needs two gate keepers and a courier");
+      // The gate keepers walk onto separate plates while the rest wait at the
+      // fork. They keep holding as the courier follows the real side path.
+      for (let frame = 0; frame < 100; frame++)
+        tick({}, 1, (slot) => slot < 2
+          ? Math.abs(g.players[slot].z - l.pads[slot].z) < 0.1
+            ? { shelter: true }
+            : steer(slot, l.pads[slot].z, "z")
+          : { shelter: true });
+      holdingGate = true;
+      p = g.players[2];
+    }
+    if (index === parallelDetour?.end) {
+      holdingGate = false;
+      p = g.players[0];
+    }
     if (s.kind === "key" && g.keys.includes(s.id!)) continue;
     if (g.view !== s.view) {
       tick({ turn: true });

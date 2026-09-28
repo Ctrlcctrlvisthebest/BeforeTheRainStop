@@ -13,6 +13,9 @@ const dynamic = (count: number) =>
  * Geometry is allocated once; moving roofs and paper shields remain real covers. */
 export class RainCurtain extends THREE.Group {
   private readonly dropCount = 560;
+  private budget = this.dropCount;
+  private readonly dropGeometry = new THREE.BufferGeometry();
+  private readonly contactGeometry = new THREE.BufferGeometry();
   private readonly drops = dynamic(this.dropCount * 2);
   private readonly contacts = dynamic(this.dropCount * 4);
   private readonly seeds: {
@@ -51,17 +54,25 @@ export class RainCurtain extends THREE.Group {
       colors.fill(shade * 0.18, i * 6, i * 6 + 3);
       colors.fill(shade, i * 6 + 3, i * 6 + 6);
     }
-    const geometry = new THREE.BufferGeometry()
+    const geometry = this.dropGeometry
       .setAttribute("position", this.drops)
       .setAttribute("color", new THREE.BufferAttribute(colors, 3));
     const rain = new THREE.LineSegments(geometry, this.ink);
     const splashes = new THREE.LineSegments(
-      new THREE.BufferGeometry().setAttribute("position", this.contacts),
+      this.contactGeometry.setAttribute("position", this.contacts),
       this.contactInk,
     );
     rain.frustumCulled = splashes.frustumCulled = false;
     splashes.name = "rain-contacts";
     this.add(rain, splashes);
+    this.setBudget(this.dropCount);
+  }
+
+  setBudget(count: number) {
+    if (!Number.isFinite(count)) return;
+    this.budget = Math.max(80, Math.min(this.dropCount, Math.floor(count)));
+    this.dropGeometry.setDrawRange(0, this.budget * 2);
+    this.contactGeometry.setDrawRange(0, this.budget * 4);
   }
 
   update(
@@ -114,7 +125,8 @@ export class RainCurtain extends THREE.Group {
     const t = reducedMotion ? 1.7 : time;
     this.ink.opacity = reducedMotion ? 0.22 : strength > 1 ? 0.62 : 0.4;
     this.contactInk.opacity = reducedMotion ? 0 : 0.18 * strength;
-    this.seeds.forEach((seed, i) => {
+    for (let i = 0; i < this.budget; i++) {
+      const seed = this.seeds[i];
       const floor = rainFloorAt(seed, movingCovers, seed.floor);
       const bottom = Math.max(floor, focus.y - 8);
       const top = Math.max(focus.y + 13, bottom + 8);
@@ -139,7 +151,7 @@ export class RainCurtain extends THREE.Group {
       this.contacts.setXYZ(i * 4 + 1, seed.x, floor + 0.03, seed.z);
       this.contacts.setXYZ(i * 4 + 2, seed.x, floor + 0.03, seed.z);
       this.contacts.setXYZ(i * 4 + 3, seed.x + r, floor + 0.03 + lift, seed.z);
-    });
+    }
     this.drops.needsUpdate = this.contacts.needsUpdate = true;
   }
 }

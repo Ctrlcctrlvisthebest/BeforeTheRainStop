@@ -782,3 +782,78 @@ test("quick restart synchronizes a fresh run and drops held inputs and stale com
     guest.ws.close();
   }
 });
+
+test("disconnected host can be replaced after consensual regroup without stale-seat control", async () => {
+  const created = await post("/rooms", { capacity: 2, level: 1, name: "host" });
+  const joined = await post(`/rooms/${created.room.code}/join`, {
+    name: "peer",
+  });
+  const host = peer(created.room.code, created.token),
+    guest = peer(created.room.code, joined.token);
+  let replacement: ReturnType<typeof peer> | undefined;
+  try {
+    await until(
+      () => !!guest.room?.players.every((p) => p.online),
+      "team connected",
+    );
+    host.ws.send(
+      JSON.stringify({
+        type: "command",
+        version: CAMPAIGN_VERSION,
+        command: { type: "start" },
+      }),
+    );
+    await until(() => guest.room?.phase === "game", "started");
+    const gameId = guest.room!.game!.id;
+    guest.ws.send(
+      JSON.stringify({
+        type: "command",
+        version: CAMPAIGN_VERSION,
+        command: { type: "turn-signal", gameId },
+      }),
+    );
+    await until(() => guest.room?.turnNotice?.slot === 1, "turn signal");
+    host.ws.close();
+    await until(() => guest.room?.players[0].online === false, "host offline");
+    await new Promise((r) => setTimeout(r, 15200));
+    guest.ws.send(
+      JSON.stringify({
+        type: "command",
+        version: CAMPAIGN_VERSION,
+        command: { type: "regroup", gameId },
+      }),
+    );
+    await until(() => guest.room?.phase === "lobby", "regroup lobby");
+    assert.equal(guest.room!.host, 1);
+    assert.equal(guest.room!.level, 1);
+    assert.equal(guest.room!.game, null);
+    const denied = await fetch(base + `/api/rooms/${created.room.code}`, {
+      headers: { Authorization: `Bearer ${created.token}` },
+    });
+    assert.equal(denied.status, 401);
+    const next = await post(`/rooms/${created.room.code}/join`, {
+      name: "replacement",
+    });
+    assert.equal(next.slot, 0);
+    replacement = peer(created.room.code, next.token);
+    await until(
+      () => !!guest.room?.players.every((p) => p.online),
+      "replacement connected",
+    );
+    guest.ws.send(
+      JSON.stringify({
+        type: "command",
+        version: CAMPAIGN_VERSION,
+        command: { type: "start" },
+      }),
+    );
+    await until(() => guest.room?.phase === "game", "new run");
+    assert.notEqual(guest.room!.game!.id, gameId);
+    assert.equal(guest.room!.game!.keys.length, 0);
+    assert.deepEqual(guest.errors, []);
+  } finally {
+    host.ws.close();
+    guest.ws.close();
+    replacement?.ws.close();
+  }
+});

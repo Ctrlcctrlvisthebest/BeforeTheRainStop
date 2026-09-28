@@ -12,8 +12,9 @@
       font: 14px system-ui;
     }
     canvas {
-      width: 960px;
-      height: 540px;
+      width: min(960px, 100vw);
+      height: auto;
+      aspect-ratio: 16 / 9;
       display: block;
     }
     pre {
@@ -22,8 +23,23 @@
     button {
       padding: 12px;
     }</style
-  ><button id="run">运行渲染基准</button
-  ><span id="status">准备就绪 · 960 × 540 · 固定步长</span
+  ><label
+    >范围
+    <select id="scope">
+      <option value="full">全部：基准关 + 第28—40关单人/六人</option>
+      <option value="quick">快速：第1/11/12关</option>
+    </select></label
+  >
+  <label
+    >画质
+    <select id="quality">
+      <option value="standard">标准</option>
+      <option value="economy">省电</option>
+    </select></label
+  >
+  <button id="run">运行渲染基准</button
+  ><button id="stop" disabled>停止</button>
+  <span id="status">准备就绪 · 自适应窗口 · 固定步长（全部约 2.5 分钟）</span
   ><button id="snapshot">导出菜单背景</button
   ><textarea
     aria-label="菜单背景数据"
@@ -32,5 +48,9 @@
   ></textarea
   ><canvas></canvas>
   <pre id="result"></pre>
+  <p>
+    需要保持页面可见。结果只代表当前设备与浏览器；CPU 提交时间不是 GPU
+    时间。本工具覆盖首帧、转面与场景区域，不模拟真实通关，也不代表其他手机性能。
+  </p>
   <script type="module" src="./render.ts"></script>
 </html>

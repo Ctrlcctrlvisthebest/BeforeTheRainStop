@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { GUIDE_ROUTES } from "../src/guide";
+import { GUIDE_ROUTES, guideFor, newGuideTracker } from "../src/guide";
 import { CAMPFIRES } from "../src/weather";
 import { LEVELS } from "../src/game";
 import { CHALLENGE_MAPS } from "../src/challenge-maps";
@@ -188,4 +188,117 @@ test("chapter 40 opens the home gate upstairs and returns over its original brid
     lastX = p.x;
   });
   assert.ok(usedFerry && returned);
+});
+
+test("chapter 38 leaps both fires and turns in flight at the final empty corner", () => {
+  const crossed = new Set<number>();
+  let airTurns = 0;
+  completeStormLevel(37, (g) => {
+    const p = g.players[0];
+    LEVELS[37].hazards.forEach((h, index) => {
+      if (Math.hypot(p.x - h.x, p.z - h.z) < 0.4) {
+        assert.ok(!p.grounded && p.y > h.y + 0.85);
+        crossed.add(index);
+      }
+    });
+  }, (g, input) => {
+    if (input.turn && !g.players[0].grounded) airTurns++;
+  });
+  assert.equal(crossed.size, 2);
+  assert.equal(airTurns, 1);
+  assert.throws(() => completeStormLevel(37, undefined, (g, input) => {
+    if (!g.players[0].grounded) input.turn = false;
+  }), /chapter 38/);
+});
+
+test("chapter 39 can open the gate before fetching the side-path key", () => {
+  const original = GUIDE_ROUTES[38];
+  const pads = original.findIndex((s) => s.kind === "pads");
+  // The five-step key excursion can happen before or after opening the gate.
+  const start = pads - 5;
+  try {
+    GUIDE_ROUTES[38] = [
+      ...original.slice(0, start), original[pads],
+      { kind: "walk", target: { x: 15.35, y: 4, z: -12.6 }, view: 1 },
+      ...original.slice(start, pads), ...original.slice(pads + 1),
+    ];
+    for (const mode of [1, 2, 3, 6] as const) {
+      let openedBeforeKey = false;
+      const game = completeStormLevel(38, (g) => {
+        if (g.gateOpen && !g.keys.includes(1)) openedBeforeKey = true;
+      }, undefined, 0, mode);
+      assert.ok(openedBeforeKey);
+      assert.equal(game.stars.length, LEVELS[38].stars.length);
+      assert.equal(game.status, "won");
+    }
+  } finally {
+    GUIDE_ROUTES[38] = original;
+  }
+});
+
+test("chapter 39 lets a courier fetch the key while two friends open the gate", () => {
+  const pads = GUIDE_ROUTES[38].findIndex((s) => s.kind === "pads");
+  for (const mode of [3, 6] as const) {
+    let concurrentWork = false, courierOwnedKey = false;
+    const gateGuide = newGuideTracker();
+    const game = completeStormLevel(38, (g) => {
+      const courier = g.players[2];
+      if (courier.x > 18.5 && (g.gateCharge > 0 || g.gateOpen))
+        concurrentWork = true;
+      if (g.gateCharge > 0 && !g.keys.includes(1)) {
+        const guide = guideFor(g, 0, gateGuide);
+        assert.equal(guide.kind, "pads");
+        assert.equal(guide.direction, "stay");
+      }
+      if (courier.carriedKeys.includes(1)) {
+        courierOwnedKey = true;
+        assert.ok(g.players[0].x < 16 && g.players[1].x < 16);
+      }
+    }, undefined, 0, mode, { start: pads - 5, end: pads });
+    assert.ok(concurrentWork && courierOwnedKey);
+    assert.equal(game.status, "won");
+    assert.equal(game.stars.length, LEVELS[38].stars.length);
+    assert.ok(game.players.every((p) => p.arrived && p.deaths === 0));
+  }
+});
+
+test("chapter 39 shelter reduces exposure at the first ferry without being required for every departure", () => {
+  const exposure = (shelter: boolean) => {
+    let wettest = 0;
+    completeStormLevel(38, (g) => {
+      if (g.players[0].checkpoint < 0)
+        wettest = Math.max(wettest, g.players[0].wetness);
+    }, (_g, input) => { if (!shelter) input.shelter = false; });
+    return wettest;
+  };
+  assert.ok(exposure(false) - exposure(true) > 10);
+});
+
+test("chapter 39's optional drying eaves are reachable and rejoin the full-star route", () => {
+  const original = GUIDE_ROUTES[38];
+  let driedUnderEaves = false;
+  try {
+    GUIDE_ROUTES[38] = [
+      ...original.slice(0, 2),
+      { kind: "jump", target: { x: 10.95, y: 2.1, z: 0 }, view: 0 },
+      { kind: "jump", target: { x: 7.15, y: 1.1, z: 0 }, view: 0 },
+      ...original.slice(2),
+    ];
+    const game = completeStormLevel(38, (g) => {
+      const p = g.players[0];
+      if (Math.abs(p.x - 10.95) < 0.5 && Math.abs(p.z) < 0.4 &&
+          p.nearFire && p.rainCover === "roof" && p.wetness < 1) driedUnderEaves = true;
+    }, (g, input) => {
+      const p = g.players[0];
+      if (p.grounded && Math.abs(p.x - 10.95) < 0.5 && Math.abs(p.z) < 0.4 && p.wetness > 1) {
+        input.axis = 0;
+        input.jump = false;
+      }
+    });
+    assert.ok(driedUnderEaves);
+    assert.equal(game.stars.length, LEVELS[38].stars.length);
+    assert.equal(game.status, "won");
+  } finally {
+    GUIDE_ROUTES[38] = original;
+  }
 });

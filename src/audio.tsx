@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { save, stored } from "./storage";
 import { translate, type Language } from "./i18n";
+import type { GameCue } from "./game-audio-events";
 
 type Playback = "ready" | "loading" | "playing" | "paused" | "error";
 const MUSIC_TRACKS = [
@@ -45,18 +46,36 @@ export function useGameAudio(inGame: boolean) {
       ? Math.max(0, Math.min(100, saved))
       : 60;
   });
-  const volumeRef = useRef(volume);
+  const [effectsEnabled, setEffectsEnabledState] = useState(() => {
+    const saved = stored<unknown>("local", "rain-sfx-enabled");
+    return typeof saved === "boolean" ? saved : initialEnabled;
+  });
+  const [effectsVolume, setEffectsVolumeState] = useState(() => {
+    const saved = stored<number>("local", "rain-sfx-volume");
+    return typeof saved === "number" && Number.isFinite(saved)
+      ? Math.max(0, Math.min(100, saved))
+      : volume;
+  });
+  const effectsEnabledRef = useRef(effectsEnabled);
+  const effectsVolumeRef = useRef(effectsVolume);
   const fx = useRef<AudioContext | null>(null);
   const fading = useRef(0);
   const activeRequest = useRef(0);
   const continueAfterHide = useRef(false);
-  volumeRef.current = volume;
+  effectsEnabledRef.current = effectsEnabled;
+  effectsVolumeRef.current = effectsVolume;
+  // Preserve the old combined mute/volume once, then keep both channels separate.
+  useEffect(() => {
+    save("local", "rain-sfx-enabled", effectsEnabled);
+    save("local", "rain-sfx-volume", effectsVolume);
+  }, [effectsEnabled, effectsVolume]);
 
   function setEnabled(value: boolean) {
     enabled.current = value;
     save("local", "rain-music-enabled", value);
   }
   function unlockEffects() {
+    if (!effectsEnabledRef.current || document.hidden) return;
     try {
       const context = fx.current ?? (fx.current = new AudioContext());
       void context.resume().catch(() => {});
@@ -65,9 +84,10 @@ export function useGameAudio(inGame: boolean) {
     }
   }
   async function start() {
-    const audio = player.current;
-    if (!audio || !enabled.current || document.hidden) return;
+    if (document.hidden) return;
     unlockEffects();
+    const audio = player.current;
+    if (!audio || !enabled.current) return;
     if (!audio.paused) return;
     const request = ++activeRequest.current;
     setState("loading");
@@ -117,41 +137,82 @@ export function useGameAudio(inGame: boolean) {
     if (enabled.current) void start();
   }
   function setVolume(value: number) {
+    if (!Number.isFinite(value)) return;
     const next = Math.max(0, Math.min(100, value));
     setVolumeState(next);
     save("local", "rain-music-volume", next);
   }
-  function effect(freq: number) {
+  function toggleEffects() {
+    const next = !effectsEnabledRef.current;
+    effectsEnabledRef.current = next;
+    setEffectsEnabledState(next);
+    save("local", "rain-sfx-enabled", next);
+    if (next) unlockEffects();
+  }
+  function setEffectsVolume(value: number) {
+    if (!Number.isFinite(value)) return;
+    const next = Math.max(0, Math.min(100, value));
+    effectsVolumeRef.current = next;
+    setEffectsVolumeState(next);
+    save("local", "rain-sfx-volume", next);
+  }
+  function toneAt(
+    freq: number,
+    offset = 0,
+    duration = 0.22,
+    level = 0.055,
+    rise = 1.5,
+  ) {
     const context = fx.current;
     if (
       !context ||
       context.state !== "running" ||
-      !enabled.current ||
+      !effectsEnabledRef.current ||
       document.hidden ||
-      !volumeRef.current
+      !effectsVolumeRef.current ||
+      !Number.isFinite(freq) ||
+      freq <= 0
     )
       return;
+    const start = context.currentTime + offset;
     const tone = context.createOscillator(),
       gain = context.createGain();
     tone.type = "sine";
-    tone.frequency.setValueAtTime(freq, context.currentTime);
+    tone.frequency.setValueAtTime(freq, start);
     tone.frequency.exponentialRampToValueAtTime(
-      freq * 1.5,
-      context.currentTime + 0.12,
+      freq * rise,
+      start + duration * 0.55,
     );
-    gain.gain.setValueAtTime(
-      (0.055 * volumeRef.current) / 100,
-      context.currentTime,
+    // A short attack avoids a click; quiet, separated notes leave room for BGM.
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(
+      (level * effectsVolumeRef.current) / 100,
+      start + 0.008,
     );
-    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.22);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
     tone.connect(gain);
     gain.connect(context.destination);
     tone.onended = () => {
       tone.disconnect();
       gain.disconnect();
     };
-    tone.start();
-    tone.stop(context.currentTime + 0.24);
+    tone.start(start);
+    tone.stop(start + duration + 0.02);
+  }
+  function effect(freq: number) {
+    toneAt(freq);
+  }
+  function cue(name: GameCue) {
+    if (name === "bridge-ready") {
+      toneAt(392, 0, 0.16, 0.038, 1);
+      toneAt(523.25, 0.1, 0.23, 0.032, 1);
+    } else if (name === "gate-open") {
+      toneAt(293.66, 0, 0.2, 0.035, 1);
+      toneAt(440, 0.12, 0.24, 0.032, 1);
+    } else if (name === "exit-open") {
+      toneAt(523.25, 0, 0.22, 0.033, 1);
+      toneAt(659.25, 0.13, 0.28, 0.027, 1);
+    }
   }
   useEffect(() => {
     const audio = player.current;
@@ -177,9 +238,12 @@ export function useGameAudio(inGame: boolean) {
           audio?.pause();
         }
         void fx.current?.suspend().catch(() => {});
-      } else if (continueAfterHide.current && enabled.current) {
-        continueAfterHide.current = false;
-        void start();
+      } else {
+        unlockEffects();
+        if (continueAfterHide.current && enabled.current) {
+          continueAfterHide.current = false;
+          void start();
+        }
       }
     };
     document.addEventListener("visibilitychange", visibility);
@@ -203,6 +267,11 @@ export function useGameAudio(inGame: boolean) {
     start,
     toggle,
     effect,
+    cue,
+    effectsEnabled,
+    toggleEffects,
+    effectsVolume,
+    setEffectsVolume,
   };
 }
 export type GameAudio = ReturnType<typeof useGameAudio>;
@@ -312,7 +381,7 @@ export function MusicControls({
             </output>
           </div>
           <label>
-            {t("音量")}
+            {language === "zh" ? "音乐音量" : "Music volume"}
             <span>{audio.volume}%</span>
             <input
               aria-label={t("音乐音量")}
@@ -322,6 +391,35 @@ export function MusicControls({
               step="1"
               value={audio.volume}
               onChange={(event) => audio.setVolume(Number(event.target.value))}
+            />
+          </label>
+          <button
+            type="button"
+            className="effects-toggle"
+            aria-pressed={audio.effectsEnabled}
+            onClick={audio.toggleEffects}
+          >
+            {language === "zh"
+              ? audio.effectsEnabled
+                ? "音效开"
+                : "音效关"
+              : audio.effectsEnabled
+                ? "Sound effects on"
+                : "Sound effects off"}
+          </button>
+          <label>
+            {language === "zh" ? "音效音量" : "Effects volume"}
+            <span>{audio.effectsVolume}%</span>
+            <input
+              aria-label={language === "zh" ? "音效音量" : "Effects volume"}
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              value={audio.effectsVolume}
+              onChange={(event) =>
+                audio.setEffectsVolume(Number(event.target.value))
+              }
             />
           </label>
           <small className="music-note">

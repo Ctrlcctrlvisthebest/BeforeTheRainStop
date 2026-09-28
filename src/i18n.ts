@@ -1,6 +1,13 @@
 import { MAP_TRANSLATIONS } from "./challenge-maps";
 export type Language = "zh" | "en";
 const english: Record<string, string> = {
+  "画面暂时中断，正在恢复…": "Graphics interrupted. Restoring…",
+  "画面恢复失败，请重新加载。":
+    "Graphics could not be restored. Please reload.",
+  "请先给掉线同伴 15 秒重连时间":
+    "Allow disconnected teammates 15 seconds to reconnect first.",
+  请连接房间后再操作: "Reconnect to the room before continuing.",
+  请稍后再提醒: "Please wait before sending another signal.",
   "屋檐挡雨 · 小火烤干": "Roofs shelter · small fires dry",
   "低檐断口跳不过 · 按住 Shift 2 秒自动接桥":
     "Low eaves block jumping · hold Shift for 2s to lower the bridge",

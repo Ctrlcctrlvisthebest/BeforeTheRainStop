@@ -106,7 +106,7 @@ test("local Worker verifies clears, publishes top three, replaces faster times a
     headers: { Origin: "https://untrusted.example" },
   });
   assert.equal(forbidden.status, 403);
-  for (const toyOrigin of [
+  for (const toyOrigin of process.env.TEST_ALLOWED_ORIGINS?.split(",") ?? [
     "https://www.bilibili.com",
     "https://www.bilibilitoy.com",
   ]) {

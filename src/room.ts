@@ -24,6 +24,8 @@ export interface Room {
   votes: number[];
   voteNext: boolean | null;
   rankingStatus?: "pending" | "saved" | "retry";
+  regroupVotes?: number[];
+  turnNotice?: { slot: number; at: number; gameId: string };
 }
 export type PublicRoom = Omit<Room, "players"> & {
   players: Omit<Player, "token" | "rankKey">[];
@@ -137,6 +139,39 @@ export function command(
       throw new RoomError("游戏中保留座位，请关闭标签页暂离", 409);
     r.players = r.players.filter((x) => x.slot !== p.slot);
     if (p.slot === r.host) r.host = r.players[0]?.slot ?? 0;
+  } else if (body.type === "regroup") {
+    if (r.phase !== "game" || !r.game || body.gameId !== r.game.id)
+      throw new RoomError("关卡已经更新", 409);
+    if (!p.online) throw new RoomError("请连接房间后再操作", 409);
+    if (r.players.some((x) => !x.online && now - x.lastSeen < 15000))
+      throw new RoomError("请先给掉线同伴 15 秒重连时间", 409);
+    const online = r.players.filter((x) => x.online);
+    r.regroupVotes = (r.regroupVotes ?? []).filter((slot) =>
+      online.some((x) => x.slot === slot),
+    );
+    if (!r.regroupVotes.includes(p.slot)) r.regroupVotes.push(p.slot);
+    if (online.every((x) => r.regroupVotes!.includes(x.slot))) {
+      // A finished chapter stays finished; an unfinished run restarts fairly
+      // after replacement players join. Never rank a mixed-membership run.
+      if (r.game.status === "won" && r.level < LEVELS.length - 1) r.level++;
+      r.players = online;
+      if (!online.some((x) => x.slot === r.host)) r.host = online[0].slot;
+      r.game = null;
+      r.phase = "lobby";
+      r.votes = [];
+      r.voteNext = null;
+      delete r.regroupVotes;
+      delete r.rankingStatus;
+      delete r.turnNotice;
+    }
+  } else if (body.type === "cancel-regroup") {
+    r.regroupVotes = (r.regroupVotes ?? []).filter((slot) => slot !== p.slot);
+  } else if (body.type === "turn-signal") {
+    if (r.phase !== "game" || !r.game || body.gameId !== r.game.id || !p.online)
+      throw new RoomError("关卡已经更新", 409);
+    if (r.turnNotice && now - r.turnNotice.at < 3000)
+      throw new RoomError("请稍后再提醒", 429);
+    r.turnNotice = { slot: p.slot, at: now, gameId: r.game.id };
   } else if (body.type === "restart") {
     if (!r.game || body.gameId !== r.game.id)
       throw new RoomError("关卡已经更新", 409);
@@ -151,6 +186,8 @@ export function command(
       delete r.rankingStatus;
       r.votes = [];
       r.voteNext = null;
+      delete r.regroupVotes;
+      delete r.turnNotice;
     }
   } else throw new RoomError("未知操作");
   r.revision++;

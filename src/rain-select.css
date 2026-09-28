@@ -1,0 +1,98 @@
+.app .rain-select {
+  color: var(--paper-light);
+  min-width: 0;
+}
+.app .rain-select .rain-select-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 46px;
+  padding: 10px 12px;
+  border: 1px solid #acbdc640;
+  border-radius: 3px;
+  background: #1d3241;
+  color: var(--paper-light);
+  text-align: left;
+  transform: none;
+}
+.app .rain-select .rain-select-trigger:hover,
+.app .rain-select .rain-select-trigger[aria-expanded="true"] {
+  background: #354e60;
+}
+.app .rain-select-value {
+  min-width: 0;
+  flex: 1;
+}
+.app .rain-select-detail {
+  color: #c4d0d6;
+  font:
+    12px "Noto Sans SC",
+    system-ui,
+    sans-serif;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.app .rain-select-chevron {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  margin: -3px 2px 0 6px;
+  border: solid currentColor;
+  border-width: 0 1px 1px 0;
+  transform: rotate(45deg);
+}
+.app .rain-select-list {
+  position: fixed;
+  z-index: 50;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  padding: 4px;
+  border: 1px solid #acbdc65c;
+  border-radius: 3px;
+  background: #203343;
+  color: var(--paper-light);
+  scrollbar-width: thin;
+  scrollbar-color: #718794 #203343;
+}
+.app .rain-select-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 10px 12px;
+  color: var(--paper-light);
+  font-size: 15px;
+  line-height: 1.5;
+  border-bottom: 1px solid #acbdc617;
+  cursor: pointer;
+}
+.app .rain-select-option:last-child {
+  border-bottom: 0;
+}
+.app .rain-select-option[aria-selected="true"] {
+  background: #2b4557;
+}
+.app .rain-select-option.is-active {
+  background: #3a5568;
+}
+.app .rain-select-check {
+  width: 14px;
+  flex-shrink: 0;
+}
+.app .chapter-field {
+  margin: 13px 0 8px;
+  color: var(--mist);
+  font-size: 12px;
+}
+.app .chapter-select {
+  margin-top: 8px;
+}
+.app .chapter-select .rain-select-trigger {
+  font-family: var(--serif);
+  font-size: 17px;
+}
+.app .chapter-select .rain-select-option {
+  font-size: 16px;
+}

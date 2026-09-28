@@ -54,7 +54,7 @@
    The measured stack height includes warnings and multi-line English titles. */
 .app.compact.playing {
   --sidebar-height: 140px;
-  --scene-top: calc(var(--safe-top) + 62px + var(--sidebar-height) + 24px);
+  --scene-top: calc(var(--safe-top) + 62px + var(--sidebar-height) + 20px);
   --scene-bottom: calc(var(--control-space) + 28px);
 }
 .compact.playing .status-sidebar {
@@ -63,11 +63,11 @@
   right: var(--safe-right);
   width: auto;
   max-height: none;
-  gap: 6px;
+  gap: 4px;
   overflow: visible;
 }
 .app.compact.playing .status-sidebar > .rain-hud {
-  height: 48px;
+  height: 44px;
 }
 .app.compact.playing .status-sidebar > .journey-guide {
   display: grid;
@@ -186,7 +186,10 @@
   font-size: 14px;
   line-height: 1.45;
 }
-.compact .status-sidebar .journey-guide:is(.lesson-turn, .lesson-wind) > p:not(.guide-warning) {
+.compact
+  .status-sidebar
+  .journey-guide:is(.lesson-turn, .lesson-wind)
+  > p:not(.guide-warning) {
   display: block;
   grid-column: 1 / -1;
   margin: 3px 0 0;
@@ -205,7 +208,9 @@
 @media (orientation: landscape) {
   .compact.playing .status-sidebar {
     width: 196px;
-    max-height: calc(100dvh - var(--safe-top) - 62px - var(--control-space) - 8px);
+    max-height: calc(
+      100dvh - var(--safe-top) - 62px - var(--control-space) - 8px
+    );
   }
   .compact.playing canvas {
     left: calc(var(--safe-left) + 208px);
@@ -214,10 +219,15 @@
   .compact.playing.map-open .compass {
     width: min(600px, calc(100% - var(--safe-left) - var(--safe-right)));
   }
-  .compact .compass svg { height: 45dvh; }
+  .compact .compass svg {
+    height: 45dvh;
+  }
 }
 @media (orientation: landscape) and (max-width: 740px) {
-  .compact.playing canvas { left: 0; width: 100%; }
+  .compact.playing canvas {
+    left: 0;
+    width: 100%;
+  }
 }
 /* The expanded map is a reading surface; scenery and HUD must not show
    through its labels. Its existing close button remains within reach. */
@@ -228,4 +238,28 @@
 }
 .compact.playing.map-open .status-sidebar {
   visibility: hidden;
+}
+
+/* Keep the action prominent on phones without reducing control hit areas. */
+.app.compact.playing.with-guide .status-sidebar > .journey-guide {
+  min-height: 52px;
+  padding: 4px 10px;
+}
+.compact .status-sidebar .guide-heading > span {
+  display: none;
+}
+.compact .status-sidebar .guide-action {
+  grid-row: 1;
+}
+.compact .status-sidebar .guide-heading button {
+  grid-row: 1;
+}
+.compact .status-sidebar .journey-guide > p {
+  grid-row: auto;
+}
+.app.compact .touch-controls .touch-key[data-restart-confirm="true"] {
+  color: #f2ddba;
+  background: #d4ba8540;
+  font-size: 12px;
+  line-height: 1.25;
 }

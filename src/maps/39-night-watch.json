@@ -4,8 +4,8 @@
   "chapter": 39,
   "level": {
     "name": "双渡长夜",
-    "sub": "五段机关之间没有长廊，灯火只照亮下一块落脚点。",
-    "hint": "双渡取钥 · 火檐开闸 · 风桥连收",
+    "sub": "船来之前先看雨势；门前分开取愿，再在灯下相会。",
+    "hint": "候舟择时 · 侧廊取钥 · 踩板接应",
     "color": "#62798b",
     "sky": "#25394b",
     "spawn": {
@@ -15,7 +15,7 @@
     },
     "exit": {
       "x": 16.3,
-      "y": 15.0,
+      "y": 15,
       "z": 5.7
     },
     "platforms": [
@@ -53,7 +53,7 @@
         "kind": "moving",
         "motion": {
           "axis": "x",
-          "range": 4.0,
+          "range": 4,
           "period": 7.6
         }
       },
@@ -84,7 +84,7 @@
       },
       {
         "x": 15.35,
-        "y": 4.0,
+        "y": 4,
         "z": -14.8,
         "w": 3.4,
         "d": 8,
@@ -124,7 +124,7 @@
         "kind": "moving",
         "motion": {
           "axis": "z",
-          "range": 4.0,
+          "range": 4,
           "period": 6.9
         }
       },
@@ -214,11 +214,44 @@
       },
       {
         "x": 15.35,
-        "y": 15.0,
+        "y": 15,
         "z": 5.7,
         "w": 2.6,
         "d": 2.6,
         "h": 0.6
+      },
+      {
+        "x": 19.55,
+        "y": 5,
+        "z": -12.6,
+        "w": 2.6,
+        "d": 2.6,
+        "h": 0.6
+      },
+      {
+        "x": 19.55,
+        "y": 5,
+        "z": -16.8,
+        "w": 3.2,
+        "d": 3.2,
+        "h": 0.6
+      },
+      {
+        "x": 10.95,
+        "y": 2.1,
+        "z": 0,
+        "w": 2.6,
+        "d": 2.6,
+        "h": 0.6
+      },
+      {
+        "x": 15.35,
+        "y": 8,
+        "z": -14.8,
+        "w": 3.4,
+        "d": 8,
+        "h": 0.35,
+        "kind": "low-roof"
       }
     ],
     "keys": [
@@ -228,9 +261,9 @@
         "z": -4.2
       },
       {
-        "x": 15.35,
-        "y": 4.7,
-        "z": -18.2
+        "x": 19.55,
+        "y": 5.7,
+        "z": -16.8
       },
       {
         "x": 5.35,
@@ -313,7 +346,7 @@
       },
       {
         "x": 15.35,
-        "y": 4.0,
+        "y": 4,
         "z": -18.2
       },
       {
@@ -342,7 +375,7 @@
         "x": 7.15,
         "y": 2.45,
         "z": -4.2,
-        "text": "等渡台靠岸再跳 · 船上松开方向键 · 对岸近了再起跳",
+        "text": "裸台候舟可展纸挡雨 · 转面回跳，可去侧檐烘干",
         "view": 0
       },
       {
@@ -358,13 +391,6 @@
         "z": -8.4,
         "text": "火熄再穿檐 · 出檐后才能起跳",
         "view": 0
-      },
-      {
-        "x": 15.35,
-        "y": 4.35,
-        "z": -12.6,
-        "text": "保持踩板四秒 · 多人分站两板 · 开门后再集合",
-        "view": 1
       },
       {
         "x": 11.15,
@@ -407,18 +433,39 @@
         "z": 9.9,
         "text": "檐下长按 Shift / B 接桥 · 多人由同伴踩住对岸圆板",
         "view": 0
+      },
+      {
+        "x": 15.35,
+        "y": 4.35,
+        "z": -12.6,
+        "view": 0,
+        "text": "侧廊取钥再回来 · 多人可分头取钥、踩板开闸"
+      },
+      {
+        "x": 19.55,
+        "y": 5.35,
+        "z": -16.8,
+        "view": 1,
+        "text": "钥匙已取 · 沿原路回到同伴身边"
+      },
+      {
+        "x": 7.15,
+        "y": 1.45,
+        "z": 0,
+        "text": "右侧檐台可烘干再候舟 · 直接去渡口更快",
+        "view": 0
       }
     ],
     "pads": [
       {
         "x": 15.35,
-        "y": 4.0,
+        "y": 4,
         "z": -14.1
       },
       {
         "x": 15.35,
-        "y": 4.0,
-        "z": -16.0
+        "y": 4,
+        "z": -16
       }
     ],
     "winds": [
@@ -428,7 +475,7 @@
         "z": -18.2,
         "w": 1.8,
         "d": 2.8,
-        "height": 6.0
+        "height": 6
       },
       {
         "x": 5.35,
@@ -436,7 +483,7 @@
         "z": 5.9,
         "w": 2.8,
         "d": 1.8,
-        "height": 6.0
+        "height": 6
       }
     ],
     "hazards": [
@@ -476,6 +523,13 @@
         "w": 72,
         "d": 72,
         "rate": 6.5
+      },
+      {
+        "x": 9.5,
+        "z": -4.2,
+        "w": 7.5,
+        "d": 3.2,
+        "rate": 15
       }
     ],
     "awnings": [
@@ -501,7 +555,7 @@
         "z": -18.2,
         "w": 3.8,
         "d": 3.8,
-        "floor": 4.0
+        "floor": 4
       },
       {
         "x": 5.35,
@@ -534,6 +588,22 @@
         "w": 5,
         "d": 6,
         "floor": 12.9
+      },
+      {
+        "x": 10.95,
+        "y": 5.5,
+        "z": 0,
+        "w": 2.6,
+        "d": 2.6,
+        "floor": 2.1
+      },
+      {
+        "x": 19.55,
+        "y": 8.4,
+        "z": -16.8,
+        "w": 3.2,
+        "d": 3.2,
+        "floor": 5
       }
     ]
   },
@@ -617,16 +687,62 @@
       "kind": "jump",
       "target": {
         "x": 15.35,
-        "y": 4.0,
+        "y": 4,
         "z": -12.6
       },
       "view": 1
     },
     {
+      "kind": "jump",
+      "target": {
+        "x": 19.55,
+        "y": 5,
+        "z": -12.6
+      },
+      "view": 0
+    },
+    {
+      "kind": "jump",
+      "target": {
+        "x": 19.55,
+        "y": 5,
+        "z": -16.8
+      },
+      "view": 1
+    },
+    {
+      "kind": "key",
+      "target": {
+        "x": 19.55,
+        "y": 5,
+        "z": -16.8
+      },
+      "view": 1,
+      "id": 1
+    },
+    {
+      "kind": "jump",
+      "target": {
+        "x": 19.55,
+        "y": 5,
+        "z": -12.6
+      },
+      "view": 1
+    },
+    {
+      "kind": "jump",
+      "target": {
+        "x": 15.35,
+        "y": 4,
+        "z": -12.6
+      },
+      "view": 0
+    },
+    {
       "kind": "pads",
       "target": {
         "x": 15.35,
-        "y": 4.0,
+        "y": 4,
         "z": -14.1
       },
       "view": 1
@@ -635,26 +751,16 @@
       "kind": "walk",
       "target": {
         "x": 15.35,
-        "y": 4.0,
+        "y": 4,
         "z": -18.2
       },
       "view": 1
     },
     {
-      "kind": "key",
-      "target": {
-        "x": 15.35,
-        "y": 4.0,
-        "z": -18.2
-      },
-      "view": 1,
-      "id": 1
-    },
-    {
       "kind": "rack",
       "target": {
         "x": 15.35,
-        "y": 4.0,
+        "y": 4,
         "z": -18.2
       },
       "view": 1,
@@ -843,7 +949,7 @@
       "kind": "jump",
       "target": {
         "x": 15.35,
-        "y": 15.0,
+        "y": 15,
         "z": 5.7
       },
       "view": 0
@@ -852,7 +958,7 @@
       "kind": "exit",
       "target": {
         "x": 16.3,
-        "y": 15.0,
+        "y": 15,
         "z": 5.7
       },
       "view": 0
@@ -867,7 +973,13 @@
     "火熄再穿檐 · 出檐后才能起跳": "Cross while the fire is out; jump only after leaving the low roof",
     "保持踩板四秒 · 多人分站两板 · 开门后再集合": "Hold four seconds; teammates use both plates, then regroup beyond the gate",
     "风口先升高 · 对准高台后离开风柱": "Rise in the updraft, then leave toward the upper ledge",
-    "檐下长按 Shift / B 接桥 · 多人由同伴踩住对岸圆板": "Hold Shift / B beneath the roof; teammates latch the far-bank plate"
+    "檐下长按 Shift / B 接桥 · 多人由同伴踩住对岸圆板": "Hold Shift / B beneath the roof; teammates latch the far-bank plate",
+    "船来之前先看雨势；门前分开取愿，再在灯下相会。": "Watch the rain before boarding; split up at the gate and meet again by the lantern.",
+    "候舟择时 · 侧廊取钥 · 踩板接应": "Time the ferry · find the side-path key · hold the gate for friends",
+    "侧廊取钥再回来 · 多人可分头取钥、踩板开闸": "Fetch the side-path key and return. Friends can split up to fetch it and open the gate.",
+    "钥匙已取 · 沿原路回到同伴身边": "Key collected. Follow the same path back to your friends.",
+    "裸台候舟可展纸挡雨 · 转面回跳，可去侧檐烘干": "Unfold for shelter while waiting. Turn and jump back to reach the drying eaves.",
+    "右侧檐台可烘干再候舟 · 直接去渡口更快": "Dry at the eaves on the right, or go straight to the ferry for a faster route."
   },
   "crossing": {
     "x": 8.25,

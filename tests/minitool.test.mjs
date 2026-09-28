@@ -40,7 +40,7 @@ const bundle = await build({
           namespace: "test",
         }));
         b.onLoad({ filter: /.*/, namespace: "test" }, () => ({
-          contents: `export const warmScene=()=>{}; export const loadScene=async()=>({PaperScene:class{render(g){window.testGame=g;window.testFrames=(window.testFrames||0)+1;}dispose(){}}});`,
+          contents: `export const warmScene=()=>{}; export const loadScene=async()=>({PaperScene:class{setQuality(){}observeFrame(){}render(g){window.testGame=g;window.testFrames=(window.testFrames||0)+1;}dispose(){}}});`,
         }));
       },
     },
@@ -118,7 +118,14 @@ test("offline menu excludes online entry points and restores legacy built-ins", 
   const p = await page();
   try {
     const d = p.w.document;
-    assert.equal(d.querySelectorAll(".menu select option").length, 40);
+    d.querySelector('.chapter-select [role="combobox"]').click();
+    await settle();
+    assert.equal(
+      d.querySelectorAll('.chapter-select [role="option"]').length,
+      40,
+    );
+    d.querySelector('.chapter-select [role="combobox"]').click();
+    await settle();
     for (const selector of [
       ".modes",
       ".join",

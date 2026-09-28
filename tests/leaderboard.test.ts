@@ -25,12 +25,12 @@ import {
 import { makeRoom, publicRoom, command, joinRoom } from "../src/room";
 import { completeLevel } from "./journey";
 test("rebuilt maps and all-star rules use a new replay version and separate leaderboard storage", () => {
-  assert.equal(RANKING_VERSION, 8);
+  assert.equal(RANKING_VERSION, 9);
   for (let level = 0; level < LEVELS.length; level++)
     for (const mode of MODES)
       assert.equal(
         boardName(level, mode),
-        `v${[28, 29, 31, 33, 34, 35, 39].includes(level) ? 4 : level === 13 || level === 14 ? 2 : 3}:${mode}:${CHAPTER_STORAGE_SUFFIXES[level]}`,
+        `v${[37, 38].includes(level) ? 5 : [28, 29, 31, 33, 34, 35, 39].includes(level) ? 4 : level === 13 || level === 14 ? 2 : 3}:${mode}:${CHAPTER_STORAGE_SUFFIXES[level]}`,
       );
 });
 

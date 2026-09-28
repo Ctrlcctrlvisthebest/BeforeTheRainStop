@@ -33,6 +33,12 @@ import { SceneryOcclusion, prepareBackdrop } from "./scenery-occlusion";
 import { bridgeSocket, animateBridgeSocket } from "./bridge-scene";
 import { bridgeSocketState, mechanismFeedback } from "./mechanism-state";
 import { MechanismCard } from "./mechanism-scene";
+import {
+  AdaptiveQuality,
+  qualitySettings,
+  type QualityMode,
+} from "./render-quality";
+import { ContextRecovery, type ContextStatus } from "./context-recovery";
 import { isOnGatePad } from "./gate-state";
 import * as THREE from "three";
 import {
@@ -418,6 +424,11 @@ function shapePaper(
   (lines.material as THREE.LineBasicMaterial).opacity = 0.12 + wear * 0.65;
 }
 
+export type SceneOptions = {
+  quality?: QualityMode;
+  onContextStatus?: (status: ContextStatus) => void;
+};
+
 export class PaperScene {
   readonly renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -471,21 +482,27 @@ export class PaperScene {
   private goal = new THREE.Vector3();
   private wetColor = new THREE.Color("#586f82");
   private heatColor = new THREE.Color("#553725");
+  private readonly sun = new THREE.DirectionalLight("#c4d6eb", 2.2);
+  private readonly quality: AdaptiveQuality;
+  private readonly coarsePointer: boolean;
+  private readonly contextRecovery: ContextRecovery;
   private text(text: string) {
     const translated = translate(this.language, editionCopy(text));
     return this.compact ? touchCopy(translated, this.language) : translated;
   }
-  constructor(canvas: HTMLCanvasElement) {
+  constructor(canvas: HTMLCanvasElement, options: SceneOptions = {}) {
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: true,
       alpha: false,
       powerPreference: "high-performance",
     });
-    const touchDevice = matchMedia("(pointer: coarse)").matches;
-    this.renderer.setPixelRatio(
-      Math.min(devicePixelRatio, touchDevice ? 1.5 : 2),
-    );
+    this.coarsePointer = matchMedia("(pointer: coarse)").matches;
+    this.quality = new AdaptiveQuality(options.quality);
+    this.contextRecovery = new ContextRecovery(canvas, (status) => {
+      this.quality.resetObservation();
+      options.onContextStatus?.(status);
+    });
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -496,10 +513,10 @@ export class PaperScene {
       this.fireLight,
       new THREE.HemisphereLight("#a7bfda", "#202c3c", 2.3),
     );
-    const sun = new THREE.DirectionalLight("#c4d6eb", 2.2);
+    const sun = this.sun;
     sun.position.set(-8, 18, 10);
     sun.castShadow = true;
-    sun.shadow.mapSize.setScalar(touchDevice ? 1024 : 2048);
+    this.applyQuality();
     Object.assign(sun.shadow.camera, {
       left: -35,
       right: 35,
@@ -518,7 +535,34 @@ export class PaperScene {
     });
     this.resize.observe(canvas);
   }
+  get qualityTier() {
+    return this.quality.tier;
+  }
+  setQuality(mode: QualityMode) {
+    if (this.quality.select(mode)) this.applyQuality();
+  }
+  observeFrame(now: number, active = true) {
+    if (this.quality.observe(now, active && !this.contextRecovery.lost))
+      this.applyQuality();
+  }
+  private applyQuality() {
+    const settings = qualitySettings(
+      this.quality.tier,
+      devicePixelRatio,
+      this.coarsePointer,
+    );
+    this.renderer.setPixelRatio(settings.pixelRatio);
+    if (this.sun.shadow.mapSize.x !== settings.shadowSize) {
+      this.sun.shadow.map?.dispose();
+      this.sun.shadow.mapPass?.dispose();
+      this.sun.shadow.map = this.sun.shadow.mapPass = null;
+      this.sun.shadow.mapSize.setScalar(settings.shadowSize);
+      this.sun.shadow.needsUpdate = true;
+    }
+    this.rain?.setBudget(settings.rainDrops);
+  }
   private build(g: Game) {
+    this.quality.resetObservation();
     disposeObjectTree(this.root);
     this.root.clear();
     this.sceneryOcclusion.clear();
@@ -973,6 +1017,10 @@ export class PaperScene {
         .map((p) => ({ ...p, top: p.y + 0.02 })),
     ];
     this.rain = new RainCurtain(WEATHER[g.level], fixedCovers);
+    this.rain.setBudget(
+      qualitySettings(this.quality.tier, devicePixelRatio, this.coarsePointer)
+        .rainDrops,
+    );
     this.root.add(this.rain);
     // Paper motes make depth readable while the camera turns.
     const dots: number[] = [];
@@ -1006,6 +1054,7 @@ export class PaperScene {
     guideTarget?: Point,
     compact = false,
   ) {
+    if (this.contextRecovery.lost) return;
     if (
       g.level !== this.level ||
       g.mode !== this.count ||
@@ -1408,6 +1457,7 @@ export class PaperScene {
     this.renderer.render(this.scene, this.camera);
   }
   dispose() {
+    this.contextRecovery?.dispose();
     this.resize.disconnect();
     disposeObjectTree(this.scene);
     this.renderer.dispose();

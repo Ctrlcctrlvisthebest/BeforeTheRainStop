@@ -48,6 +48,8 @@ const bundle = await build({
           contents: `
         export const warmScene = () => {};
         export const loadScene = async () => ({ PaperScene: class {
+          setQuality() {}
+          observeFrame() {}
           render(game) { window.testGame = game; window.testFrames = (window.testFrames || 0) + 1; }
           dispose() { window.testDisposed = true; }
         }});
@@ -116,7 +118,14 @@ async function page({
     }
   };
   w.eval(bundle.outputFiles[0].text);
-  await settle();
+  const mountedBy = Date.now() + 2000;
+  while (!w.document.querySelector(".menu button.primary")) {
+    if (Date.now() > mountedBy) {
+      dom.window.close();
+      assert.fail(`Initial menu did not mount: ${errors.join("; ")}`);
+    }
+    await settle();
+  }
   return { w, errors, tick, close: () => dom.window.close() };
 }
 

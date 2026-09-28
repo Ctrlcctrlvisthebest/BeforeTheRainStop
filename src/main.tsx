@@ -1,3 +1,9 @@
+import { SafeRestartButton } from "./safe-restart";
+import { createGameAudioEvents } from "./game-audio-events";
+import { QualityControls, useQualityPreference } from "./quality-controls";
+import { RainSelect } from "./rain-select";
+import { TeamControls, TeamSignal } from "./team-controls";
+import "./team-controls.css";
 import { MINITOOL } from "./build-target";
 import { editionCopy } from "./edition-copy";
 import { rankedClear } from "./score-rules";
@@ -114,6 +120,14 @@ function App() {
       }
     }
   }
+  const [quality, setQuality] = useQualityPreference();
+  const qualityRef = useRef(quality);
+  qualityRef.current = quality;
+  const activeScene = useRef<PaperScene | null>(null);
+  const audioEvents = useRef(createGameAudioEvents());
+  useEffect(() => {
+    activeScene.current?.setQuality(quality);
+  }, [quality]);
   const [sceneStatus, setSceneStatus] = useState("idle");
   const sceneReady = useRef(false);
   const canvas = useRef<HTMLCanvasElement>(null),
@@ -239,6 +253,7 @@ function App() {
     const previous = game.current;
     const previousRoom = currentRoom.current;
     currentRoom.current = r;
+    setLevel(r.level);
     others.current = ins;
     if (r.game) {
       if (
@@ -306,8 +321,41 @@ function App() {
     void loadScene()
       .then(({ PaperScene }) => {
         if (cancelled) return;
-        const created = new PaperScene(canvas.current!);
+        let contextPaused = false;
+        const created = new PaperScene(canvas.current!, {
+          quality: qualityRef.current,
+          onContextStatus: (status) => {
+            if (cancelled) return;
+            contextPaused = status !== "restored";
+            last = performance.now();
+            acc = 0;
+            keyboardInput.current.clear();
+            touchInput.current.clear();
+            input.current = idleInput();
+            sceneReady.current = !contextPaused;
+            setSceneStatus(
+              status === "restored"
+                ? "ready"
+                : status === "failed"
+                  ? "context-failed"
+                  : "context-lost",
+            );
+            if (contextPaused) {
+              connection.current?.input(game.current.id, input.current);
+              connection.current?.close();
+              if (currentSession.current) setConnected(false);
+            } else if (currentSession.current) {
+              connection.current = new Connection(
+                currentSession.current,
+                receive,
+                setConnected,
+                setError,
+              );
+            }
+          },
+        });
         scene = created;
+        activeScene.current = created;
         sceneReady.current = true;
         setSceneStatus("ready");
         let last = performance.now(),
@@ -323,7 +371,8 @@ function App() {
             acc = 0;
             ui = 0;
           }
-          if (document.hidden) {
+          if (document.hidden || contextPaused) {
+            created.observeFrame(now, false);
             last = now;
             acc = 0;
             return;
@@ -337,6 +386,10 @@ function App() {
             )
           )
             return;
+          created.observeFrame(
+            now,
+            !MINITOOL && !helpRef.current && game.current.status === "playing",
+          );
           const dt = Math.min(0.05, (now - last) / 1000);
           last = now;
           acc += dt;
@@ -372,6 +425,8 @@ function App() {
             }
           } else acc = 0;
           if (!currentSession.current) recordWin(game.current);
+          for (const cue of audioEvents.current.observe(game.current))
+            audio.cue(cue);
           let display = game.current;
           if (
             playing &&
@@ -451,16 +506,18 @@ function App() {
       cancelAnimationFrame(frame);
       if (visibility)
         document.removeEventListener("visibilitychange", visibility);
+      activeScene.current = null;
       scene?.dispose();
     };
   }, [phase]);
   const syncInput = () => {
-    input.current = helpRef.current
-      ? idleInput()
-      : mergeInput(
-          keyboardInput.current.read(performance.now()),
-          touchInput.current.read(performance.now()),
-        );
+    input.current =
+      helpRef.current || !sceneReady.current
+        ? idleInput()
+        : mergeInput(
+            keyboardInput.current.read(performance.now()),
+            touchInput.current.read(performance.now()),
+          );
     if (phaseRef.current === "game" && currentSession.current)
       connection.current?.input(game.current.id, input.current);
   };
@@ -729,12 +786,16 @@ function App() {
         <div className="scene-loading" role="status">
           <p>
             {t(
-              sceneStatus === "error"
-                ? "场景加载失败，请重新加载。"
-                : "正在铺开雨中小径…",
+              sceneStatus === "context-lost"
+                ? "画面暂时中断，正在恢复…"
+                : sceneStatus === "context-failed"
+                  ? "画面恢复失败，请重新加载。"
+                  : sceneStatus === "error"
+                    ? "场景加载失败，请重新加载。"
+                    : "正在铺开雨中小径…",
             )}
           </p>
-          {sceneStatus === "error" && (
+          {(sceneStatus === "error" || sceneStatus === "context-failed") && (
             <button onClick={() => location.reload()}>{t("重新加载")}</button>
           )}
         </div>
@@ -789,6 +850,20 @@ function App() {
           中文 / EN
         </button>
         <MusicControls audio={audio} language={language} />
+        <QualityControls
+          value={quality}
+          onChange={setQuality}
+          language={language}
+        />
+        {session && room && (
+          <TeamControls
+            room={room}
+            slot={session.slot}
+            connected={connected}
+            language={language}
+            send={(cmd) => connection.current?.command(cmd)}
+          />
+        )}
         <button
           aria-label={t("切换玩法引导")}
           aria-pressed={guideEnabled}
@@ -801,13 +876,18 @@ function App() {
         </button>
         {isPlaying && (
           <>
-            <button
-              onClick={() => restart(false)}
+            <SafeRestartButton
+              language={language}
+              scopeKey={hud.id}
+              needsConfirmation={
+                hud.time > 2 || hud.keys.length > 0 || hud.stars.length > 0
+              }
+              onConfirm={() => restart(false)}
               disabled={restartBlocked || !sceneReady.current}
               title={restartHint}
             >
               {restartLabel} · T
-            </button>
+            </SafeRestartButton>
             <button onClick={leave}>{t("返回大厅")}</button>
           </>
         )}
@@ -856,25 +936,27 @@ function App() {
                 {LEVELS.length} {t("个关卡")}
               </b>
             </div>
-            <label>
-              {t("出发关卡")}
-              <select
-                value={level}
-                onChange={(e) => {
-                  const n = Number(e.target.value);
+            <div className="chapter-field">
+              <span>{t("出发关卡")}</span>
+              <RainSelect
+                className="chapter-select"
+                label={t("出发关卡")}
+                value={String(level)}
+                onChange={(value) => {
+                  const n = Number(value);
                   setLevel(n);
                   game.current = newGame(1, n);
                 }}
-              >
-                {LEVELS.map((l, i) => (
-                  <option key={i} value={i}>
-                    {String(i + 1).padStart(2, "0")} · {t(l.name)}
-                    {bestTimeFor(bestTimes, i, mode) !== undefined &&
-                      ` · ${formatTime(bestTimeFor(bestTimes, i, mode)!)}`}
-                  </option>
-                ))}
-              </select>
-            </label>
+                options={LEVELS.map((l, i) => ({
+                  value: String(i),
+                  label: `${String(i + 1).padStart(2, "0")} · ${t(l.name)}`,
+                  detail:
+                    bestTimeFor(bestTimes, i, mode) !== undefined
+                      ? formatTime(bestTimeFor(bestTimes, i, mode)!)
+                      : undefined,
+                }))}
+              />
+            </div>
             <div className="chapter-brief">
               {level >= 8 && (
                 <strong className="challenge-label">
@@ -1104,6 +1186,7 @@ function App() {
               )}
             </div>
           </section>
+          {session && room && <TeamSignal room={room} language={language} />}
           <div className="status-sidebar" ref={statusSidebar}>
             <section
               className={`rain-hud ${(local.wetness ?? 0) > 70 ? "soaked" : ""}`}
@@ -1517,9 +1600,14 @@ function App() {
           >
             <div className="touch-movement">
               {touch("reset", true, t("回存档"))}
-              <button
+              <SafeRestartButton
+                language={language}
+                scopeKey={hud.id}
+                needsConfirmation={
+                  hud.time > 2 || hud.keys.length > 0 || hud.stars.length > 0
+                }
                 className="touch-key touch-restart"
-                onClick={() => restart(false)}
+                onConfirm={() => restart(false)}
                 aria-label={restartLabel}
                 title={restartHint}
                 disabled={
@@ -1530,7 +1618,7 @@ function App() {
                 }
               >
                 <span>{t("重开")}</span>
-              </button>
+              </SafeRestartButton>
               {touch("axis", -1, "←")}
               {touch("axis", 1, "→")}
             </div>
@@ -1549,7 +1637,14 @@ function App() {
             </div>
           )}
           {session && room?.players.some((p) => !p.online) && (
-            <div className="waiting">{t("等待同伴重连，关卡已暂停")}</div>
+            <div className="waiting">
+              {t("等待同伴重连，关卡已暂停")}
+              <small style={{ display: "block" }}>
+                {language === "en"
+                  ? "Use Team in the menu to regroup."
+                  : "可在菜单的「同伴」中重新组队"}
+              </small>
+            </div>
           )}
           {room && room.votes.length > 0 && (
             <div className="vote">

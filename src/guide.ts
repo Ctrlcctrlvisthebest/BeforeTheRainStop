@@ -429,6 +429,13 @@ export function guideFor(
       "Approach the edge, then press a direction and Space together. Keep holding Space while falling to glide.",
     ];
     keys = ["空格"];
+    if (g.level === 38 && !g.keys.includes(1) && s.target.x === 19.55) {
+      title = ["侧廊取钥，或先开闸", "Fetch the side key, or open the gate first"];
+      body = [
+        "右侧两级短台通往钥匙，取到后原路回来。多人可留两位同伴踩板，其他人取钥；单人两种顺序都能走通。",
+        "Two short ledges lead to the key; return the same way. Two friends can hold the plates while others fetch it. Solo can do either task first.",
+      ];
+    }
   }
   if (s.kind === "jump" && s.via) {
     target = pastAirCorner ? { ...s.target } : { ...s.via };
@@ -566,6 +573,13 @@ export function guideFor(
       }
     }
     keys = !waitForFerry ? ["空格"] : [];
+    if (g.level === 38 && s.id === 3 && waitForFerry && !riding) {
+      body = [
+        "这处渡口雨更急，候舟时可按住挡雨。纸太湿时，转面回跳到来时短台，再去右侧檐台烘干；船近了再松开挡雨起跳。",
+        "Rain is stronger at this dock. Hold Shelter while waiting, then release it before jumping aboard. If soaked, return via the first ledge to the drying eaves on its right.",
+      ];
+      keys = ["S"];
+    }
   }
   if (s.kind === "bridge") {
     lesson = "bridge";
@@ -836,6 +850,25 @@ export function guideFor(
         "You have arrived safely. Wait for your friends to bring the remaining keys home.",
       ],
       keys: [],
+      direction: "stay",
+    };
+  // Choosing the gate branch must not make the route marker send a gate keeper
+  // away while another player is fetching the chapter's independent side key.
+  if (g.level === 38 && !g.keys.includes(1) && l.pads.some((pad) => isOnGatePad(p, pad)))
+    return {
+      step: tracker.index + 1,
+      total: route.length,
+      kind: "pads",
+      lesson: "gate",
+      title: g.gateOpen
+        ? ["门已开，再带回侧廊的钥匙", "Gate open; bring back the side-path key"]
+        : ["先踩板开闸也可以", "You can open the gate first"],
+      body: g.mode === 1
+        ? ["踩住四秒后门会保持打开。再回到岔口，跳上侧廊取钥；单人不需要同时守门。", "Hold for four seconds; the gate stays open. Return to the fork and fetch the side key. Solo never needs to hold both routes at once."]
+        : ["两位同伴各踩一块板，其他人可去右侧短台取钥。门开后就能离开踏板，在后面的许愿架集合。", "Two friends hold separate plates while others fetch the key on the right-hand ledges. Leave the plates once open and meet at the next rack."],
+      target: { ...p },
+      keys: [],
+      warning,
       direction: "stay",
     };
   return {

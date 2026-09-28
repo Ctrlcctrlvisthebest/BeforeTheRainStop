@@ -3,6 +3,7 @@ import {
   CAMPAIGN_VERSION,
   UNCHANGED_LEVELS_V6,
   REBUILT_LEVELS_V8,
+  REBUILT_LEVELS_V9,
 } from "./campaign-version";
 import { LEVELS, isMode, type Mode } from "./game";
 
@@ -27,5 +28,5 @@ export const validPlayerToken = (value: unknown): value is string =>
 export function boardName(level: number, mode: Mode) {
   if (!Number.isInteger(level) || !LEVELS[level] || !isMode(mode))
     throw new Error("关卡或人数无效");
-  return `v${REBUILT_LEVELS_V8.includes(level) ? 4 : UNCHANGED_LEVELS_V6.includes(level) ? 2 : BOARD_STORAGE_VERSION}:${mode}:${CHAPTER_STORAGE_SUFFIXES[level]}`;
+  return `v${REBUILT_LEVELS_V9.includes(level) ? 5 : REBUILT_LEVELS_V8.includes(level) ? 4 : UNCHANGED_LEVELS_V6.includes(level) ? 2 : BOARD_STORAGE_VERSION}:${mode}:${CHAPTER_STORAGE_SUFFIXES[level]}`;
 }

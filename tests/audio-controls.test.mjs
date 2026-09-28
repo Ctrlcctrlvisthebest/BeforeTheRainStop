@@ -14,6 +14,11 @@ const bundle = await build({
         const [language, setLanguage] = useState("zh");
         const audio = useGameAudio(false);
         return <><MusicControls audio={audio} language={language} />
+          <button id="start" onClick={() => audio.start()}>Start</button>
+          <button id="effect" onClick={() => audio.effect(660)}>Effect</button>
+          <button id="cue" onClick={() => audio.cue("bridge-ready")}>Cue</button>
+          <button id="zero-effects" onClick={() => audio.setEffectsVolume(0)}>Zero effects</button>
+          <button id="zero-music" onClick={() => audio.setVolume(0)}>Zero music</button>
           <button id="language" onClick={() => setLanguage(language === "zh" ? "en" : "zh")}>Language</button>
         </>;
       }
@@ -54,6 +59,8 @@ async function page(saved = {}) {
     defer: false,
     requests: [],
     fail: null,
+    tones: [],
+    contexts: [],
   };
   Object.defineProperty(w.HTMLMediaElement.prototype, "paused", {
     get() {
@@ -81,6 +88,50 @@ async function page(saved = {}) {
       );
     this.dispatchEvent(new w.Event("playing"));
     return Promise.resolve();
+  };
+  w.AudioContext = class {
+    state = "suspended";
+    currentTime = 0;
+    destination = {};
+    constructor() {
+      state.contexts.push(this);
+    }
+    resume() {
+      this.state = "running";
+      return Promise.resolve();
+    }
+    suspend() {
+      this.state = "suspended";
+      return Promise.resolve();
+    }
+    close() {
+      this.state = "closed";
+      return Promise.resolve();
+    }
+    createOscillator() {
+      const tone = {
+        frequency: {
+          setValueAtTime(value) {
+            tone.frequencyValue = value;
+          },
+          exponentialRampToValueAtTime() {},
+        },
+        connect() {},
+        disconnect() {},
+        start() {
+          state.tones.push(tone);
+        },
+        stop() {},
+      };
+      return tone;
+    }
+    createGain() {
+      return {
+        gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} },
+        connect() {},
+        disconnect() {},
+      };
+    }
   };
   w.eval(bundle.outputFiles[0].text);
   await settle();
@@ -310,6 +361,95 @@ test("an autoplay rejection leaves a working play button and remembers the selec
     await settle();
     assert.equal(p.playing(), true);
     assert.deepEqual(p.errors, []);
+  } finally {
+    p.close();
+  }
+});
+
+test("effects unlock and play with BGM disabled, and have an independent mute", async () => {
+  const p = await page({
+    "rain-music-enabled": false,
+    "rain-sfx-enabled": true,
+  });
+  try {
+    p.w.document.getElementById("start").click();
+    p.w.document.getElementById("effect").click();
+    assert.equal(p.state.tones.length, 1);
+    assert.equal(p.state.calls.filter(([kind]) => kind === "play").length, 0);
+    p.w.document.querySelector(".effects-toggle").click();
+    await settle();
+    p.w.document.getElementById("cue").click();
+    assert.equal(p.state.tones.length, 1);
+    assert.equal(p.w.localStorage.getItem("rain-sfx-enabled"), "false");
+    p.toggle();
+    await settle();
+    assert.equal(p.playing(), true);
+    p.w.document.getElementById("effect").click();
+    assert.equal(p.state.tones.length, 1);
+  } finally {
+    p.close();
+  }
+});
+
+test("old mute migrates once; effects volume, hidden page and return are independent of BGM", async () => {
+  const migrated = await page({
+    "rain-music-enabled": false,
+    "rain-music-volume": 23,
+  });
+  try {
+    assert.equal(migrated.w.localStorage.getItem("rain-sfx-enabled"), "false");
+    assert.equal(migrated.w.localStorage.getItem("rain-sfx-volume"), "23");
+  } finally {
+    migrated.close();
+  }
+  const p = await page({
+    "rain-music-enabled": false,
+    "rain-sfx-enabled": true,
+    "rain-sfx-volume": 45,
+  });
+  try {
+    p.w.document.getElementById("start").click();
+    Object.defineProperty(p.w.document, "hidden", {
+      configurable: true,
+      value: true,
+    });
+    p.w.document.dispatchEvent(new p.w.Event("visibilitychange"));
+    p.w.document.getElementById("effect").click();
+    assert.equal(p.state.tones.length, 0);
+    Object.defineProperty(p.w.document, "hidden", {
+      configurable: true,
+      value: false,
+    });
+    p.w.document.dispatchEvent(new p.w.Event("visibilitychange"));
+    p.w.document.getElementById("cue").click();
+    assert.equal(p.state.tones.length, 2);
+    assert.equal(p.state.calls.filter(([kind]) => kind === "play").length, 0);
+    assert.equal(
+      p.w.document.querySelector('input[aria-label="音效音量"]').value,
+      "45",
+    );
+  } finally {
+    p.close();
+  }
+});
+
+test("zero BGM volume leaves effects audible, and zero effects volume leaves BGM playing", async () => {
+  const p = await page();
+  try {
+    p.w.document.getElementById("start").click();
+    await settle();
+    p.w.document.getElementById("zero-music").click();
+    await settle();
+    p.w.document.getElementById("effect").click();
+    assert.equal(p.state.tones.length, 1);
+    assert.equal(p.w.localStorage.getItem("rain-music-volume"), "0");
+    assert.equal(p.w.localStorage.getItem("rain-sfx-volume"), "60");
+    p.w.document.getElementById("zero-effects").click();
+    await settle();
+    p.w.document.getElementById("effect").click();
+    assert.equal(p.state.tones.length, 1);
+    assert.equal(p.playing(), true);
+    assert.equal(p.w.localStorage.getItem("rain-sfx-volume"), "0");
   } finally {
     p.close();
   }

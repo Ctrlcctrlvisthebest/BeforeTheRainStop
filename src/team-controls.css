@@ -1,0 +1,52 @@
+.team-controls {
+  position: relative;
+  color: var(--paper, #e8e3d9);
+}
+.team-controls summary {
+  cursor: pointer;
+  padding: 10px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+.team-controls-panel {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 32;
+  width: min(320px, calc(100vw - 32px));
+  padding: 14px;
+  background: #263849;
+  border: 1px solid #81919c70;
+  display: grid;
+  gap: 10px;
+}
+.team-controls-panel p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.team-controls-panel button {
+  min-height: 44px;
+}
+.team-signal {
+  position: fixed;
+  top: 112px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 12;
+  max-width: 80vw;
+  padding: 8px 14px;
+  background: #263849;
+  color: #ead4ac;
+  pointer-events: none;
+  font-size: 15px;
+}
+.compact .team-controls-panel {
+  position: static;
+  width: 100%;
+}
+.compact .team-signal {
+  top: auto;
+  bottom: calc(var(--touch-height, 156px) + env(safe-area-inset-bottom) + 12px);
+}

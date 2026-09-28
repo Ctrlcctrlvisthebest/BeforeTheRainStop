@@ -1,0 +1,16 @@
+.app .tools .quality-control .rain-select-trigger {
+  width: auto;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 2px;
+  background: #203343d9;
+  color: var(--paper-light);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.app .tools .quality-control .rain-select-trigger:hover,
+.app .tools .quality-control .rain-select-trigger[aria-expanded="true"] {
+  background: var(--rain-blue);
+}

@@ -1,5 +1,5 @@
 // A geometry update changes replay compatibility and comparable records.
-export const CAMPAIGN_VERSION = 8;
+export const CAMPAIGN_VERSION = 9;
 // Zero-based chapter indices. Only wind wells (14) and ferry islands (15)
 // keep their exact pre-v6 terrain and mechanism layout.
 export const UNCHANGED_LEVELS_V6: readonly number[] = [13, 14];
@@ -11,3 +11,6 @@ export const V6_CAMPAIGN_LENGTH = 27;
 export const REBUILT_LEVELS_V8: readonly number[] = [
   28, 29, 31, 33, 34, 35, 39,
 ];
+
+// v9 redesign: chapter 38 action chain and chapter 39 cooperative rain routes.
+export const REBUILT_LEVELS_V9: readonly number[] = [37, 38];
