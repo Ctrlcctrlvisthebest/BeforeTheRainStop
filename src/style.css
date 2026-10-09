@@ -208,41 +208,6 @@ kbd {
   white-space: nowrap;
   color: #d4dce3;
 }
-.wish-tags {
-  display: flex;
-  gap: 17px;
-  width: 170px;
-  border-top: 2px solid #8e7355;
-  margin-top: 24px;
-  padding: 0 14px;
-}
-.wish-tags i {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 33px;
-  height: 37px;
-  background: linear-gradient(115deg, #b59265, #967b59);
-  color: #483d33;
-  font-size: 18px;
-  font-style: normal;
-  clip-path: polygon(50% 0, 100% 22%, 100% 100%, 0 100%, 0 22%);
-  margin-top: 18px;
-  transform: rotate(-4deg);
-  box-shadow: 0 10px 15px #0003;
-}
-.wish-tags i:before {
-  content: "";
-  position: absolute;
-  width: 2px;
-  height: 20px;
-  background: #dab78e;
-  top: 0;
-}
-.wish-tags i:nth-child(2) {
-  transform: rotate(5deg);
-  margin-top: 29px;
-}
 .panel {
   position: relative;
   color: var(--ink);
@@ -1102,14 +1067,6 @@ footer span {
   .intro-controls {
     display: none;
   }
-  .wish-tags {
-    position: absolute;
-    right: 0;
-    bottom: -10px;
-    transform: scale(0.7);
-    transform-origin: bottom right;
-    opacity: 0.55;
-  }
   .menu {
     margin: 48px 24px 90px;
     width: auto;
@@ -1486,70 +1443,6 @@ footer span {
   }
 }
 
-.bridge-hud {
-  position: absolute;
-  top: 156px;
-  left: 320px;
-  max-width: min(480px, calc(100vw - 560px));
-  padding: 11px 15px;
-  border-left: 2px solid #d2ab70;
-  background: #172637e8;
-  pointer-events: none;
-  font-size: 12px;
-  color: #e3c699;
-}
-.bridge-hud b {
-  font-weight: 500;
-}
-.bridge-hud p {
-  margin: 6px 0 8px;
-  color: #c4cbd1;
-  font-size: 11px;
-  line-height: 1.6;
-}
-.bridge-track {
-  height: 3px;
-  background: #d3b98622;
-}
-.bridge-track i {
-  display: block;
-  height: 100%;
-  background: #e7c28a;
-  transition: width 0.1s linear;
-}
-.bridge-hud.complete {
-  padding-block: 7px;
-  opacity: 0.7;
-}
-@media (max-width: 850px) {
-  .bridge-hud {
-    top: 192px;
-    left: 282px;
-    max-width: calc(100vw - 310px);
-    font-size: 11px;
-  }
-}
-@media (max-width: 650px) {
-  .bridge-hud {
-    top: auto;
-    bottom: 162px;
-    left: 16px;
-    max-width: calc(100vw - 32px);
-  }
-}
-@media (max-height: 520px) and (orientation: landscape) {
-  .bridge-hud {
-    top: 156px;
-    left: 310px;
-    max-width: calc(100vw - 540px);
-    padding: 6px 10px;
-  }
-  .bridge-hud p {
-    font-size: 10px;
-    margin: 3px 0;
-  }
-}
-
 .heat-condition {
   margin: 10px 0 0;
   padding-top: 10px;
@@ -1633,11 +1526,6 @@ footer span {
 .failure-notice small {
   display: block;
   margin-top: 7px;
-}
-.save-rule {
-  border-left: 2px solid #d5b776;
-  padding-left: 12px;
-  color: #dfc796 !important;
 }
 @media (max-width: 850px) {
   .carry-hud {

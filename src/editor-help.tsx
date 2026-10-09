@@ -120,7 +120,7 @@ export const TOOL_HELP: Partial<
   },
 };
 
-export function BridgeDiagram() {
+function BridgeDiagram() {
   return (
     <svg
       className="help-diagram"

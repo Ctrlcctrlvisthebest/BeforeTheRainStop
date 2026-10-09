@@ -255,25 +255,30 @@ TEST_SERVER=https://before-the-rain-rooms-github.zoeli2010xl.workers.dev npm run
 
 - `src/game.ts`：确定性 60 Hz 物理、收集/失败判定与前四关。
 - `src/chapters.ts`：第五至八关的手工路线、收集物、存档点与天气。
-- `src/maps/*.json`、`src/challenge-maps.ts`：第九至二十七关的完整地图文件与统一注册。
-- `editor.html`、`src/editor*.tsx`、`src/editor-model.ts`：独立搭建界面、地图操作和共用引擎试玩。
+- `src/maps/*.json`、`src/challenge-maps.ts`：第九至四十关的完整地图文件与统一注册。
+- `editor.html`、`src/editor.tsx`、`src/editor-inspector.tsx`、`src/editor-model.ts`、`src/editor-preview.tsx`：搭建界面、属性面板、地图操作和共用引擎试玩。
 - `src/map-format.ts`、`MAP_FORMAT.md`：地图格式、校验器与接入说明。
 - `src/collectibles.ts`：物品归属、存档、死亡回滚与旧房间迁移。
 - `src/weather.ts`：雨区、檐亭、小火堆、烘干与降温参数。
 - `src/fire-scene.ts`：石圈、木柴、火焰、火星与烘烤范围圈。
 - `src/scene.ts`：Three.js 纸鹤、平台、光照、相机旋转与动画。
-- `src/main.tsx`、`src/style.css`：大厅、操作、HUD、触屏按键、结算。
-- `src/guide.ts`：二十七关目标步骤、方向提示、存档回退与情境提示。
+- `src/main.tsx`、`src/style.css`、`src/mobile.css`：大厅、界面组合、触屏按键、结算。
+- `src/game-runtime.ts`、`src/preview-clock.ts`：游戏与试玩生命周期、输入和模拟时钟。
+- `src/game-status.tsx`、`src/route-map.tsx`：状态展示和路线图。
+- `src/guide.ts`：四十关目标步骤、方向提示、存档回退与情境提示。
 - `src/guide-ui.tsx`：当前目标卡、通关目标和七类双语玩法图解。
 - `src/i18n.ts`：中文、英文界面和路牌翻译。
 - `src/audio.tsx`：背景音乐、音量、后台暂停和音效。
 - `src/api.ts`：房间请求、WebSocket 与自动重连。
+- `src/room-session.ts`、`src/room-protocol.ts`、`src/regroup.ts`：房间会话、服务消息类型与重组规则。
 - `src/room.ts`：人数、权限、加入与投票。
 - `server/worker.ts`：房间路由、权威模拟、SQLite 存档与过期回收。
-- `tests/journey.ts`、`tests/chapter-journeys.ts`、`tests/storm-journeys.ts`：使用正常输入完成二十七关的自动化路线。
+- `tests/journey.ts`、`tests/chapter-journeys.ts`、`tests/storm-journeys.ts`：使用正常输入完成四十关的自动化路线。
 - `.github/workflows/pages.yml`：Pages 自动发布。
 
 几何纸鹤、平台和音效由代码生成；没有复用 SpriteQuest 或 PICO PARK 的关卡、美术或音频。字体为 Google Fonts Noto 系列，有系统字体回退。
+
+后续开发遵循 [AGENTS.md](AGENTS.md) 中的模块职责、类型约束与简洁实现要求。2.14.1 的修复、重构和回档信息见 [发布记录](docs/release-2.14.1.md)。
 
 ### GitHub 40 关发布配置
 

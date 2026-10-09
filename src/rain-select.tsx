@@ -195,7 +195,6 @@ export function RainSelect({
         title={title}
         onClick={() => (open ? setOpen(false) : expand())}
         onKeyDown={keyDown}
-        onKeyUp={(event) => event.stopPropagation()}
         onBlur={(event) => {
           if (!root.current?.contains(event.relatedTarget)) setOpen(false);
         }}

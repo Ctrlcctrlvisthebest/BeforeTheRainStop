@@ -13,6 +13,7 @@ import { stabilizeTerrain, styleTerrainDepth } from "./terrain-scene";
 import { TerrainEdges, topOutline } from "./terrain-edges";
 import { translate, type Language } from "./i18n";
 import { touchCopy } from "./mobile";
+import { textSprite, writeSpriteText } from "./scene-text";
 import {
   CROSSINGS,
   bankPoint,
@@ -149,29 +150,6 @@ function paperBird(color: string): THREE.Group {
     if (o instanceof THREE.Mesh) o.castShadow = true;
   });
   return group;
-}
-function textSprite(text: string, color = "#d6d9dc", scale = 1): THREE.Sprite {
-  const canvas = document.createElement("canvas");
-  canvas.width = 640;
-  canvas.height = 96;
-  const ctx = canvas.getContext("2d")!;
-  ctx.font = '500 32px "PingFang SC", sans-serif';
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillStyle = color;
-  ctx.fillText(text, 320, 48);
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  const sprite = new THREE.Sprite(
-    new THREE.SpriteMaterial({
-      map: tex,
-      transparent: true,
-      depthTest: true,
-      depthWrite: false,
-    }),
-  );
-  sprite.scale.set(6.4 * scale, 0.96 * scale, 1);
-  return sprite;
 }
 function box(
   w: number,
@@ -475,6 +453,15 @@ export class PaperScene {
   private gameId = "";
   private language: Language = "zh";
   private compact = false;
+  private textLabels: {
+    sprite: THREE.Sprite;
+    source: string;
+    color: string;
+    shorten: boolean;
+  }[] = [];
+  private disposed = false;
+  private preparationRevision = 0;
+  private preparationWaiters = new Map<number, (active: boolean) => void>();
   private wishes: THREE.Object3D[] = [];
   private labels: THREE.Object3D[] = [];
   private movingPlatforms: Platform[] = [];
@@ -490,6 +477,26 @@ export class PaperScene {
     const translated = translate(this.language, editionCopy(text));
     return this.compact ? touchCopy(translated, this.language) : translated;
   }
+  private label(source: string, color = "#d6d9dc", scale = 1, shorten = true) {
+    const sprite = textSprite(
+      shorten ? this.text(source) : translate(this.language, source),
+      color,
+      scale,
+    );
+    this.textLabels.push({ sprite, source, color, shorten });
+    return sprite;
+  }
+  private presentation(language: Language, compact: boolean) {
+    if (language === this.language && compact === this.compact) return;
+    this.language = language;
+    this.compact = compact;
+    for (const { sprite, source, color, shorten } of this.textLabels)
+      writeSpriteText(
+        sprite,
+        shorten ? this.text(source) : translate(language, source),
+        color,
+      );
+  }
   constructor(canvas: HTMLCanvasElement, options: SceneOptions = {}) {
     this.renderer = new THREE.WebGLRenderer({
       canvas,
@@ -500,6 +507,7 @@ export class PaperScene {
     this.coarsePointer = matchMedia("(pointer: coarse)").matches;
     this.quality = new AdaptiveQuality(options.quality);
     this.contextRecovery = new ContextRecovery(canvas, (status) => {
+      this.interruptPreparation();
       this.quality.resetObservation();
       options.onContextStatus?.(status);
     });
@@ -535,9 +543,6 @@ export class PaperScene {
     });
     this.resize.observe(canvas);
   }
-  get qualityTier() {
-    return this.quality.tier;
-  }
   setQuality(mode: QualityMode) {
     if (this.quality.select(mode)) this.applyQuality();
   }
@@ -565,6 +570,7 @@ export class PaperScene {
     this.quality.resetObservation();
     disposeObjectTree(this.root);
     this.root.clear();
+    this.textLabels = [];
     this.sceneryOcclusion.clear();
     this.mechanismCards.clear();
     this.bridgeSockets = [];
@@ -614,7 +620,7 @@ export class PaperScene {
       // Show the corridor as a cutaway: its solid upper walls are out of play.
       const corridor = b.kind === "low-roof" || b.kind === "railing";
       const node = slab(
-        platformVisual(b),
+        visualBodies[index],
         corridor
           ? "#766452"
           : b.kind === "wall"
@@ -675,12 +681,10 @@ export class PaperScene {
       );
       this.crossingPad.position.set(far.x, far.y + 0.08, far.z);
       this.root.add(this.crossingPad);
-      this.crossingLabel = textSprite(
-        this.text(
-          g.mode === 1
-            ? "按住 Shift 2 秒 · 自动接桥"
-            : "过桥后踩住 2 秒 · 接应搭桥的人",
-        ),
+      this.crossingLabel = this.label(
+        g.mode === 1
+          ? "按住 Shift 2 秒 · 自动接桥"
+          : "过桥后踩住 2 秒 · 接应搭桥的人",
         "#eac58e",
         0.62,
       );
@@ -718,11 +722,7 @@ export class PaperScene {
         l.platforms.length + 1,
       );
       this.root.add(this.gate);
-      this.gateLabel = textSprite(
-        this.text("挡路闸门 · 踩踏板移开"),
-        "#eac58e",
-        0.5,
-      );
+      this.gateLabel = this.label("挡路闸门 · 踩踏板移开", "#eac58e", 0.5);
       this.gateLabel.position.set(l.gate.x, l.gate.y + 0.65, l.gate.z);
       this.root.add(this.gateLabel);
     } else {
@@ -757,7 +757,7 @@ export class PaperScene {
       this.stars.push(node);
     });
     l.signs.forEach((k) => {
-      const sprite = textSprite(this.text(k.text ?? ""));
+      const sprite = this.label(k.text ?? "");
       sprite.position.set(k.x, k.y + 2, k.z);
       this.signs.push(sprite);
       this.root.add(sprite);
@@ -771,7 +771,7 @@ export class PaperScene {
     [l.spawn, ...l.checkpoints].forEach((k) => {
       const group = wishingRack(1.55, 1.75);
       group.position.set(k.x, k.y, k.z - 1.05);
-      const title = textSprite(this.text("许愿架 · F 修补"), "#e5bd81", 0.55);
+      const title = this.label("许愿架 · F 修补", "#e5bd81", 0.55);
       title.position.set(k.x, k.y + 2.25, k.z - 1.05);
       title.name = "awning-label";
       this.root.add(group, title);
@@ -782,8 +782,8 @@ export class PaperScene {
       group.position.set(k.x, k.y, k.z);
       this.hazards.push(group);
       this.root.add(group);
-      const label = textSprite(
-        this.text(k.period ? "间歇旺火 · 看准熄火空档" : "旺火 · 碰到即烧毁"),
+      const label = this.label(
+        k.period ? "间歇旺火 · 看准熄火空档" : "旺火 · 碰到即烧毁",
         "#ffb08b",
         0.58,
       );
@@ -813,11 +813,7 @@ export class PaperScene {
     );
     door.position.y = 2.12;
     door.name = "glow";
-    const doorText = textSprite(
-      translate(this.language, "一起到家"),
-      "#e7c183",
-      0.65,
-    );
+    const doorText = this.label("一起到家", "#e7c183", 0.65, false);
     doorText.name = "exit-label";
     doorText.position.y = 3.15;
     // Keep the open timber gateway, with a yellow glow once all keys are found.
@@ -959,11 +955,7 @@ export class PaperScene {
       canopy.add(lantern);
       this.root.add(canopy);
       this.sceneryOcclusion.add(canopy);
-      const title = textSprite(
-        translate(this.language, "小火烤干 · 勿久留"),
-        "#bcc9d7",
-        0.5,
-      );
+      const title = this.label("小火烤干 · 勿久留", "#bcc9d7", 0.5, false);
       title.name = "awning-label";
       title.position.set(a.x, a.y + 0.5, a.z);
       this.root.add(title);
@@ -1011,9 +1003,8 @@ export class PaperScene {
     const fixedCovers: RainCover[] = [
       ...WEATHER[g.level].awnings.map((a) => ({ ...a, top: a.y + 0.05 })),
       ...(BLAZE_ROOFS[g.level] ?? []).map((a) => ({ ...a, top: a.y + 0.05 })),
-      ...l.platforms
+      ...visualBodies
         .filter((p) => !p.motion)
-        .map(platformVisual)
         .map((p) => ({ ...p, top: p.y + 0.02 })),
     ];
     this.rain = new RainCurtain(WEATHER[g.level], fixedCovers);
@@ -1045,6 +1036,54 @@ export class PaperScene {
     );
     this.initialized = false;
   }
+  private preparationFrame() {
+    return new Promise<boolean>((resolve) => {
+      const frame = requestAnimationFrame(() => {
+        this.preparationWaiters.delete(frame);
+        resolve(true);
+      });
+      this.preparationWaiters.set(frame, resolve);
+    });
+  }
+  private interruptPreparation() {
+    this.preparationRevision++;
+    for (const [frame, resolve] of this.preparationWaiters) {
+      cancelAnimationFrame(frame);
+      resolve(false);
+    }
+    this.preparationWaiters.clear();
+  }
+  /** Build and compile before the simulation begins. The warm draw uploads
+   * geometry/textures and shadow targets while the loading state is still shown.
+   * No game clocks advance; a cancelled preparation never draws into a new run. */
+  async prepare(
+    g: Game,
+    local: number,
+    preview = false,
+    language: Language = "zh",
+    guideTarget?: Point,
+    compact = false,
+  ): Promise<boolean> {
+    if (this.disposed || this.contextRecovery.lost) return false;
+    this.interruptPreparation();
+    const revision = this.preparationRevision;
+    const active = () =>
+      !this.disposed &&
+      !this.contextRecovery.lost &&
+      revision === this.preparationRevision;
+    // Yield before costly construction so the loading UI gets a frame.
+    if (!(await this.preparationFrame()) || !active()) return false;
+    if (!this.updateScene(g, local, 0, preview, language, guideTarget, compact))
+      return false;
+    // compileAsync polls Three's material cache after context restoration has
+    // replaced that cache. Use the synchronous compiler while loading instead
+    // so loss/teardown cannot leave a thrown callback and unresolved Promise.
+    this.renderer.compile(this.scene, this.camera);
+    if (!(await this.preparationFrame()) || !active()) return false;
+    this.renderer.render(this.scene, this.camera);
+    this.quality.resetObservation();
+    return true;
+  }
   render(
     g: Game,
     local: number,
@@ -1054,17 +1093,21 @@ export class PaperScene {
     guideTarget?: Point,
     compact = false,
   ) {
-    if (this.contextRecovery.lost) return;
-    if (
-      g.level !== this.level ||
-      g.mode !== this.count ||
-      language !== this.language ||
-      compact !== this.compact
-    ) {
-      this.language = language;
-      this.compact = compact;
-      this.build(g);
-    }
+    if (this.updateScene(g, local, dt, preview, language, guideTarget, compact))
+      this.renderer.render(this.scene, this.camera);
+  }
+  private updateScene(
+    g: Game,
+    local: number,
+    dt: number,
+    preview = false,
+    language: Language = "zh",
+    guideTarget?: Point,
+    compact = false,
+  ) {
+    if (this.disposed || this.contextRecovery.lost) return false;
+    this.presentation(language, compact);
+    if (g.level !== this.level || g.mode !== this.count) this.build(g);
     if (this.gameId !== g.id) {
       this.gameId = g.id;
       this.initialized = false;
@@ -1454,12 +1497,16 @@ export class PaperScene {
       this.scratch.subVectors(this.camera.position, this.target),
       preview ? 1 : dt,
     );
-    this.renderer.render(this.scene, this.camera);
+    return true;
   }
   dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.interruptPreparation();
     this.contextRecovery?.dispose();
     this.resize.disconnect();
     disposeObjectTree(this.scene);
+    this.textLabels = [];
     this.renderer.dispose();
   }
 }

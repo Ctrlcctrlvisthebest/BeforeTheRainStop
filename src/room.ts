@@ -2,7 +2,8 @@ import { timingSafeEqual } from "node:crypto";
 import { Buffer } from "node:buffer";
 import { isMode, newGame, LEVELS, type Mode, type Game } from "./game";
 import { requirePlayerName, publicPlayerName } from "../server/name-policy";
-export interface Player {
+import { regroupStatus } from "./regroup";
+interface Player {
   slot: number;
   name: string;
   token: string;
@@ -29,6 +30,7 @@ export interface Room {
 }
 export type PublicRoom = Omit<Room, "players"> & {
   players: Omit<Player, "token" | "rankKey">[];
+  serverTime?: number;
 };
 export const LIFE = 24 * 60 * 60 * 1000;
 export class RoomError extends Error {
@@ -75,13 +77,39 @@ export function makeRoom(
   };
 }
 export function publicRoom(room: Room): PublicRoom {
+  const now = Date.now();
+  const { players, ...state } = room;
   return {
-    ...structuredClone(room),
-    players: room.players.map(({ token: _token, rankKey: _rankKey, ...p }) => ({
+    ...structuredClone(state),
+    serverTime: now,
+    regroupVotes: regroupStatus(room, now).votes,
+    players: players.map(({ token: _token, rankKey: _rankKey, ...p }) => ({
       ...p,
       name: publicPlayerName(p.name),
     })),
   };
+}
+/** Recheck consent at the moment the grace period ends. This is also called
+ * after membership changes, so an already unanimous vote cannot get stuck. */
+export function advanceRegroup(room: Room, now: number): Room {
+  const status = regroupStatus(room, now);
+  if (!status.unanimous || status.remainingMs > 0 || now >= room.expiresAt)
+    return room;
+  const r = structuredClone(room);
+  // A finished chapter stays finished; an unfinished run starts fresh after
+  // replacement players join. Never rank a run with mixed membership.
+  if (r.game!.status === "won" && r.level < LEVELS.length - 1) r.level++;
+  r.players = r.players.filter((p) => p.online);
+  if (!r.players.some((p) => p.slot === r.host)) r.host = r.players[0].slot;
+  r.game = null;
+  r.phase = "lobby";
+  r.votes = [];
+  r.voteNext = null;
+  delete r.regroupVotes;
+  delete r.rankingStatus;
+  delete r.turnNotice;
+  r.revision++;
+  return r;
 }
 export function authenticate(room: Room, token: string): Player {
   const supplied = Buffer.from(token);
@@ -124,7 +152,7 @@ export function command(
   now: number,
   id: string,
 ): Room {
-  const r = structuredClone(room);
+  let r = structuredClone(room);
   const p = authenticate(r, token);
   p.lastSeen = now;
   if (body.type === "start") {
@@ -143,29 +171,20 @@ export function command(
     if (r.phase !== "game" || !r.game || body.gameId !== r.game.id)
       throw new RoomError("关卡已经更新", 409);
     if (!p.online) throw new RoomError("请连接房间后再操作", 409);
-    if (r.players.some((x) => !x.online && now - x.lastSeen < 15000))
-      throw new RoomError("请先给掉线同伴 15 秒重连时间", 409);
-    const online = r.players.filter((x) => x.online);
-    r.regroupVotes = (r.regroupVotes ?? []).filter((slot) =>
-      online.some((x) => x.slot === slot),
-    );
+    r.regroupVotes = regroupStatus(r, now).votes;
     if (!r.regroupVotes.includes(p.slot)) r.regroupVotes.push(p.slot);
-    if (online.every((x) => r.regroupVotes!.includes(x.slot))) {
-      // A finished chapter stays finished; an unfinished run restarts fairly
-      // after replacement players join. Never rank a mixed-membership run.
-      if (r.game.status === "won" && r.level < LEVELS.length - 1) r.level++;
-      r.players = online;
-      if (!online.some((x) => x.slot === r.host)) r.host = online[0].slot;
-      r.game = null;
-      r.phase = "lobby";
-      r.votes = [];
-      r.voteNext = null;
-      delete r.regroupVotes;
-      delete r.rankingStatus;
-      delete r.turnNotice;
-    }
+    r = advanceRegroup(r, now);
   } else if (body.type === "cancel-regroup") {
-    r.regroupVotes = (r.regroupVotes ?? []).filter((slot) => slot !== p.slot);
+    if (
+      r.phase !== "game" ||
+      !r.game ||
+      (body.gameId !== undefined && body.gameId !== r.game.id) ||
+      !p.online
+    )
+      throw new RoomError("关卡已经更新", 409);
+    r.regroupVotes = regroupStatus(r, now).votes.filter(
+      (slot) => slot !== p.slot,
+    );
   } else if (body.type === "turn-signal") {
     if (r.phase !== "game" || !r.game || body.gameId !== r.game.id || !p.online)
       throw new RoomError("关卡已经更新", 409);

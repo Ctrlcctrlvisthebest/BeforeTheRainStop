@@ -3,6 +3,7 @@ import { CAMPAIGN_VERSION } from "../src/campaign-version";
 import { DurableObject } from "cloudflare:workers";
 import {
   authenticate,
+  advanceRegroup,
   command,
   joinRoom,
   LIFE,
@@ -10,8 +11,14 @@ import {
   publicRoom,
   RoomError,
   type Room,
-  type PublicRoom,
 } from "../src/room";
+import { regroupStatus } from "../src/regroup";
+import type {
+  RoomServerMessage,
+  RoomResult,
+  RoomEntryResult,
+  RoomFailure,
+} from "../src/room-protocol";
 import { cleanInput, idleInput, stepGame, type Inputs } from "../src/game";
 import {
   boardName,
@@ -34,7 +41,7 @@ async function rankIdentity(token: unknown) {
 }
 interface Reply {
   status: number;
-  data: { room?: PublicRoom; token?: string; slot?: number; error?: string };
+  data: RoomResult | RoomEntryResult | RoomFailure;
 }
 interface Attachment {
   slot: number;
@@ -66,6 +73,8 @@ export class RainRoom extends DurableObject<Env> {
         this.room.phase = "lobby";
         this.room.votes = [];
         this.room.voteNext = null;
+        delete this.room.regroupVotes;
+        delete this.room.turnNotice;
         delete this.room.rankingStatus;
         this.room.revision++;
         this.save(this.room);
@@ -83,13 +92,16 @@ export class RainRoom extends DurableObject<Env> {
                 )?.slot,
             ),
         );
-        for (const player of this.room.players)
+        for (const player of this.room.players) {
+          if (player.online && !online.has(player.slot))
+            player.lastSeen = Date.now();
           player.online = online.has(player.slot);
+        }
+        if (this.room.regroupVotes)
+          this.room.regroupVotes = regroupStatus(this.room, Date.now()).votes;
+        this.save(this.room);
       }
-      if (this.hasPendingScores())
-        await this.ctx.storage.setAlarm(Date.now() + 1000);
-      else if ((await this.ctx.storage.getAlarm()) === null)
-        await this.ctx.storage.setAlarm(Date.now() + LIFE);
+      await this.scheduleAlarm(1000);
     });
   }
   private hasPendingScores() {
@@ -185,16 +197,27 @@ export class RainRoom extends DurableObject<Env> {
         break;
       }
     }
-    // Share the room's single alarm between expiry and durable score retries.
+    await this.scheduleAlarm();
+  }
+  private async scheduleAlarm(scoreRetryDelay = 60000) {
+    // One DO alarm serves all deadlines. Retain earlier pending-score retries
+    // when a vote/reconnection changes the regroup deadline.
+    const previous = await this.ctx.storage.getAlarm();
     const now = Date.now();
-    const expiresAt = this.room?.expiresAt ?? now + LIFE;
-    await this.ctx.storage.setAlarm(
-      this.hasPendingScores()
-        ? expiresAt > now
-          ? Math.min(now + 60000, expiresAt)
-          : now + 60000
-        : Math.max(now + 1000, expiresAt),
-    );
+    const pending = this.hasPendingScores();
+    const expiry = this.room?.expiresAt ?? now + LIFE;
+    let due = expiry > now ? expiry : pending ? now + scoreRetryDelay : now + 1;
+    if (pending) {
+      due = Math.min(due, now + scoreRetryDelay);
+      if (expiry > now && previous !== null && previous > now)
+        due = Math.min(due, previous);
+    }
+    if (this.room && now < expiry) {
+      const status = regroupStatus(this.room, now);
+      if (status.unanimous)
+        due = Math.min(due, Math.max(now + 1, status.reconnectUntil));
+    }
+    await this.ctx.storage.setAlarm(due);
   }
   private save(room: Room): void {
     this.ctx.storage.sql.exec(
@@ -226,8 +249,12 @@ export class RainRoom extends DurableObject<Env> {
     body: Record<string, unknown>,
     now: number,
   ) {
+    const next = command(this.room!, token, body, now, crypto.randomUUID());
+    this.applyRoom(next);
+    return next;
+  }
+  private applyRoom(next: Room) {
     const previous = this.room!;
-    const next = command(previous, token, body, now, crypto.randomUUID());
     if (next.game?.id !== previous.game?.id) this.inputs = {};
     for (const player of previous.players) {
       if (!next.players.some((p) => p.slot === player.slot))
@@ -242,15 +269,14 @@ export class RainRoom extends DurableObject<Env> {
     this.save(next);
     this.broadcast();
     this.run();
-    return next;
+    this.ctx.waitUntil(this.scheduleAlarm());
   }
   private packet() {
     return JSON.stringify({
       type: "state",
       room: publicRoom(this.room!),
       inputs: this.inputs,
-      serverTime: Date.now(),
-    });
+    } satisfies RoomServerMessage);
   }
   private broadcast(): void {
     if (!this.room) return;
@@ -321,7 +347,7 @@ export class RainRoom extends DurableObject<Env> {
         r = makeRoom(code, body.capacity, body.level, body.name, secret, now);
         r.players[0].rankKey = rankKey;
         this.save(r);
-        await this.ctx.storage.setAlarm(now + LIFE);
+        await this.scheduleAlarm();
         return {
           status: 201,
           data: { room: publicRoom(r), token: secret, slot: 0 },
@@ -429,6 +455,7 @@ export class RainRoom extends DurableObject<Env> {
         this.save(r);
         this.broadcast();
         this.run();
+        this.ctx.waitUntil(this.scheduleAlarm());
         return;
       }
       if (a.slot < 0) throw new RoomError("请先认证");
@@ -495,11 +522,14 @@ export class RainRoom extends DurableObject<Env> {
     if (p?.online) {
       p.online = false;
       p.lastSeen = Date.now();
+      if (this.room.regroupVotes)
+        this.room.regroupVotes = regroupStatus(this.room, p.lastSeen).votes;
       this.inputs[a.slot] = idleInput();
       this.room.revision++;
       this.stop();
       this.save(this.room);
       this.broadcast();
+      this.ctx.waitUntil(this.scheduleAlarm());
     }
   }
   webSocketClose(ws: WebSocket): void {
@@ -510,13 +540,16 @@ export class RainRoom extends DurableObject<Env> {
     this.disconnected(ws);
   }
   async alarm(): Promise<void> {
+    // Re-read the current votes/connection states, including cancellations and
+    // reconnects that arrived during the grace period. Apply before awaiting
+    // ranking I/O so an external leaderboard cannot delay room recovery.
+    if (this.room) {
+      const next = advanceRegroup(this.room, Date.now());
+      if (next !== this.room) this.applyRoom(next);
+    }
     if (this.hasPendingScores()) await this.publishScores();
     if (this.room && Date.now() < this.room.expiresAt) {
-      await this.ctx.storage.setAlarm(
-        this.hasPendingScores()
-          ? Math.min(Date.now() + 60000, this.room.expiresAt)
-          : this.room.expiresAt,
-      );
+      await this.scheduleAlarm();
       return;
     }
     this.stop();

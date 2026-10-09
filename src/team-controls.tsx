@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { PublicRoom } from "./room";
 import type { Language } from "./i18n";
+import { regroupStatus } from "./regroup";
 
 export function TeamControls({
   room,
@@ -17,7 +18,21 @@ export function TeamControls({
 }) {
   const en = language === "en";
   const [confirm, setConfirm] = useState(false);
-  const voted = room.regroupVotes?.includes(slot);
+  const [now, setNow] = useState(room.serverTime ?? Date.now());
+  useEffect(() => {
+    const serverNow = room.serverTime ?? Date.now();
+    const receivedAt = performance.now();
+    setNow(serverNow);
+    if (room.phase !== "game" || room.players.every((p) => p.online)) return;
+    const timer = setInterval(
+      () => setNow(serverNow + performance.now() - receivedAt),
+      250,
+    );
+    return () => clearInterval(timer);
+  }, [room.serverTime, room.phase, room.players]);
+  const status = regroupStatus(room, now);
+  const voted = status.votes.includes(slot);
+  const seconds = Math.ceil(status.remainingMs / 1000);
   useEffect(() => setConfirm(false), [room.game?.id, room.phase]);
   if (room.phase !== "game" || !room.game) return null;
   return (
@@ -32,8 +47,8 @@ export function TeamControls({
         </button>
         <p>
           {en
-            ? "Regroup after everyone online agrees. Disconnected seats are released after a 15-second reconnection window."
-            : "在线同伴一致同意后回候场。掉线同伴有 15 秒重连时间，之后可释放座位邀请替补。"}
+            ? "Everyone online must agree. You can vote during the 15-second reconnection window; regrouping happens automatically when it ends."
+            : "在线同伴需要一致同意。掉线后会等待 15 秒重连；等待期间可以投票，时间结束后自动回候场重组。"}
         </p>
         <p>
           {en
@@ -41,14 +56,29 @@ export function TeamControls({
             : "保留当前关卡；未完成的本关从头开始，已经完成的关卡和成绩保留。"}
         </p>
         <span role="status">
-          {room.regroupVotes?.length ?? 0} /{" "}
-          {room.players.filter((p) => p.online).length}{" "}
-          {en ? "agree" : "人同意"}
+          {status.votes.length} / {status.onlineCount} {en ? "agree" : "人同意"}
         </span>
+        {seconds > 0 ? (
+          <p role="status">
+            {en
+              ? `Reconnection window: ${seconds}s${status.unanimous ? "; regrouping follows automatically." : "."}`
+              : `等待同伴重连：${seconds} 秒${status.unanimous ? "；结束后自动回候场。" : "。"}`}
+          </p>
+        ) : (
+          status.unanimous && (
+            <p role="status">
+              {en
+                ? "Everyone agrees. Returning to lobby…"
+                : "同伴已同意，正在回候场…"}
+            </p>
+          )
+        )}
         {voted ? (
           <button
             disabled={!connected}
-            onClick={() => send({ type: "cancel-regroup" })}
+            onClick={() =>
+              send({ type: "cancel-regroup", gameId: room.game!.id })
+            }
           >
             {en ? "Cancel my vote" : "撤回我的同意"}
           </button>

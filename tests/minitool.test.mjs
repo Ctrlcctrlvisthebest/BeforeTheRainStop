@@ -40,7 +40,7 @@ const bundle = await build({
           namespace: "test",
         }));
         b.onLoad({ filter: /.*/, namespace: "test" }, () => ({
-          contents: `export const warmScene=()=>{}; export const loadScene=async()=>({PaperScene:class{setQuality(){}observeFrame(){}render(g){window.testGame=g;window.testFrames=(window.testFrames||0)+1;}dispose(){}}});`,
+          contents: `export const warmScene=()=>{}; export const loadScene=async()=>({PaperScene:class{setQuality(){}async prepare(){return true;}observeFrame(){}render(g){window.testGame=g;window.testFrames=(window.testFrames||0)+1;}dispose(){}}});`,
         }));
       },
     },

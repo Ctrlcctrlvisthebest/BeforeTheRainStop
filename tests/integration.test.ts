@@ -815,7 +815,6 @@ test("disconnected host can be replaced after consensual regroup without stale-s
     await until(() => guest.room?.turnNotice?.slot === 1, "turn signal");
     host.ws.close();
     await until(() => guest.room?.players[0].online === false, "host offline");
-    await new Promise((r) => setTimeout(r, 15200));
     guest.ws.send(
       JSON.stringify({
         type: "command",
@@ -823,6 +822,12 @@ test("disconnected host can be replaced after consensual regroup without stale-s
         command: { type: "regroup", gameId },
       }),
     );
+    await until(
+      () => guest.room?.regroupVotes?.includes(1) === true,
+      "consent accepted during reconnection grace",
+    );
+    assert.equal(guest.room!.phase, "game");
+    await new Promise((r) => setTimeout(r, 15200));
     await until(() => guest.room?.phase === "lobby", "regroup lobby");
     assert.equal(guest.room!.host, 1);
     assert.equal(guest.room!.level, 1);
@@ -855,5 +860,67 @@ test("disconnected host can be replaced after consensual regroup without stale-s
     host.ws.close();
     guest.ws.close();
     replacement?.ws.close();
+  }
+});
+
+test("existing unanimous online votes automatically regroup after a nonvoting teammate disconnects", async () => {
+  const created = await post("/rooms", { capacity: 3, level: 2, name: "host" });
+  const first = await post(`/rooms/${created.room.code}/join`, {
+    name: "first",
+  });
+  const second = await post(`/rooms/${created.room.code}/join`, {
+    name: "second",
+  });
+  const peers = [created.token, first.token, second.token].map((token) =>
+    peer(created.room.code, token),
+  );
+  const [host, guest, departing] = peers;
+  const send = (client: typeof host, command: Record<string, unknown>) =>
+    client.ws.send(
+      JSON.stringify({ type: "command", version: CAMPAIGN_VERSION, command }),
+    );
+  try {
+    await until(
+      () => !!host.room?.players.every((p) => p.online),
+      "three connected",
+    );
+    send(host, { type: "start" });
+    await until(() => !!guest.room?.game, "three started");
+    const gameId = guest.room!.game!.id;
+    send(host, { type: "regroup", gameId });
+    send(guest, { type: "regroup", gameId });
+    await until(
+      () => guest.room?.regroupVotes?.length === 2,
+      "two existing votes",
+    );
+    departing.ws.close();
+    await until(
+      () => guest.room?.players[2].online === false,
+      "nonvoter offline",
+    );
+    assert.deepEqual(guest.room!.regroupVotes!.slice().sort(), [0, 1]);
+    assert.equal(guest.room!.players.filter((p) => p.online).length, 2);
+    assert.equal(
+      guest.room!.phase,
+      "game",
+      "grace period still protects reconnection",
+    );
+    await new Promise((resolve) => setTimeout(resolve, 15200));
+    await until(
+      () => host.room?.phase === "lobby" && guest.room?.phase === "lobby",
+      "existing votes automatically finish",
+    );
+    assert.equal(guest.room!.level, 2);
+    assert.equal(guest.room!.host, 0);
+    assert.equal(guest.room!.players.length, 2);
+    assert.equal(guest.room!.game, null);
+    assert.deepEqual(host.errors, []);
+    assert.deepEqual(guest.errors, []);
+    const denied = await fetch(base + `/api/rooms/${created.room.code}`, {
+      headers: { Authorization: `Bearer ${second.token}` },
+    });
+    assert.equal(denied.status, 401);
+  } finally {
+    peers.forEach((client) => client.ws.close());
   }
 });

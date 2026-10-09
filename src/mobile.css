@@ -61,8 +61,7 @@
   line-height: 1.8;
 }
 .compact .intro .goal-flow,
-.compact .intro-controls,
-.compact .wish-tags {
+.compact .intro-controls {
   display: none;
 }
 .compact .menu {

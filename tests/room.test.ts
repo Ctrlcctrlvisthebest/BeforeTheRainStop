@@ -25,6 +25,50 @@ test("rooms admit the requested count, keep tokens private and enforce host star
     assert.throws(() => authenticate(r, "wrong"), /凭证/);
   }
 });
+test("public room snapshots remain isolated from server state and never expose seat or ranking credentials", () => {
+  let room = makeRoom("ABCDEFGH", 2, 0, "host", "private-host-token", 0);
+  joinRoom(room, "peer", "private-peer-token", 0);
+  room.players.forEach((player) => {
+    player.online = true;
+    player.rankKey = `private-rank-${player.slot}`;
+  });
+  room = command(room, "private-host-token", { type: "start" }, 0, "run");
+  room.game!.keys = [0];
+  room.game!.stars = [0];
+  room.game!.players[0].carriedStars = [1];
+  room.votes = [0];
+  room.regroupVotes = [1];
+  room.turnNotice = { slot: 1, at: 100, gameId: "run" };
+  const before = structuredClone(room);
+  const snapshot = publicRoom(room);
+  assert.ok(
+    snapshot.players.every(
+      (player) => !("token" in player) && !("rankKey" in player),
+    ),
+  );
+  assert.doesNotMatch(JSON.stringify(snapshot), /private-(?:host|peer|rank)/);
+
+  // Prediction and UI consumers can edit the public snapshot without changing
+  // the authoritative room, its vote decisions, or a teammate's saved items.
+  snapshot.players[0].name = "renamed locally";
+  snapshot.players[0].online = false;
+  snapshot.players[0].lastSeen = 999;
+  snapshot.players.push({
+    slot: 5,
+    name: "local",
+    online: true,
+    lastSeen: 999,
+  });
+  snapshot.game!.players[0].x += 10;
+  snapshot.game!.players[0].carriedStars.push(2);
+  snapshot.game!.keys.push(1);
+  snapshot.game!.stars.splice(0);
+  snapshot.votes.push(1);
+  snapshot.regroupVotes!.splice(0);
+  snapshot.turnNotice!.slot = 0;
+  snapshot.turnNotice!.at = 999;
+  assert.deepEqual(room, before);
+});
 test("restarting needs every vote and cannot advance unfinished level", () => {
   let r = makeRoom("ABCDEFGH", 2, 0, "host", "a", 0);
   joinRoom(r, "peer", "b", 0);

@@ -61,6 +61,12 @@ async function page(saved = {}) {
     fail: null,
     tones: [],
     contexts: [],
+    storageWrites: [],
+  };
+  const setItem = w.Storage.prototype.setItem;
+  w.Storage.prototype.setItem = function (key, value) {
+    state.storageWrites.push([key, value]);
+    return setItem.call(this, key, value);
   };
   Object.defineProperty(w.HTMLMediaElement.prototype, "paused", {
     get() {
@@ -428,6 +434,53 @@ test("old mute migrates once; effects volume, hidden page and return are indepen
       p.w.document.querySelector('input[aria-label="音效音量"]').value,
       "45",
     );
+  } finally {
+    p.close();
+  }
+});
+
+test("effects preferences persist once per change while unlocking synchronously in the tap", async () => {
+  const p = await page({
+    "rain-music-enabled": false,
+    "rain-music-volume": 23,
+  });
+  try {
+    assert.deepEqual(p.state.storageWrites, [
+      ["rain-sfx-enabled", "false"],
+      ["rain-sfx-volume", "23"],
+    ]);
+    p.state.storageWrites.length = 0;
+    p.w.document.querySelector(".effects-toggle").click();
+    assert.equal(p.state.contexts.length, 1, "unlock stays inside the tap");
+    p.w.document.getElementById("effect").click();
+    assert.equal(
+      p.state.tones.length,
+      1,
+      "effects see the new mute immediately",
+    );
+    await settle();
+    assert.deepEqual(p.state.storageWrites, [["rain-sfx-enabled", "true"]]);
+    p.state.storageWrites.length = 0;
+    p.w.document.getElementById("zero-effects").click();
+    p.w.document.getElementById("effect").click();
+    assert.equal(
+      p.state.tones.length,
+      1,
+      "volume applies before React commits",
+    );
+    await settle();
+    assert.deepEqual(p.state.storageWrites, [["rain-sfx-volume", "0"]]);
+    p.state.storageWrites.length = 0;
+    p.w.document.getElementById("zero-effects").click();
+    await settle();
+    assert.deepEqual(
+      p.state.storageWrites,
+      [],
+      "unchanged settings are not rewritten",
+    );
+    assert.equal(p.w.localStorage.getItem("rain-music-enabled"), "false");
+    assert.equal(p.w.localStorage.getItem("rain-music-volume"), "23");
+    assert.deepEqual(p.errors, []);
   } finally {
     p.close();
   }

@@ -20,6 +20,17 @@ const bindings: Record<string, readonly [TouchField, number | boolean]> = {
   KeyF: ["repair", true],
 };
 const codes = Object.keys(bindings);
+const editingSelector =
+  'input,select,textarea,[contenteditable]:not([contenteditable="false"])';
+const popupSelector =
+  '[role="combobox"],[role="listbox"],[role="option"],[role="menu"],[role^="menuitem"]';
+const interactiveSelector =
+  `${editingSelector},${popupSelector},button,summary,a[href],area[href],` +
+  '[role="button"],[role="slider"],[role="spinbutton"],[role="switch"],' +
+  '[role="checkbox"],[role="radio"],[role="textbox"],[role="searchbox"],[role="tab"]';
+
+const interactiveTarget = (target: EventTarget | null, selector: string) =>
+  (target as Element | null)?.closest?.(selector);
 
 // Some embedded browsers omit code (or report "Unidentified"). Prefer the
 // physical key for keyboard layouts, then fall back to key and legacy keyCode.
@@ -100,29 +111,39 @@ export function bindGameKeyboard(
   },
 ) {
   let restartHeld = false;
-  const clear = () => {
+  const clearKeyboard = () => {
     restartHeld = false;
     keyboard.clear();
+  };
+  const clear = () => {
+    clearKeyboard();
     options.clear?.();
     options.change?.();
   };
+  const focus = (e: FocusEvent) => {
+    if (!interactiveTarget(e.target, interactiveSelector)) return;
+    // Taking focus into UI retires the old keyboard hold. A finger still
+    // holding a touch control remains independent of this keyboard transition.
+    clearKeyboard();
+    options.change?.();
+  };
   const down = (e: KeyboardEvent) => {
-    if (
-      e.isComposing ||
-      e.keyCode === 229 ||
-      (e.target as HTMLElement)?.closest?.(
-        "input,select,textarea,[contenteditable='true']",
-      )
-    )
-      return;
+    if (e.defaultPrevented || e.isComposing || e.keyCode === 229) return;
     const code = gameKeyCode(e);
     if (code === "Escape") {
+      // Escape closes selectors/editing controls without opening game help.
+      // Ordinary buttons (including the help button) may still close help.
+      if (interactiveTarget(e.target, `${editingSelector},${popupSelector}`))
+        return;
       if (!e.repeat) {
         clear();
         options.escape();
       }
       return;
     }
+    // Buttons, summaries and custom controls own their native keyboard
+    // activation/navigation, even when a run continues behind the menu.
+    if (interactiveTarget(e.target, interactiveSelector)) return;
     if (!options.enabled()) return;
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (code === "KeyT" && options.restart) {
@@ -155,13 +176,17 @@ export function bindGameKeyboard(
     options.change?.();
   };
   window.addEventListener("keydown", down);
-  window.addEventListener("keyup", up);
+  // Release first, before a selector or overlay can stop bubbling. Keyup
+  // must also release holds that began on the canvas before focus moved.
+  window.addEventListener("keyup", up, true);
   window.addEventListener("blur", clear);
+  document.addEventListener("focusin", focus, true);
   document.addEventListener("visibilitychange", clear);
   return () => {
     window.removeEventListener("keydown", down);
-    window.removeEventListener("keyup", up);
+    window.removeEventListener("keyup", up, true);
     window.removeEventListener("blur", clear);
+    document.removeEventListener("focusin", focus, true);
     document.removeEventListener("visibilitychange", clear);
     clear();
   };

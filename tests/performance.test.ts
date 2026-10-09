@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import * as THREE from "three";
 import { ExitGlow } from "../src/exit-glow";
 import { FrameBudget } from "../src/frame-budget";
+import { gatePad, animateGatePad } from "../src/gate-scene";
 import { PaperScene } from "../src/scene";
 import { colorSlab, mergeDecorations } from "../src/render-geometry";
 import { rainFloorAt } from "../src/rain-occlusion";
@@ -19,6 +20,59 @@ import {
 } from "../src/scene-resources";
 import { stabilizeTerrain, styleTerrainDepth } from "../src/terrain-scene";
 import { TerrainEdges, topOutline } from "../src/terrain-edges";
+
+test("gate marks share one ink material per plate while independent ghost states and teardown remain correct", () => {
+  const near = gatePad(),
+    far = gatePad();
+  const mark = (pad: THREE.Group) =>
+    pad.getObjectByName("pressure-plate")!.children[0].children as THREE.Mesh<
+      THREE.BoxGeometry,
+      THREE.MeshBasicMaterial
+    >[];
+  const bars = mark(near),
+    otherBars = mark(far),
+    ink = bars[0].material;
+  let disposals = 0;
+  ink.addEventListener("dispose", () => disposals++);
+  try {
+    assert.equal(bars.length, 4);
+    assert.equal(new Set(bars.map((bar) => bar.material)).size, 1);
+    assert.notEqual(
+      ink,
+      otherBars[0].material,
+      "one plate cannot fade another plate's mark",
+    );
+    animateGatePad(near, true, 1.5, false, true);
+    animateGatePad(far, false, 0, false, false);
+    assert.ok(
+      bars.every(
+        (bar) =>
+          bar.material.opacity === 0.08 &&
+          bar.material.transparent &&
+          !bar.material.depthWrite,
+      ),
+    );
+    assert.ok(
+      otherBars.every(
+        (bar) => bar.material.opacity === 1 && !bar.material.transparent,
+      ),
+    );
+    animateGatePad(near, false, 0, false, false);
+    assert.ok(
+      bars.every(
+        (bar) =>
+          bar.material.opacity === 1 &&
+          !bar.material.transparent &&
+          bar.material.depthWrite,
+      ),
+    );
+    assert.equal(ink.color.getHexString(), "eac78d");
+  } finally {
+    disposeObjectTree(near);
+    disposeObjectTree(far);
+  }
+  assert.equal(disposals, 1, "shared ink is released once, not four times");
+});
 
 test("leaving a scene releases light shadow targets before disposing the renderer", () => {
   const scene = new THREE.Scene();
@@ -44,6 +98,8 @@ test("leaving a scene releases light shadow targets before disposing the rendere
   Object.assign(view, {
     scene,
     root,
+    preparationRevision: 0,
+    preparationWaiters: new Map(),
     resize: { disconnect: () => disposed.push("observer") },
     renderer: { dispose: () => disposed.push("renderer") },
   });

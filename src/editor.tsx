@@ -1,4 +1,3 @@
-import { interactiveModules } from "./map-rules";
 import React, {
   lazy,
   Suspense,
@@ -23,29 +22,25 @@ import {
 } from "./map-format";
 import {
   addEntity,
-  duplicateEntity,
-  editEntity,
+  moveEntity,
   entities,
   entity,
   entityNames,
   pointOf,
   removeEntity,
-  syncRoute,
-  platformStylePatch,
-  platformMotionPatch,
   type EntityKind,
   type Selection,
+  type EditorEntity,
   type Tool,
 } from "./editor-model";
 import {
   EditorHelp,
   EditorWalkthrough,
-  MotionPreview,
-  PLATFORM_HELP,
   TOOL_HELP,
   type HelpTopic,
   type WalkthroughAction,
 } from "./editor-help";
+import { EditorInspector, numberField } from "./editor-inspector";
 import "./editor.css";
 const MapPreview = lazy(() => import("./editor-preview"));
 const DRAFT = "rain-map-editor-v1";
@@ -107,6 +102,20 @@ const colors: Record<EntityKind, string> = {
   gate: "#a36e59",
   crossing: "#f2bb83",
 };
+type Drag =
+  | {
+      kind: "pan";
+      anchor: { u: number; v: number };
+      center: { u: number; v: number };
+      matrix: DOMMatrix;
+    }
+  | {
+      kind: "entity";
+      selection: Selection;
+      anchor: { u: number; v: number };
+      point: Point;
+      map: MapFile;
+    };
 function initialMap() {
   try {
     const text = localStorage.getItem(DRAFT);
@@ -146,12 +155,11 @@ function App() {
     });
   const svg = useRef<SVGSVGElement>(null),
     file = useRef<HTMLInputElement>(null),
-    drag = useRef<any>(null),
+    drag = useRef<Drag | null>(null),
     latestDrag = useRef<MapFile | null>(null);
   const display = dragMap ?? map,
     report = useMemo(() => validateMap(map), [map]),
-    all = entities(display),
-    item = selection ? entity(display, selection) : null;
+    all = entities(display);
   const commit = useCallback((next: MapFile) => {
     setHistory((h) => ({
       past: [...h.past, h.map].slice(-80),
@@ -250,7 +258,7 @@ function App() {
     const uv = eventPoint(e);
     if (tool === "pan" || e.button === 1) {
       drag.current = {
-        pan: true,
+        kind: "pan",
         anchor: uv,
         center,
         matrix: svg.current!.getScreenCTM()!.inverse(),
@@ -259,11 +267,13 @@ function App() {
     }
     if (tool === "select") {
       setSelection(s ?? null);
-      if (s)
+      const selected = s && entity(map, s);
+      if (selected)
         drag.current = {
-          selection: s,
+          kind: "entity",
+          selection: selected,
           anchor: uv,
-          point: pointOf(entity(map, s)),
+          point: pointOf(selected.data),
           map,
         };
       return;
@@ -289,7 +299,7 @@ function App() {
     const d = drag.current;
     if (!d) return;
     const uv = eventPoint(e);
-    if (d.pan) {
+    if (d.kind === "pan") {
       const screenPoint = svg.current!.createSVGPoint();
       screenPoint.x = e.clientX;
       screenPoint.y = e.clientY;
@@ -308,7 +318,7 @@ function App() {
     if (view === "top") p.y = d.point.y;
     else if (view === "front") p.z = d.point.z;
     else p.x = d.point.x;
-    const next = editEntity(d.map, d.selection, p);
+    const next = moveEntity(d.map, d.selection, p);
     latestDrag.current = next;
     setDragMap(next);
   }
@@ -362,15 +372,6 @@ function App() {
     }
     setTool(action);
   }
-  const patch = (key: string, value: any) => {
-    if (selection) commit(editEntity(map, selection, { [key]: value }));
-  };
-  const changeMap = (f: (m: MapFile) => void) => {
-    const next = structuredClone(map);
-    f(next);
-    syncRoute(next);
-    commit(next);
-  };
   async function importFile(f?: File) {
     if (!f) return;
     try {
@@ -402,35 +403,9 @@ function App() {
       setNotice(String(e));
     }
   }
-  const numberField = (
-    label: string,
-    value: number,
-    onChange: (v: number) => void,
-    step = 0.1,
-  ) => (
-    <label key={label}>
-      {label}
-      <input
-        type="number"
-        step={step}
-        value={Number.isFinite(value) ? +value.toFixed(3) : ""}
-        onChange={(e) => {
-          if (e.target.value !== "" && Number.isFinite(e.target.valueAsNumber))
-            onChange(e.target.valueAsNumber);
-        }}
-      />
-    </label>
-  );
-  const field = (label: string, key: string, step = 0.1) =>
-    numberField(
-      label,
-      pointOf(item)[key as keyof Point] ?? item[key],
-      (n) => patch(key, n),
-      step,
-    );
   const selected = (s: Selection) =>
     selection?.kind === s.kind && selection.index === s.index;
-  function shape(e: ReturnType<typeof entities>[number]) {
+  function shape(e: EditorEntity) {
     const d = e.data,
       p = project(pointOf(d)),
       sel = selected(e),
@@ -451,16 +426,42 @@ function App() {
       p.v -= 0.8;
     }
     const width =
-      e.kind === "crossing" ? (d.axis === "x" ? d.span : d.depth) : (d.w ?? 1);
-    let w = view === "side" ? (d.d ?? width) : width,
+      e.kind === "crossing"
+        ? e.data.axis === "x"
+          ? e.data.span
+          : e.data.depth
+        : "w" in d
+          ? d.w
+          : 1;
+    let w = view === "side" ? ("d" in d ? d.d : width) : width,
       h =
         view === "top"
-          ? (d.d ?? 1)
-          : (d.h ?? (e.kind === "winds" ? d.height : 0.25));
+          ? "d" in d
+            ? d.d
+            : 1
+          : "h" in d
+            ? d.h
+            : e.kind === "winds"
+              ? e.data.height
+              : 0.25;
     if (e.kind === "crossing") {
-      w = view === "side" ? (d.axis === "z" ? d.span : d.depth) : width;
-      h = view === "top" ? (d.axis === "z" ? d.span : d.depth) : 0.2;
+      w =
+        view === "side"
+          ? e.data.axis === "z"
+            ? e.data.span
+            : e.data.depth
+          : width;
+      h =
+        view === "top"
+          ? e.data.axis === "z"
+            ? e.data.span
+            : e.data.depth
+          : 0.2;
     }
+    const motion =
+      e.kind === "platforms" || e.kind === "gate" ? e.data.motion : undefined;
+    const platformKind =
+      e.kind === "platforms" || e.kind === "gate" ? e.data.kind : undefined;
     const point = pointKinds.includes(e.kind),
       label =
         e.kind === "route"
@@ -494,27 +495,21 @@ function App() {
           {entityNames[e.kind]} {e.index + 1} · X {pointOf(d).x} / Y{" "}
           {pointOf(d).y} / Z {pointOf(d).z}
         </title>
-        {d.motion && (
+        {motion && (
           <line
             x1={
               p.u -
-              (d.motion.axis === (view === "side" ? "z" : "x")
-                ? d.motion.range
-                : 0)
+              (motion.axis === (view === "side" ? "z" : "x") ? motion.range : 0)
             }
             x2={
               p.u +
-              (d.motion.axis === (view === "side" ? "z" : "x")
-                ? d.motion.range
-                : 0)
+              (motion.axis === (view === "side" ? "z" : "x") ? motion.range : 0)
             }
             y1={
-              p.v -
-              (view === "top" && d.motion.axis === "z" ? d.motion.range : 0)
+              p.v - (view === "top" && motion.axis === "z" ? motion.range : 0)
             }
             y2={
-              p.v +
-              (view === "top" && d.motion.axis === "z" ? d.motion.range : 0)
+              p.v + (view === "top" && motion.axis === "z" ? motion.range : 0)
             }
             stroke="#bad5e2"
             strokeDasharray=".3 .2"
@@ -554,7 +549,7 @@ function App() {
             fill={colors[e.kind]}
             fillOpacity={
               ["zones", "awnings"].includes(e.kind) ||
-              ["low-roof", "railing"].includes(d.kind)
+              ["low-roof", "railing"].includes(platformKind ?? "")
                 ? 0.14
                 : 0.7
             }
@@ -900,678 +895,16 @@ function App() {
             <span>{notice}</span>
           </div>
         </section>
-        <aside className="inspector-panel">
-          <div className="section-title">
-            <span>02 / 属性</span>
-            <span className="count-label">
-              {map.level.platforms.length} 平台
-            </span>
-          </div>
-          <label>
-            地图名称
-            <input
-              value={map.level.name}
-              maxLength={80}
-              onChange={(e) =>
-                changeMap((m) => {
-                  m.level.name = e.target.value;
-                })
-              }
-            />
-          </label>
-          <label>
-            本关提示
-            <textarea
-              value={map.level.hint}
-              maxLength={180}
-              onChange={(e) =>
-                changeMap((m) => {
-                  m.level.hint = e.target.value;
-                })
-              }
-            />
-          </label>
-          <label>
-            许愿架存档方式
-            <select
-              value={map.level.freeCheckpoints ? "revisit" : "ordered"}
-              onChange={(e) =>
-                changeMap((m) => {
-                  if (e.target.value === "revisit")
-                    m.level.freeCheckpoints = true;
-                  else delete m.level.freeCheckpoints;
-                })
-              }
-            >
-              <option value="ordered">依次前往新架子</option>
-              <option value="revisit">允许回访任意架子</option>
-            </select>
-          </label>
-          {numberField(
-            "目标关卡",
-            map.chapter ?? 1,
-            (n) =>
-              changeMap((m) => {
-                m.chapter = n;
-              }),
-            1,
-          )}
-          <p className="hint">
-            平台宽、深和连续直路均不得超过 9。第 11
-            关起至少需要两个路线中使用的独立互动模块；同类型可重复。当前{" "}
-            {interactiveModules(map).length} 个。
-          </p>
-          <details>
-            <summary>背景与雨势</summary>
-            <label>
-              副标题
-              <input
-                value={map.level.sub}
-                maxLength={180}
-                onChange={(e) =>
-                  changeMap((m) => {
-                    m.level.sub = e.target.value;
-                  })
-                }
-              />
-            </label>
-            <div className="field-grid">
-              <label>
-                天空
-                <input
-                  type="color"
-                  value={map.level.sky}
-                  onChange={(e) =>
-                    changeMap((m) => {
-                      m.level.sky = e.target.value;
-                    })
-                  }
-                />
-              </label>
-              <label>
-                平台色
-                <input
-                  type="color"
-                  value={map.level.color}
-                  onChange={(e) =>
-                    changeMap((m) => {
-                      m.level.color = e.target.value;
-                    })
-                  }
-                />
-              </label>
-              {numberField(
-                "雨势周期 / 秒",
-                map.weather.period,
-                (n) =>
-                  changeMap((m) => {
-                    m.weather.period = n;
-                  }),
-                1,
-              )}
-            </div>
-          </details>
-          <label>
-            选中对象
-            <select
-              aria-label="选中对象"
-              value={selection ? `${selection.kind}:${selection.index}` : ""}
-              onChange={(e) => {
-                const [kind, index] = e.target.value.split(":");
-                setSelection(
-                  kind ? { kind: kind as EntityKind, index: +index } : null,
-                );
-              }}
-            >
-              <option value="">点击画布选中</option>
-              {all.map((e) => (
-                <option
-                  key={`${e.kind}:${e.index}`}
-                  value={`${e.kind}:${e.index}`}
-                >
-                  {entityNames[e.kind]} {e.index + 1}
-                  {e.data.kind
-                    ? ` · ${PLATFORM_HELP[e.data.kind]?.[0] ?? e.data.kind}`
-                    : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-          {item && selection ? (
-            <div className="object-inspector">
-              <h3>
-                {entityNames[selection.kind]} {selection.index + 1}
-              </h3>
-              {TOOL_HELP[selection.kind] && (
-                <div className="object-help">
-                  <p>{TOOL_HELP[selection.kind]!.body}</p>
-                  <button
-                    onClick={() => setHelp(TOOL_HELP[selection.kind]!.topic)}
-                  >
-                    这个组件怎么用？
-                  </button>
-                </div>
-              )}
-              <div className="field-grid">
-                {field("X", "x")}
-                {selection.kind !== "zones" && field("高度 Y", "y")}
-                {field("深度 Z", "z")}
-                {["w", "d", "h", "height", "rate", "floor", "span", "depth"]
-                  .filter((k) => item[k] !== undefined)
-                  .map((k) =>
-                    field(
-                      (
-                        {
-                          w: "宽度 W",
-                          d: "深度 D",
-                          h: "厚度 H",
-                          height: "风柱高度",
-                          rate: "雨量 / 秒",
-                          floor: "小火地面高度",
-                          span: "断口长度",
-                          depth: "桥面深度",
-                        } as any
-                      )[k],
-                      k,
-                    ),
-                  )}
-              </div>
-              {["platforms", "gate"].includes(selection.kind) && (
-                <p className="field-help">
-                  Y 是顶面；厚度 H 向下延伸，底面为 Y − H。W 沿 X，D 沿
-                  Z。改“种类”不会自动改变这些尺寸。
-                </p>
-              )}
-              {selection.kind === "platforms" && (
-                <>
-                  <label>
-                    平台种类
-                    <select
-                      value={item.kind ?? "normal"}
-                      onChange={(e) =>
-                        commit(
-                          editEntity(
-                            map,
-                            selection,
-                            platformStylePatch(item, e.target.value),
-                          ),
-                        )
-                      }
-                    >
-                      <optgroup label="常用平台">
-                        {["normal", "step", "wall", "moving"].map((k) => (
-                          <option key={k} value={k}>
-                            {PLATFORM_HELP[k][0]}
-                          </option>
-                        ))}
-                      </optgroup>
-                      <optgroup label="纸桥专用 · 建议由组件生成">
-                        {["low-roof", "railing"].map((k) => (
-                          <option key={k} value={k}>
-                            {PLATFORM_HELP[k][0]}
-                          </option>
-                        ))}
-                      </optgroup>
-                    </select>
-                  </label>
-                  <p className="field-help">
-                    {PLATFORM_HELP[item.kind ?? "normal"]?.[1]}{" "}
-                    <button
-                      className="text-link"
-                      onClick={() => setHelp("platform")}
-                    >
-                      种类对照表 ↗
-                    </button>
-                  </p>
-                  <label className="checkbox">
-                    <input
-                      type="checkbox"
-                      checked={!!item.motion}
-                      onChange={(e) =>
-                        commit(
-                          editEntity(
-                            map,
-                            selection,
-                            platformMotionPatch(item, e.target.checked),
-                          ),
-                        )
-                      }
-                    />
-                    开启往返移动（渡台）
-                  </label>
-                  <p className="field-help">
-                    {item.motion
-                      ? "开局就自动往返，站稳的纸鹤会随平台移动。下方可以播放或拖动时间预览。"
-                      : "当前平台固定不动。勾选后，它与左侧“渡台”使用同一套运动规则。"}{" "}
-                    <button
-                      className="text-link"
-                      onClick={() => setHelp("motion")}
-                    >
-                      参数怎么填？
-                    </button>
-                  </p>
-                </>
-              )}
-              {item.motion && (
-                <>
-                  <label>
-                    移动方向
-                    <select
-                      value={item.motion.axis}
-                      onChange={(e) =>
-                        patch("motion", {
-                          ...item.motion,
-                          axis: e.target.value,
-                        })
-                      }
-                    >
-                      <option value="x">X · 左右往返</option>
-                      <option value="z">Z · 前后往返</option>
-                    </select>
-                  </label>
-                  <div className="field-grid">
-                    {numberField("单侧移动距离", item.motion.range, (n) =>
-                      patch("motion", { ...item.motion, range: n }),
-                    )}
-                    {numberField("完整往返 / 秒", item.motion.period, (n) =>
-                      patch("motion", { ...item.motion, period: n }),
-                    )}
-                  </div>
-                  <MotionPreview
-                    key={`${selection.kind}:${selection.index}`}
-                    platform={item}
-                  />
-                </>
-              )}
-              {selection.kind === "hazards" && (
-                <>
-                  <label className="checkbox">
-                    <input
-                      type="checkbox"
-                      checked={item.period !== undefined}
-                      onChange={(e) =>
-                        patch("period", e.target.checked ? 5 : undefined)
-                      }
-                    />
-                    间歇熄火
-                  </label>
-                  {item.period !== undefined &&
-                    field("火焰周期 / 秒", "period")}
-                  <p className="muted">
-                    周期前 48% 为旺火，之后熄灭。旺火自带篷子；篷子不能挡火。
-                  </p>
-                </>
-              )}
-              {selection.kind === "crossing" && (
-                <>
-                  <label>
-                    桥方向
-                    <select
-                      value={item.axis}
-                      onChange={(e) => patch("axis", e.target.value)}
-                    >
-                      <option value="x">X · 左右跨过（正面）</option>
-                      <option value="z">Z · 前后跨过（侧面）</option>
-                    </select>
-                  </label>
-                  <label>
-                    起始岸
-                    <select
-                      value={item.near}
-                      onChange={(e) => patch("near", +e.target.value)}
-                    >
-                      <option value={-1}>
-                        {item.axis === "x" ? "左岸 · X 较小" : "Z 较小的一岸"}
-                      </option>
-                      <option value={1}>
-                        {item.axis === "x" ? "右岸 · X 较大" : "Z 较大的一岸"}
-                      </option>
-                    </select>
-                  </label>
-                  <div className="help-note compact">
-                    <strong>桥钉不用另加，单人也一样</strong>
-                    <p>
-                      单人：岸边按住 Shift 2 秒自动接桥。任何人到对岸木踏板站住
-                      2 秒也能接桥，走哪条路都可以。
-                    </p>
-                    <button onClick={() => setHelp("bridge")}>
-                      看完整纸桥示意 ↗
-                    </button>
-                  </div>
-                  <p className="muted">
-                    组件已经生成两岸、低檐和侧栏。改变断口方向、位置或高度后，请一并调整这些平台。
-                  </p>
-                </>
-              )}
-              {selection.kind === "awnings" && (
-                <p className="muted">
-                  Y
-                  是篷子高度，小火地面高度决定烤干位置。第一座篷子的小火靠左放置，给起点留出安全空间。
-                </p>
-              )}
-              {item.text !== undefined && (
-                <label>
-                  路牌文字
-                  <textarea
-                    value={item.text}
-                    maxLength={100}
-                    onChange={(e) => patch("text", e.target.value)}
-                  />
-                </label>
-              )}
-              {selection.kind === "signs" && (
-                <label>
-                  显示视角
-                  <select
-                    value={item.view ?? "both"}
-                    onChange={(e) =>
-                      patch(
-                        "view",
-                        e.target.value === "both" ? undefined : +e.target.value,
-                      )
-                    }
-                  >
-                    <option value="both">两面可见</option>
-                    <option value={0}>正面</option>
-                    <option value={1}>侧面</option>
-                  </select>
-                </label>
-              )}
-              {selection.kind === "route" && (
-                <>
-                  <label>
-                    引导动作
-                    <select
-                      value={item.kind}
-                      disabled={item.kind === "exit"}
-                      onChange={(e) => {
-                        const kind = e.target.value;
-                        const references =
-                          kind === "key"
-                            ? map.level.keys
-                            : kind === "rack"
-                              ? map.level.checkpoints
-                              : kind === "ferry"
-                                ? map.level.platforms
-                                : null;
-                        const id =
-                          kind === "ferry"
-                            ? map.level.platforms.findIndex((p) => p.motion)
-                            : 0;
-                        commit(
-                          editEntity(map, selection, {
-                            kind,
-                            ...(references ? { id: Math.max(0, id) } : {}),
-                            ...(kind === "wind"
-                              ? { from: { ...item.target } }
-                              : {}),
-                          }),
-                        );
-                      }}
-                    >
-                      {[
-                        "walk",
-                        "jump",
-                        "rack",
-                        "key",
-                        "bridge",
-                        "wind",
-                        "ferry",
-                        "pads",
-                        "exit",
-                      ].map((k) => (
-                        <option key={k} value={k}>
-                          {
-                            (
-                              {
-                                walk: "走到目标",
-                                jump: "跳到目标",
-                                rack: "前往许愿架",
-                                key: "拾取钥匙",
-                                bridge: "搭桥过岸",
-                                wind: "乘风上升",
-                                ferry: "乘坐渡台",
-                                pads: "踏板开门",
-                                exit: "抵达终点",
-                              } as Record<string, string>
-                            )[k]
-                          }
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label>
-                    所需视角
-                    <select
-                      value={item.view}
-                      onChange={(e) => patch("view", +e.target.value)}
-                    >
-                      <option value={0}>正面 X</option>
-                      <option value={1}>侧面 Z</option>
-                    </select>
-                  </label>
-                  {["key", "rack", "ferry"].includes(item.kind) && (
-                    <label>
-                      关联对象
-                      <select
-                        value={item.id ?? ""}
-                        onChange={(e) => patch("id", +e.target.value)}
-                      >
-                        <option value="" disabled>
-                          选择要引导的对象
-                        </option>
-                        {(item.kind === "key"
-                          ? map.level.keys
-                          : item.kind === "rack"
-                            ? map.level.checkpoints
-                            : map.level.platforms
-                        ).map(
-                          (p, i) =>
-                            (item.kind !== "ferry" ||
-                              ("motion" in p && Boolean(p.motion))) && (
-                              <option key={i} value={i}>
-                                {item.kind === "key"
-                                  ? "钥匙"
-                                  : item.kind === "rack"
-                                    ? "许愿架"
-                                    : "渡台"}{" "}
-                                {i + 1}
-                              </option>
-                            ),
-                        )}
-                      </select>
-                    </label>
-                  )}
-                  {item.kind === "jump" && (
-                    <label>
-                      空中转面
-                      <input
-                        type="checkbox"
-                        checked={!!item.via}
-                        onChange={(e) =>
-                          patch(
-                            "via",
-                            e.target.checked ? { ...item.target } : undefined,
-                          )
-                        }
-                      />
-                    </label>
-                  )}
-                  {item.kind === "jump" && item.via && (
-                    <div className="field-grid">
-                      {(["x", "y", "z"] as const).map((k) =>
-                        numberField(`空中转弯点 ${k}`, item.via[k], (n) =>
-                          patch("via", { ...item.via, [k]: n }),
-                        ),
-                      )}
-                    </div>
-                  )}
-                  {item.kind === "wind" && (
-                    <div className="field-grid">
-                      {(["x", "y", "z"] as const).map((k) =>
-                        numberField(`风柱起点 ${k}`, item.from?.[k] ?? 0, (n) =>
-                          patch("from", {
-                            ...(item.from ?? { x: 0, y: 0, z: 0 }),
-                            [k]: n,
-                          }),
-                        ),
-                      )}
-                    </div>
-                  )}
-                  {item.kind === "ferry" && (
-                    <label>
-                      换乘目标
-                      <select
-                        value={item.landingId ?? ""}
-                        onChange={(e) =>
-                          patch(
-                            "landingId",
-                            e.target.value === "" ? undefined : +e.target.value,
-                          )
-                        }
-                      >
-                        <option value="">固定对岸（目标坐标）</option>
-                        {map.level.platforms.map(
-                          (p, i) =>
-                            p.motion &&
-                            i !== item.id && (
-                              <option key={i} value={i}>
-                                换到渡台 {i + 1}
-                              </option>
-                            ),
-                        )}
-                      </select>
-                    </label>
-                  )}
-                  {item.kind === "ferry" && (
-                    <label>
-                      渡台携带钥匙
-                      <select
-                        value={item.requiredKey ?? ""}
-                        onChange={(e) =>
-                          patch(
-                            "requiredKey",
-                            e.target.value === "" ? undefined : +e.target.value,
-                          )
-                        }
-                      >
-                        <option value="">不需要</option>
-                        {map.level.keys.map((_, i) => (
-                          <option key={i} value={i}>
-                            钥匙 {i + 1}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
-                  <div className="button-row">
-                    <button
-                      disabled={selection.index === 0 || item.kind === "exit"}
-                      onClick={() => {
-                        const i = selection.index;
-                        changeMap((m) => {
-                          [m.route[i - 1], m.route[i]] = [
-                            m.route[i],
-                            m.route[i - 1],
-                          ];
-                        });
-                        setSelection({ ...selection, index: i - 1 });
-                      }}
-                    >
-                      步骤前移
-                    </button>
-                    <button
-                      disabled={
-                        selection.index >= map.route.length - 2 ||
-                        item.kind === "exit"
-                      }
-                      onClick={() => {
-                        const i = selection.index;
-                        changeMap((m) => {
-                          [m.route[i + 1], m.route[i]] = [
-                            m.route[i],
-                            m.route[i + 1],
-                          ];
-                        });
-                        setSelection({ ...selection, index: i + 1 });
-                      }}
-                    >
-                      步骤后移
-                    </button>
-                  </div>
-                  <p className="muted">
-                    钥匙、许愿架、纸桥、踏板和终点引导会跟随原对象坐标。路线顺序请按实际行走顺序排列。
-                  </p>
-                </>
-              )}
-              <div className="button-row object-actions">
-                <button
-                  disabled={[
-                    "spawn",
-                    "exit",
-                    "gate",
-                    "crossing",
-                    "route",
-                  ].includes(selection.kind)}
-                  onClick={() => {
-                    try {
-                      const r = duplicateEntity(map, selection);
-                      commit(r.map);
-                      setSelection(r.selection);
-                    } catch (e) {
-                      setNotice(
-                        e instanceof Error ? e.message : "无法复制物件",
-                      );
-                    }
-                  }}
-                >
-                  复制
-                </button>
-                <button
-                  className="danger"
-                  disabled={
-                    ["spawn", "exit"].includes(selection.kind) ||
-                    (selection.kind === "route" && item.kind === "exit")
-                  }
-                  onClick={() => {
-                    commit(removeEntity(map, selection));
-                    setSelection(null);
-                  }}
-                >
-                  删除
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="empty-inspector">
-              选择一个物件来调整坐标、大小与玩法。
-              <br />
-              看不到的对象也可以从上方列表选中。
-            </div>
-          )}
-          <details className="validation" open>
-            <summary>
-              03 / 检查 ·{" "}
-              {report.errors.length
-                ? `${report.errors.length} 项待修复`
-                : "结构通过"}
-              {report.warnings.length
-                ? ` · ${report.warnings.length} 条提醒`
-                : ""}
-            </summary>
-            {report.errors.map((x, i) => (
-              <p className="error" key={`e${i}`}>
-                {x}
-              </p>
-            ))}
-            {report.warnings.map((x, i) => (
-              <p key={`w${i}`}>{x}</p>
-            ))}
-            <p className="muted">
-              结构校验不会判断所有跳跃是否可达。导出前请试玩，检查钥匙、存档顺序、火堆和终点。
-            </p>
-          </details>
-        </aside>
+        <EditorInspector
+          map={map}
+          report={report}
+          all={all}
+          selected={selection ? entity(display, selection) : undefined}
+          commit={commit}
+          setSelection={setSelection}
+          onHelp={setHelp}
+          onNotice={setNotice}
+        />
       </div>
       {help && (
         <EditorHelp

@@ -14,7 +14,7 @@ export function gateMark(): THREE.Group {
     [0.08, 0.5, 0.22, -0.02],
     [0.26, 0.06, 0, -0.26],
   ]) {
-    const bar = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.016), ink.clone());
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.016), ink);
     bar.position.set(x, y, 0);
     mark.add(bar);
   }

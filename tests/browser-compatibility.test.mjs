@@ -13,11 +13,22 @@ const bundle = await build({
   stdin: {
     contents: `
       import "./src/main.tsx";
-      import { LEVELS } from "./src/game";
+      import { LEVELS, newGame } from "./src/game";
+      import { guideFor, newGuideTracker } from "./src/guide";
+      import { GuideCard } from "./src/guide-ui";
       import { createRoot } from "react-dom/client";
       import { useState } from "react";
       import { AppErrorBoundary } from "./src/app-error-boundary";
       window.testLevels = LEVELS;
+      window.testGuideWarning = (container, language, topic, text) => {
+        const game = newGame(1);
+        if (topic === "save") game.players[0].foldsLeft = 1;
+        else game.players[0].heat = 70;
+        const guide = guideFor(game, 0, newGuideTracker());
+        guide.warning.text = text;
+        createRoot(container).render(<GuideCard g={game} guide={guide} language={language}
+          onLearn={(lesson) => { window.testWarningLesson = lesson; }} />);
+      };
       window.testInterfaceFailure = (container) => {
         function TranslatedText() {
           const [shown, setShown] = useState(true);
@@ -48,7 +59,17 @@ const bundle = await build({
           contents: `
         export const warmScene = () => {};
         export const loadScene = async () => ({ PaperScene: class {
+          constructor(canvas, options) { window.testSceneContext = options.onContextStatus; }
           setQuality() {}
+          async prepare(game) {
+            window.testPreparingGame = game;
+            window.testPreparationCount = (window.testPreparationCount || 0) + 1;
+            if (window.testDelayPreparation) {
+              const permitted = await new Promise((resolve) => { window.testFinishPreparation = resolve; });
+              if (permitted === false) return false;
+            }
+            return !window.testDisposed;
+          }
           observeFrame() {}
           render(game) { window.testGame = game; window.testFrames = (window.testFrames || 0) + 1; }
           dispose() { window.testDisposed = true; }
@@ -65,6 +86,7 @@ async function page({
   language = "zh",
   compact = false,
   touchEvents = true,
+  delayPreparation = false,
 } = {}) {
   const errors = [];
   const virtualConsole = new VirtualConsole();
@@ -79,6 +101,7 @@ async function page({
     virtualConsole,
   });
   const w = dom.window;
+  w.testDelayPreparation = delayPreparation;
   if (!touchEvents) {
     delete w.ontouchstart;
     assert.equal("ontouchstart" in w, false);
@@ -129,6 +152,39 @@ async function page({
   return { w, errors, tick, close: () => dom.window.close() };
 }
 
+test("warning help uses its declared topic regardless of language or warning wording", async () => {
+  const p = await page();
+  try {
+    for (const language of ["zh", "en"]) {
+      for (const [topic, text] of [
+        ["save", ["纸张需要修补", "Time to mend your paper"]],
+        [
+          "rain",
+          [
+            "耐折不足之前，先离开火边",
+            "Leave the fire before the paper becomes brittle",
+          ],
+        ],
+      ]) {
+        const container = p.w.document.createElement("div");
+        p.w.document.body.append(container);
+        p.w.testWarningLesson = undefined;
+        p.w.testGuideWarning(container, language, topic, text);
+        await settle();
+        assert.match(
+          container.querySelector(".guide-warning").textContent,
+          new RegExp(text[language === "en" ? 1 : 0]),
+        );
+        container.querySelector(".guide-warning button").click();
+        assert.equal(p.w.testWarningLesson, topic);
+      }
+    }
+    assert.deepEqual(p.errors, []);
+  } finally {
+    p.close();
+  }
+});
+
 // Translation engines replace text nodes with <font> elements. Respect the
 // site's opt-out, and report whether any live application text was eligible.
 function translateEligibleText(w) {
@@ -152,6 +208,109 @@ function translateEligibleText(w) {
   }
   return nodes.length;
 }
+
+test("context restoration replaces pending preparation without letting old completion resume play", async () => {
+  const p = await page({ delayPreparation: true });
+  const { w, tick } = p;
+  try {
+    w.document.querySelector(".menu button.primary").click();
+    await settle();
+    const stale = w.testFinishPreparation,
+      game = w.testPreparingGame;
+    w.testSceneContext("lost");
+    w.testSceneContext("restored");
+    await settle();
+    const fresh = w.testFinishPreparation;
+    assert.equal(w.testPreparationCount, 2);
+    assert.notEqual(fresh, stale);
+    stale(false);
+    await settle();
+    await tick(120);
+    assert.equal(game.time, 0);
+    assert.ok(w.document.querySelector(".scene-loading"));
+    fresh(true);
+    await settle();
+    await tick();
+    assert.ok(game.time > 0 && game.time < 0.2);
+    assert.equal(w.document.querySelector(".scene-loading"), null);
+    assert.deepEqual(p.errors, []);
+  } finally {
+    p.close();
+  }
+});
+
+test("leaving during preparation disposes the scene and ignores late recovery callbacks", async () => {
+  const p = await page({ delayPreparation: true });
+  const { w, tick } = p;
+  try {
+    w.document.querySelector(".menu button.primary").click();
+    await settle();
+    const finish = w.testFinishPreparation,
+      status = w.testSceneContext;
+    [...w.document.querySelectorAll("nav button")]
+      .find((button) => button.textContent.includes("返回大厅"))
+      .click();
+    await settle();
+    status("lost");
+    status("restored");
+    finish(true);
+    await settle();
+    await tick();
+    assert.ok(w.document.querySelector(".menu button.primary"));
+    assert.equal(w.testDisposed, true);
+    assert.equal(w.testFrames, undefined);
+    assert.equal(w.document.querySelector(".scene-loading"), null);
+    assert.deepEqual(p.errors, []);
+  } finally {
+    p.close();
+  }
+});
+
+test("scene preparation finishes before the solo clock starts, including the next chapter", async () => {
+  const p = await page({ delayPreparation: true });
+  const { w, tick } = p;
+  try {
+    w.document.querySelector(".menu button.primary").click();
+    await settle();
+    const first = w.testPreparingGame;
+    assert.ok(first);
+    await tick(120);
+    assert.equal(first.time, 0);
+    assert.equal(w.testFrames, undefined);
+    assert.ok(w.document.querySelector(".scene-loading"));
+    w.testFinishPreparation();
+    await settle();
+    await tick(10);
+    assert.ok(
+      first.time < 0.2,
+      "preparation wait is not added to the game clock",
+    );
+    assert.equal(w.document.querySelector(".scene-loading"), null);
+    first.status = "won";
+    first.players[0].arrived = true;
+    await tick();
+    const next = [...w.document.querySelectorAll(".scrim button.primary")].find(
+      (button) => button.textContent.includes("下一关"),
+    );
+    assert.ok(next);
+    next.click();
+    await tick(3);
+    const second = w.testPreparingGame;
+    assert.equal(second.level, first.level + 1);
+    assert.equal(second.time, 0);
+    assert.equal(w.testPreparationCount, 2);
+    await tick(120);
+    assert.equal(second.time, 0);
+    w.testFinishPreparation();
+    await settle();
+    await tick();
+    assert.ok(second.time > 0 && second.time < 0.2);
+    assert.equal(w.testGame.id, second.id);
+    assert.deepEqual(p.errors, []);
+  } finally {
+    p.close();
+  }
+});
 
 for (const language of ["zh", "en"])
   for (const compact of [false, true])
@@ -245,6 +404,55 @@ test("a translator replacing a React text node produces a recovery UI instead of
     p.close();
   }
 });
+
+for (const language of ["zh", "en"])
+  test(`${language}: help restart keeps progress until a deliberate second click`, async () => {
+    const p = await page({ language });
+    const { w, tick } = p;
+    try {
+      w.document.querySelector(".menu button.primary").click();
+      await settle();
+      await tick();
+      w.testGame.time = 10;
+      await tick();
+      const runId = w.testGame.id;
+      const openHelp = () => {
+        const label = language === "zh" ? "操作说明" : "How to play";
+        const button = [...w.document.querySelectorAll("nav button")].find(
+          (button) => button.textContent.includes(label),
+        );
+        assert.ok(button, "help remains reachable from the live App");
+        button.click();
+      };
+      openHelp();
+      await settle();
+      let restart = w.document.querySelector(".panel.help button.primary");
+      assert.ok(restart);
+      restart.click();
+      await settle();
+      assert.equal(restart.dataset.restartConfirm, "true");
+      assert.equal(w.testGame.id, runId);
+      restart.click();
+      await tick(3);
+      assert.equal(w.testGame.id, runId, "a rapid double tap cannot restart");
+      w.document.querySelector(".panel.help button.close").click();
+      await settle();
+      openHelp();
+      await settle();
+      restart = w.document.querySelector(".panel.help button.primary");
+      restart.click();
+      await settle();
+      assert.equal(w.testGame.id, runId, "reopening help clears old consent");
+      await tick(24);
+      restart.click();
+      await tick();
+      assert.notEqual(w.testGame.id, runId);
+      assert.equal(w.document.querySelector(".panel.help"), null);
+      assert.deepEqual(p.errors, []);
+    } finally {
+      p.close();
+    }
+  });
 
 async function touchPage(options = {}) {
   const p = await page({ compact: true, ...options });

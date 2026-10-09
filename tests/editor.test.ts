@@ -33,6 +33,10 @@ import {
   platformMotionPatch,
   duplicateEntity,
   syncRoute,
+  entities,
+  entity,
+  moveEntity,
+  type Selection,
 } from "../src/editor-model";
 import { campfire, animateFire } from "../src/fire-scene";
 import { installPreviewMap } from "../src/preview-map";
@@ -126,21 +130,33 @@ test("all campaign maps round trip through the exact editor export format", () =
 });
 test("invalid imports fail cleanly before replacing a draft or running physics", () => {
   const valid = starterMap();
-  for (const change of [
-    (m: any) => (m.version = 2),
-    (m: any) => (m.level.platforms[0].w = -1),
-    (m: any) =>
-      (m.weather.zones = [{ x: 0, z: 0, w: 4, d: 4, rate: Infinity }]),
-    (m: any) => (m.route = { length: 1 }),
-    (m: any) => (m.level.spawn = null),
-    (m: any) =>
-      (m.route = [
+  const invalidMaps: unknown[] = [
+    { ...valid, version: 2 },
+    {
+      ...valid,
+      level: {
+        ...valid.level,
+        platforms: [{ ...valid.level.platforms[0], w: -1 }],
+      },
+    },
+    {
+      ...valid,
+      weather: {
+        ...valid.weather,
+        zones: [{ x: 0, z: 0, w: 4, d: 4, rate: Infinity }],
+      },
+    },
+    { ...valid, route: { length: 1 } },
+    { ...valid, level: { ...valid.level, spawn: null } },
+    {
+      ...valid,
+      route: [
         { kind: "ferry", id: 0, target: { x: 0, y: 0, z: 0 }, view: 0 },
         { kind: "exit", target: { x: 9, y: 0, z: 0 }, view: 0 },
-      ]),
-  ]) {
-    const bad = structuredClone(valid);
-    change(bad);
+      ],
+    },
+  ];
+  for (const bad of invalidMaps) {
     assert.ok(validateMap(bad).errors.length);
     assert.throws(() => parseMap(bad));
   }
@@ -281,8 +297,10 @@ test("round-trip saves, moving-deck transfers and midair corners survive editor 
   assert.equal(walk.route[routeIndex].landingId, undefined);
   transfer.landingId = transfer.id;
   assert.match(validateMap(transferMap).errors.join(), /landingId/);
-  const malformed = structuredClone(CHALLENGE_MAPS[30 - 9]) as any;
-  malformed.level.freeCheckpoints = "yes";
+  const malformed = {
+    ...CHALLENGE_MAPS[30 - 9],
+    level: { ...CHALLENGE_MAPS[30 - 9].level, freeCheckpoints: "yes" },
+  };
   assert.match(validateMap(malformed).errors.join(), /freeCheckpoints/);
   const cornerMap = structuredClone(CHALLENGE_MAPS[34 - 9]);
   const corner = cornerMap.route.find((s) => s.via)!;
@@ -351,3 +369,34 @@ test("stopping a referenced ferry removes obsolete rides and transfers without t
     assert.deepEqual(validateMap(edited).errors, []);
   }
 });
+
+test("typed editor selections expose actual fields and moving a rain zone never creates a Y coordinate", () => {
+  const original = starterMap();
+  const { map, selection } = addEntity(original, "zones", { x: 3, y: 4, z: 1 });
+  const zone = entity(map, selection);
+  assert.equal(zone?.kind, "zones");
+  assert.deepEqual(zone?.data, map.weather.zones[0]);
+  assert.deepEqual(
+    entities(map).map(({ kind }) => kind),
+    ["platforms", "awnings", "zones", "route", "spawn", "exit"],
+  );
+  const moved = moveEntity(map, selection, { x: 7, y: 15, z: -2 });
+  assert.deepEqual(moved.weather.zones[0], {
+    x: 7,
+    z: -2,
+    w: 10,
+    d: 5,
+    rate: 18,
+  });
+  assert.deepEqual(map.weather.zones[0], { x: 3, z: 1, w: 10, d: 5, rate: 18 });
+});
+// TypeScript checks this contract even though these intentionally invalid calls are never executed.
+function editorTypeContract(map: MapFile, key: Selection<"keys">) {
+  // @ts-expect-error a collectible has no platform width
+  editEntity(map, key, { w: 3 });
+  // @ts-expect-error a paper crossing axis is x or z, never y
+  editEntity(map, { kind: "crossing", index: 0 }, { axis: "y" });
+  // @ts-expect-error route actions cannot use platform styles
+  editEntity(map, { kind: "route", index: 0 }, { kind: "wall" });
+}
+void editorTypeContract;

@@ -67,8 +67,10 @@ export function useGameAudio(inGame: boolean) {
   // Preserve the old combined mute/volume once, then keep both channels separate.
   useEffect(() => {
     save("local", "rain-sfx-enabled", effectsEnabled);
+  }, [effectsEnabled]);
+  useEffect(() => {
     save("local", "rain-sfx-volume", effectsVolume);
-  }, [effectsEnabled, effectsVolume]);
+  }, [effectsVolume]);
 
   function setEnabled(value: boolean) {
     enabled.current = value;
@@ -146,7 +148,6 @@ export function useGameAudio(inGame: boolean) {
     const next = !effectsEnabledRef.current;
     effectsEnabledRef.current = next;
     setEffectsEnabledState(next);
-    save("local", "rain-sfx-enabled", next);
     if (next) unlockEffects();
   }
   function setEffectsVolume(value: number) {
@@ -154,7 +155,6 @@ export function useGameAudio(inGame: boolean) {
     const next = Math.max(0, Math.min(100, value));
     effectsVolumeRef.current = next;
     setEffectsVolumeState(next);
-    save("local", "rain-sfx-volume", next);
   }
   function toneAt(
     freq: number,
@@ -274,7 +274,7 @@ export function useGameAudio(inGame: boolean) {
     setEffectsVolume,
   };
 }
-export type GameAudio = ReturnType<typeof useGameAudio>;
+type GameAudio = ReturnType<typeof useGameAudio>;
 export function MusicControls({
   audio,
   language,

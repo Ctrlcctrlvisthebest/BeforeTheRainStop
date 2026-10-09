@@ -2,7 +2,9 @@ import { SafeRestartButton } from "./safe-restart";
 import { createGameAudioEvents } from "./game-audio-events";
 import { QualityControls, useQualityPreference } from "./quality-controls";
 import { RainSelect } from "./rain-select";
-import { TeamControls, TeamSignal } from "./team-controls";
+import { TeamControls } from "./team-controls";
+import { GameStatus } from "./game-status";
+import { RouteMap } from "./route-map";
 import "./team-controls.css";
 import { MINITOOL } from "./build-target";
 import { editionCopy } from "./edition-copy";
@@ -12,28 +14,22 @@ import { createRoot } from "react-dom/client";
 import { AppErrorBoundary } from "./app-error-boundary";
 import {
   LEVELS,
-  MAX_FOLDS,
-  REPAIR_SECONDS,
-  atRepairRack,
   MODES,
   COLORS,
-  NAMES,
   idleInput,
   newGame,
-  stepGame,
   type Game,
   type Input,
-  type Inputs,
   type Mode,
 } from "./game";
-import { api, Connection, validSession, type Session } from "./api";
-import { save, stored, forget } from "./storage";
+import { api } from "./api";
+import { useRoomSession } from "./room-session";
+import { useGameRuntime, type AppPhase } from "./game-runtime";
+import { save, stored } from "./storage";
 import { KeyboardInput, bindGameKeyboard } from "./keyboard-input";
 import { bindTouchControls } from "./touch-controls";
 import type { PublicRoom } from "./room";
-import type { PaperScene } from "./scene";
-import { loadScene, warmScene } from "./scene-loader";
-import { FrameBudget } from "./frame-budget";
+import { warmScene } from "./scene-loader";
 import {
   LocalRecords,
   bestTimeFor,
@@ -58,31 +54,18 @@ import { useCompactControls, touchCopy } from "./mobile";
 import { useGameAudio, MusicControls } from "./audio";
 import { translate, type Language } from "./i18n";
 import { CROSSINGS } from "./bridges";
-import { FIRE_WARNING, CAMPFIRES } from "./weather";
-import {
-  guideFor,
-  newGuideTracker,
-  GUIDE_ROUTES,
-  words,
-  type Lesson,
-} from "./guide";
-import { GuideCard, HowToPlay, GoalFlow } from "./guide-ui";
-const KEY = "rain-action-session-v2";
+import type { Lesson } from "./guide";
+import { HowToPlay, GoalFlow } from "./guide-ui";
 const initialCode = MINITOOL
   ? ""
   : (new URLSearchParams(location.search).get("room") ?? "");
 function App() {
   const compact = useCompactControls();
-  const statusSidebar = useRef<HTMLDivElement>(null);
-  const compactRef = useRef(compact);
-  compactRef.current = compact;
   const [toolsOpen, setToolsOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [language, setLanguage] = useState<Language>(() =>
     stored<string>("local", "rain-language") === "en" ? "en" : "zh",
   );
-  const languageRef = useRef(language);
-  languageRef.current = language;
   const t = (text: string) => translate(language, editionCopy(text));
   useEffect(() => {
     save("local", "rain-language", language);
@@ -121,29 +104,15 @@ function App() {
     }
   }
   const [quality, setQuality] = useQualityPreference();
-  const qualityRef = useRef(quality);
-  qualityRef.current = quality;
-  const activeScene = useRef<PaperScene | null>(null);
   const audioEvents = useRef(createGameAudioEvents());
-  useEffect(() => {
-    activeScene.current?.setQuality(quality);
-  }, [quality]);
-  const [sceneStatus, setSceneStatus] = useState("idle");
-  const sceneReady = useRef(false);
   const canvas = useRef<HTMLCanvasElement>(null),
     game = useRef<Game>(initialGame),
     input = useRef<Input>(idleInput()),
     keyboardInput = useRef(new KeyboardInput()),
     touchInput = useRef(new TouchInput()),
     touchRoot = useRef<HTMLDivElement>(null),
-    others = useRef<Inputs>({}),
-    connection = useRef<Connection | null>(null),
-    currentRoom = useRef<PublicRoom | null>(null),
-    currentSession = useRef<Session | null>(null),
-    phaseRef = useRef("menu"),
-    authTime = useRef(0),
-    sessionAttempt = useRef(0);
-  const [phase, setPhase] = useState("menu"),
+    phaseRef = useRef<AppPhase>("menu");
+  const [phase, setPhase] = useState<AppPhase>("menu"),
     [mode, setMode] = useState<Mode>(1),
     [level, setLevel] = useState(0),
     [name, setName] = useState(() => {
@@ -151,9 +120,6 @@ function App() {
       return typeof saved === "string" ? saved.slice(0, 20) : "";
     }),
     [code, setCode] = useState(initialCode),
-    [room, setRoom] = useState<PublicRoom | null>(null),
-    [session, setSession] = useState<Session | null>(null),
-    [connected, setConnected] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [hud, setHud] = useState<Game>(() => structuredClone(initialGame)),
@@ -188,25 +154,22 @@ function App() {
     () => stored<boolean>("local", "rain-guide") !== false,
   );
   const [helpLesson, setHelpLesson] = useState<Lesson>("basics");
-  const helpRef = useRef(help),
-    guideEnabledRef = useRef(guideEnabled);
+  const helpRef = useRef(help);
   helpRef.current = help || (compact && (toolsOpen || mapOpen));
-  guideEnabledRef.current = guideEnabled;
-  const guideTracker = useRef(newGuideTracker());
-  const guide = useRef<ReturnType<typeof guideFor> | null>(null);
-  if (!guide.current)
-    guide.current = guideFor(game.current, 0, guideTracker.current);
   useEffect(() => {
     save("local", "rain-guide", guideEnabled);
   }, [guideEnabled]);
+  function clearControls() {
+    keyboardInput.current.clear();
+    touchInput.current.clear();
+    input.current = idleInput();
+  }
   function learn(lesson: Lesson) {
     setToolsOpen(false);
     setMapOpen(false);
-    touchInput.current.clear();
-    keyboardInput.current.clear();
-    input.current = idleInput();
+    clearControls();
     if (currentSession.current && phaseRef.current === "game")
-      connection.current?.input(game.current.id, input.current);
+      roomSession.sendInput(game.current.id, input.current);
     setHelpLesson(lesson);
     setHelp(true);
   }
@@ -214,21 +177,17 @@ function App() {
   function sound(freq: number) {
     audio.effect(freq);
   }
-  function changePhase(p: string) {
+  function changePhase(p: AppPhase) {
     phaseRef.current = p;
     setPhase(p);
-    input.current = idleInput();
-    keyboardInput.current.clear();
-    touchInput.current.clear();
+    clearControls();
     setToolsOpen(false);
     setMapOpen(false);
   }
   function toggleMobilePanel(panel: "tools" | "map") {
-    touchInput.current.clear();
-    keyboardInput.current.clear();
-    input.current = idleInput();
+    clearControls();
     if (currentSession.current)
-      connection.current?.input(game.current.id, input.current);
+      roomSession.sendInput(game.current.id, input.current);
     if (panel === "tools") {
       setToolsOpen((v) => !v);
       setMapOpen(false);
@@ -249,12 +208,9 @@ function App() {
       };
     }
   }, [phase]);
-  function receive(r: PublicRoom, ins: Inputs) {
+  function receive(r: PublicRoom) {
     const previous = game.current;
-    const previousRoom = currentRoom.current;
-    currentRoom.current = r;
     setLevel(r.level);
-    others.current = ins;
     if (r.game) {
       if (
         r.game.keys.length > previous.keys.length ||
@@ -263,7 +219,6 @@ function App() {
         sound(660);
       // A WebSocket packet owns this snapshot; prediction clones before stepping.
       game.current = r.game;
-      authTime.current = performance.now();
       if (r.game.id !== previous.id) {
         resetRunControls();
         setCompletion(null);
@@ -272,244 +227,40 @@ function App() {
       if (r.game.id !== previous.id || r.game.status !== previous.status)
         setHud(structuredClone(r.game));
     }
-    if (
-      r.revision !== previousRoom?.revision ||
-      r.phase !== previousRoom?.phase
-    )
-      setRoom(r);
     if (r.phase !== phaseRef.current) changePhase(r.phase);
   }
-  function enter(s: Session) {
-    sessionAttempt.current++;
-    connection.current?.close();
-    setConnected(false);
-    currentSession.current = s;
-    setSession(s);
-    save("session", KEY, s);
-    warmScene();
-    changePhase("lobby");
-    connection.current = new Connection(s, receive, setConnected, setError);
-  }
-  useEffect(() => {
-    if (MINITOOL) return;
-    const attempt = sessionAttempt.current;
-    let cancelled = false;
-    const s = stored<unknown>("session", KEY);
-    if (validSession(s) && (!initialCode || initialCode === s.code)) {
-      void api(`/rooms/${s.code}`, undefined, s.token)
-        .then(() => {
-          if (!cancelled && attempt === sessionAttempt.current) enter(s);
-        })
-        .catch(() => {
-          if (!cancelled && attempt === sessionAttempt.current)
-            forget("session", KEY);
-        });
-    }
-    return () => {
-      cancelled = true;
-      connection.current?.close();
-    };
-  }, []);
-  useEffect(() => {
-    if (phase !== "game") return;
-    let cancelled = false,
-      frame = 0,
-      scene: PaperScene | null = null;
-    let visibility: (() => void) | undefined;
-    sceneReady.current = false;
-    setSceneStatus("loading");
-    void loadScene()
-      .then(({ PaperScene }) => {
-        if (cancelled) return;
-        let contextPaused = false;
-        const created = new PaperScene(canvas.current!, {
-          quality: qualityRef.current,
-          onContextStatus: (status) => {
-            if (cancelled) return;
-            contextPaused = status !== "restored";
-            last = performance.now();
-            acc = 0;
-            keyboardInput.current.clear();
-            touchInput.current.clear();
-            input.current = idleInput();
-            sceneReady.current = !contextPaused;
-            setSceneStatus(
-              status === "restored"
-                ? "ready"
-                : status === "failed"
-                  ? "context-failed"
-                  : "context-lost",
-            );
-            if (contextPaused) {
-              connection.current?.input(game.current.id, input.current);
-              connection.current?.close();
-              if (currentSession.current) setConnected(false);
-            } else if (currentSession.current) {
-              connection.current = new Connection(
-                currentSession.current,
-                receive,
-                setConnected,
-                setError,
-              );
-            }
-          },
-        });
-        scene = created;
-        activeScene.current = created;
-        sceneReady.current = true;
-        setSceneStatus("ready");
-        let last = performance.now(),
-          acc = 0,
-          net = 0,
-          ui = 0,
-          simulatedGameId = game.current.id;
-        const budget = new FrameBudget();
-        const update = (now: number) => {
-          if (simulatedGameId !== game.current.id) {
-            simulatedGameId = game.current.id;
-            last = now;
-            acc = 0;
-            ui = 0;
-          }
-          if (document.hidden || contextPaused) {
-            created.observeFrame(now, false);
-            last = now;
-            acc = 0;
-            return;
-          }
-          if (
-            !budget.ready(
-              now,
-              MINITOOL || (helpRef.current && !currentSession.current)
-                ? 30
-                : 60,
-            )
-          )
-            return;
-          created.observeFrame(
-            now,
-            !MINITOOL && !helpRef.current && game.current.status === "playing",
-          );
-          const dt = Math.min(0.05, (now - last) / 1000);
-          last = now;
-          acc += dt;
-          const playing = phaseRef.current === "game";
-          input.current = helpRef.current
-            ? idleInput()
-            : mergeInput(
-                keyboardInput.current.read(now),
-                touchInput.current.read(now),
-              );
-          if (playing) {
-            if (!currentSession.current && helpRef.current) {
-              acc = 0;
-            } else if (!currentSession.current) {
-              while (acc >= 1 / 60) {
-                const before =
-                  game.current.keys.length + game.current.stars.length;
-                if (!MINITOOL) replay.record(game.current, input.current);
-                stepGame(game.current, { 0: input.current });
-                if (
-                  game.current.keys.length + game.current.stars.length >
-                  before
-                )
-                  sound(660);
-                acc -= 1 / 60;
-              }
-            } else {
-              acc = 0;
-              if (now - net > 33) {
-                connection.current?.input(game.current.id, input.current);
-                net = now;
-              }
-            }
-          } else acc = 0;
-          if (!currentSession.current) recordWin(game.current);
-          for (const cue of audioEvents.current.observe(game.current))
-            audio.cue(cue);
-          let display = game.current;
-          if (
-            playing &&
-            currentSession.current &&
-            currentRoom.current?.players.every((p) => p.online)
-          ) {
-            display = structuredClone(game.current);
-            const predicted = Math.min(
-              0.1,
-              Math.max(0, (now - authTime.current) / 1000),
-            );
-            for (let t = 0; t < predicted; t += 1 / 60)
-              stepGame(display, {
-                ...others.current,
-                [currentSession.current.slot]: input.current,
-              });
-          }
-          guide.current = guideFor(
-            game.current,
-            currentSession.current?.slot ?? 0,
-            guideTracker.current,
-          );
-          created.render(
-            display,
-            currentSession.current?.slot ?? 0,
-            dt,
-            phaseRef.current !== "game",
-            languageRef.current,
-            guideEnabledRef.current && playing
-              ? guide.current.target
-              : undefined,
-            compactRef.current,
-          );
-          if (now - ui > 100) {
-            setHud(structuredClone(game.current));
-            ui = now;
-          }
-        };
-        const loop = (now: number) => {
-          if (cancelled || (MINITOOL && document.hidden)) return;
-          try {
-            update(now);
-          } catch (error) {
-            console.error("[BeforeTheRainStop] Game update failed", error);
-            sceneReady.current = false;
-            keyboardInput.current.clear();
-            touchInput.current.clear();
-            input.current = idleInput();
-            connection.current?.input(game.current.id, input.current);
-            setSceneStatus("error");
-            return;
-          }
-          frame = requestAnimationFrame(loop);
-        };
-        if (MINITOOL) {
-          visibility = () => {
-            cancelAnimationFrame(frame);
-            last = performance.now();
-            acc = 0;
-            keyboardInput.current.clear();
-            touchInput.current.clear();
-            input.current = idleInput();
-            if (!document.hidden && !cancelled)
-              frame = requestAnimationFrame(loop);
-          };
-          document.addEventListener("visibilitychange", visibility);
-          visibility();
-        } else frame = requestAnimationFrame(loop);
-      })
-      .catch((error) => {
-        console.error("[BeforeTheRainStop] Scene startup failed", error);
-        if (!cancelled) setSceneStatus("error");
-      });
-    return () => {
-      cancelled = true;
-      sceneReady.current = false;
-      cancelAnimationFrame(frame);
-      if (visibility)
-        document.removeEventListener("visibilitychange", visibility);
-      activeScene.current = null;
-      scene?.dispose();
-    };
-  }, [phase]);
+  const roomSession = useRoomSession({
+    initialCode,
+    onRoom: receive,
+    onEnter: () => {
+      warmScene();
+      changePhase("lobby");
+    },
+    onError: setError,
+  });
+  const { room, session, connected, currentRoom, currentSession } = roomSession;
+  const { sceneStatus, sceneReady, guide } = useGameRuntime({
+    phase,
+    phaseRef,
+    canvas,
+    game,
+    controls: { value: input, keyboard: keyboardInput, touch: touchInput },
+    room: roomSession,
+    presentation: {
+      paused: helpRef.current,
+      language,
+      compact,
+      guideEnabled,
+      quality,
+    },
+    onStep: (g, value) => replay.record(g, value),
+    onPickup: () => sound(660),
+    onFrame: (g) => {
+      if (!currentSession.current) recordWin(g);
+      for (const cue of audioEvents.current.observe(g)) audio.cue(cue);
+    },
+    onHud: setHud,
+  });
   const syncInput = () => {
     input.current =
       helpRef.current || !sceneReady.current
@@ -519,7 +270,7 @@ function App() {
             touchInput.current.read(performance.now()),
           );
     if (phaseRef.current === "game" && currentSession.current)
-      connection.current?.input(game.current.id, input.current);
+      roomSession.sendInput(game.current.id, input.current);
   };
   useEffect(
     () =>
@@ -538,18 +289,14 @@ function App() {
   );
   async function create() {
     if (!MINITOOL && !acceptName()) return;
-    sessionAttempt.current++;
+    roomSession.beginEntry();
     warmScene();
     void audio.start();
     setError("");
     save("local", "rain-name", name);
     if (MINITOOL || mode === 1) {
       soloName.current = nameReview.ok ? nameReview.name : "旅人";
-      connection.current?.close();
-      currentSession.current = null;
-      currentRoom.current = null;
-      setSession(null);
-      setRoom(null);
+      roomSession.clear();
       game.current = newGame(1, level, crypto.randomUUID());
       setHud(structuredClone(game.current));
       changePhase("game");
@@ -563,7 +310,7 @@ function App() {
         name,
         playerToken,
       });
-      enter({ code: r.room.code, token: r.token!, slot: r.slot! });
+      roomSession.enter({ code: r.room.code, token: r.token, slot: r.slot });
     } catch (e) {
       reportEntryError(e);
     } finally {
@@ -572,7 +319,7 @@ function App() {
   }
   async function join() {
     if (!acceptName()) return;
-    sessionAttempt.current++;
+    roomSession.beginEntry();
     warmScene();
     void audio.start();
     setBusy(true);
@@ -582,7 +329,7 @@ function App() {
       const c = code.toUpperCase().trim();
       if (!/^[A-HJ-NP-Z2-9]{8}$/.test(c)) throw new Error("请输入 8 位房间码");
       const r = await api(`/rooms/${c}/join`, { name, playerToken });
-      enter({ code: c, token: r.token!, slot: r.slot! });
+      roomSession.enter({ code: c, token: r.token, slot: r.slot });
     } catch (e) {
       reportEntryError(e);
     } finally {
@@ -590,21 +337,7 @@ function App() {
     }
   }
   function leave() {
-    sessionAttempt.current++;
-    setConnected(false);
-    if (session && room?.phase === "lobby")
-      void api(
-        `/rooms/${session.code}/command`,
-        { type: "leave" },
-        session.token,
-      ).catch(() => {});
-    connection.current?.close();
-    connection.current = null;
-    currentSession.current = null;
-    currentRoom.current = null;
-    forget("session", KEY);
-    setSession(null);
-    setRoom(null);
+    roomSession.leave();
     setError("");
     setHelp(false);
     game.current = newGame(1, level);
@@ -612,9 +345,7 @@ function App() {
     if (location.search) history.replaceState(null, "", location.pathname);
   }
   function resetRunControls() {
-    keyboardInput.current.clear();
-    touchInput.current.clear();
-    input.current = idleInput();
+    clearControls();
     helpRef.current = false;
     setHelp(false);
     setToolsOpen(false);
@@ -633,8 +364,8 @@ function App() {
       return;
     resetRunControls();
     if (activeSession) {
-      connection.current?.input(game.current.id, input.current);
-      connection.current?.command({
+      roomSession.sendInput(game.current.id, input.current);
+      roomSession.command({
         type: "restart",
         gameId: game.current.id,
         next,
@@ -655,7 +386,7 @@ function App() {
     setRetryingTeamScore(true);
     try {
       const result = await api(`/rooms/${s.code}/score`, {}, s.token);
-      if (currentSession.current === s) receive(result.room, others.current);
+      if (currentSession.current === s) roomSession.refresh(result.room);
     } catch {
       setError("成绩暂未上传，请稍后重试。");
     } finally {
@@ -693,38 +424,6 @@ function App() {
   const restartHint = t(
     "重开本关：回到出生点，清空计时、钥匙、星星和本关存档。最佳纪录保留。",
   );
-  const { minX, maxX, minZ, maxZ } = useMemo(() => {
-    const mapPlatforms = LEVELS[hud.level].platforms.filter(
-      (p) => !["wall", "low-roof", "railing"].includes(p.kind ?? ""),
-    );
-    const minX =
-      Math.min(
-        ...mapPlatforms.map(
-          (p) => p.x - p.w / 2 - (p.motion?.axis === "x" ? p.motion.range : 0),
-        ),
-      ) - 1.5;
-    const maxX =
-      Math.max(
-        ...mapPlatforms.map(
-          (p) => p.x + p.w / 2 + (p.motion?.axis === "x" ? p.motion.range : 0),
-        ),
-      ) + 1.5;
-    const minZ =
-      Math.min(
-        ...mapPlatforms.map(
-          (p) => p.z - p.d / 2 - (p.motion?.axis === "z" ? p.motion.range : 0),
-        ),
-      ) - 1.5;
-    const maxZ =
-      Math.max(
-        ...mapPlatforms.map(
-          (p) => p.z + p.d / 2 + (p.motion?.axis === "z" ? p.motion.range : 0),
-        ),
-      ) + 1.5;
-    return { minX, maxX, minZ, maxZ };
-  }, [hud.level]);
-  const carriedKeys = local.carriedKeys?.length ?? 0,
-    carriedStars = local.carriedStars?.length ?? 0;
   const touch = (
     field: TouchField,
     value: number | boolean,
@@ -758,18 +457,6 @@ function App() {
         syncInput,
       );
   }, [isPlaying]);
-  useEffect(() => {
-    const sidebar = statusSidebar.current;
-    if (!sidebar) return;
-    const observer = new ResizeObserver(() => {
-      sidebar.parentElement?.style.setProperty(
-        "--sidebar-height",
-        `${Math.ceil(sidebar.getBoundingClientRect().height)}px`,
-      );
-    });
-    observer.observe(sidebar);
-    return () => observer.disconnect();
-  }, [isPlaying, compact]);
   return (
     <main
       className={`app ${MINITOOL ? "minitool" : ""} ${isPlaying ? "playing" : ""} ${compact ? "compact" : ""} ${toolsOpen ? "tools-open" : ""} ${mapOpen ? "map-open" : ""} ${guideEnabled ? "with-guide" : ""}`}
@@ -861,7 +548,7 @@ function App() {
             slot={session.slot}
             connected={connected}
             language={language}
-            send={(cmd) => connection.current?.command(cmd)}
+            send={(cmd) => roomSession.command(cmd)}
           />
         )}
         <button
@@ -1147,7 +834,7 @@ function App() {
               room.players.some((p) => !p.online) ||
               session?.slot !== room.host
             }
-            onClick={() => connection.current?.command({ type: "start" })}
+            onClick={() => roomSession.command({ type: "start" })}
           >
             {session?.slot === room.host
               ? `${t("一起出发")} (${room.players.filter((p) => p.online).length}/${room.capacity})`
@@ -1161,420 +848,26 @@ function App() {
       )}
       {isPlaying && (
         <>
-          <section className="hud">
-            <div className="stage">
-              <b>{String(hud.level + 1).padStart(2, "0")}</b>
-              <div>
-                {t(l.name)}
-                <small>{t(l.sub)}</small>
-              </div>
-            </div>
-            <div className="stats">
-              <span>
-                ⚿ {hud.keys.length}/{l.keys.length}
-              </span>
-              <span>
-                ✦ {hud.stars.length}/{l.stars.length}
-              </span>
-              <span className="elapsed-time">
-                ◷ {formatTime(Math.round(hud.time * 1000))}
-              </span>
-              {session && (
-                <span className={connected ? "online" : "offline"}>
-                  {t(connected ? "● 联机" : "● 重连中")}
-                </span>
-              )}
-            </div>
-          </section>
-          {session && room && <TeamSignal room={room} language={language} />}
-          <div className="status-sidebar" ref={statusSidebar}>
-            <section
-              className={`rain-hud ${(local.wetness ?? 0) > 70 ? "soaked" : ""}`}
-              aria-label={t("纸鹤状态")}
-            >
-              <div className="wet-condition">
-                <div className="meter-heading">
-                  <span>{t(compact ? "湿度" : "纸的湿度")}</span>
-                  <strong>
-                    {Math.round(local.wetness ?? 0)}
-                    <small>%</small>
-                  </strong>
-                </div>
-                <div
-                  className="wet-track"
-                  role="progressbar"
-                  aria-label={t("淋湿程度")}
-                  aria-valuenow={Math.round(local.wetness ?? 0)}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                >
-                  <i style={{ width: `${local.wetness ?? 0}%` }} />
-                </div>
-                <p>
-                  {t(
-                    local.nearFire
-                      ? "小火旁 · 正在烤干"
-                      : local.rainCover === "roof"
-                        ? "檐下只挡雨 · 靠近小火才能烤干"
-                        : local.rainCover === "ally"
-                          ? "同伴挡雨 · 湿度保持不变"
-                          : local.sheltering
-                            ? "展成方纸 · 自己仍会缓慢淋湿"
-                            : local.rainCover === "rain"
-                              ? "正在淋雨 · S 展纸 / 寻找屋檐"
-                              : "无雨处 · 湿度保持不变",
-                  )}
-                </p>
-              </div>
-              <div
-                className={`heat-condition ${(local.heat ?? 0) >= FIRE_WARNING ? "too-hot" : ""}`}
-              >
-                <div className="meter-heading">
-                  <span>{t(compact ? "热度" : "烘烤程度")}</span>
-                  <b>{Math.round(local.heat ?? 0)} / 100</b>
-                </div>
-                <div
-                  className="heat-track"
-                  role="progressbar"
-                  aria-label={t("烘烤程度")}
-                  aria-valuenow={Math.round(local.heat ?? 0)}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                >
-                  <i style={{ width: `${local.heat ?? 0}%` }} />
-                </div>
-                <p>
-                  {t(
-                    (local.heat ?? 0) >= FIRE_WARNING
-                      ? "纸边正在变脆！快离开火堆"
-                      : local.nearFire
-                        ? (local.wetness ?? 0) < 1
-                          ? "纸已经烤干，离开火边"
-                          : "烤干就走 · 烘烤到 100 会碎裂"
-                        : (local.heat ?? 0) > 0
-                          ? "远离火堆 · 正在降温"
-                          : "火光圈内可烤干 · 旺火不可接近",
-                  )}
-                </p>
-              </div>
-              <div
-                className={`fold-condition ${(local.foldsLeft ?? MAX_FOLDS) <= 2 ? "fragile" : ""}`}
-              >
-                <div className="meter-heading">
-                  <span>{t(compact ? "耐折" : "剩余耐折")}</span>
-                  <b>
-                    {local.foldsLeft ?? MAX_FOLDS} / {MAX_FOLDS}
-                  </b>
-                </div>
-                <div
-                  className="fold-pips"
-                  role="meter"
-                  aria-label={t("耐折次数")}
-                  aria-valuenow={local.foldsLeft ?? MAX_FOLDS}
-                  aria-valuemin={0}
-                  aria-valuemax={MAX_FOLDS}
-                >
-                  {Array.from({ length: MAX_FOLDS }, (_, i) => (
-                    <i
-                      key={i}
-                      className={
-                        i < (local.foldsLeft ?? MAX_FOLDS) ? "intact" : "spent"
-                      }
-                    />
-                  ))}
-                </div>
-                <p>
-                  {t(
-                    local.foldBlocked
-                      ? local.foldsLeft === 0
-                        ? "纸已破损，先去许愿架修补"
-                        : "湿纸太脆，先晾干或修补"
-                      : local.wetness >= 60
-                        ? "湿度 ≥ 60%：每次消耗 2 格"
-                        : "每次展纸或折桥消耗 1 格",
-                  )}
-                </p>
-              </div>
-              {atRepairRack(hud, local) ? (
-                <div className="repair-hint">
-                  <span>
-                    {t(
-                      local.repairProgress >= REPAIR_SECONDS
-                        ? "修补完成"
-                        : local.repairProgress > 0
-                          ? "修补中"
-                          : "按住 F · 修补纸张",
-                    )}
-                  </span>
-                </div>
-              ) : (
-                <p className="repair-away">
-                  {t("许愿架可修补 · R 返回存档处")}
-                </p>
-              )}
-              {hud.mode > 1 && (
-                <div className="team-wet">
-                  {hud.players.map((p) => (
-                    <span
-                      key={p.id}
-                      title={`${t(NAMES[p.id])}: ${Math.round(p.wetness ?? 0)}% · ${p.foldsLeft ?? MAX_FOLDS} ${t("折")}`}
-                    >
-                      <i style={{ background: COLORS[p.id] }} />
-                      {p.arrived
-                        ? t("已到家")
-                        : `${Math.round(p.wetness ?? 0)}% / ${p.foldsLeft ?? MAX_FOLDS}${t("折")}`}
-                      {(p.heat ?? 0) >= FIRE_WARNING
-                        ? ` · ♨ ${Math.round(p.heat)}`
-                        : ""}
-                      {p.sheltering ? t(" · 挡雨") : ""}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </section>
-            {guideEnabled && (
-              <GuideCard
-                g={hud}
-                guide={guide.current}
-                language={language}
-                onLearn={learn}
-                compact={compact}
-              />
-            )}
-          </div>
-          {compact && (
-            <div
-              className={`mobile-condition-note ${(local.heat ?? 0) >= FIRE_WARNING || local.foldBlocked ? "urgent" : ""}`}
-              role="status"
-            >
-              {helpRef.current
-                ? t(
-                    session
-                      ? "联机仍在进行，请在安全处查看"
-                      : "已暂停 · 关闭面板继续",
-                  )
-                : (local.heat ?? 0) >= FIRE_WARNING
-                  ? t("纸边正在变脆！快离开火堆")
-                  : local.foldBlocked
-                    ? t(
-                        local.foldsLeft === 0
-                          ? "纸已破损，先去许愿架修补"
-                          : "湿纸太脆，先晾干或修补",
-                      )
-                    : local.nearFire
-                      ? t(
-                          local.wetness < 1
-                            ? "纸已经烤干，离开火边"
-                            : "小火旁 · 正在烤干",
-                        )
-                      : atRepairRack(hud, local)
-                        ? t(
-                            local.repairProgress >= REPAIR_SECONDS
-                              ? "修补完成"
-                              : local.repairProgress > 0
-                                ? "修补中"
-                                : "架旁按住「修补」恢复耐折",
-                          )
-                        : t("按住左右移动 · 按住跳跃滑翔")}
-            </div>
-          )}
-          <div
-            className={`carry-hud ${carriedKeys + carriedStars ? "pending" : ""}`}
-            role="status"
-          >
-            {carriedKeys + carriedStars > 0 ? (
-              <>
-                <b>
-                  {t("未存档")} · ⚿ {carriedKeys} · ✦ {carriedStars}
-                </b>
-                <span>
-                  {t(
-                    LEVELS[hud.level].freeCheckpoints
-                      ? "带回任意许愿架 · 死亡后需重新拾取"
-                      : "带到下一个许愿架 · 死亡后需重新拾取",
-                  )}
-                </span>
-              </>
-            ) : local.bankedUntil > hud.time ? (
-              <>
-                <b>
-                  ⚑ {t("已存入许愿架")} · {local.lastBanked} {t("件物品")}
-                </b>
-                <span>{t("这部分收集，死亡后会保留")}</span>
-              </>
-            ) : (
-              <span>
-                ⚑ {t("已存档")} · ⚿ {hud.savedKeys?.length ?? 0} · ✦{" "}
-                {hud.savedStars?.length ?? 0}
-              </span>
-            )}
-          </div>
-          {local.failureUntil > hud.time &&
-            (local.lastDropped > 0 ||
-              (local.lastFailure && local.lastFailure !== "fall")) && (
-              <div className="failure-notice" role="alert">
-                {t(
-                  local.lastFailure === "scorched"
-                    ? "碰到旺火，纸鹤烧毁了 · 已返回许愿架"
-                    : local.lastFailure === "brittle"
-                      ? "烤得太久，纸鹤脆裂了 · 已返回许愿架"
-                      : local.lastFailure === "soaked"
-                        ? "纸鹤湿透了 · 已返回许愿架"
-                        : "已返回最近的许愿架",
-                )}
-                {local.lastDropped > 0 && (
-                  <small>
-                    {local.lastDropped} {t("件未存档物品已复位 · 请重新拾取")}
-                  </small>
-                )}
-              </div>
-            )}
-          <aside className="compass" id="route-map">
-            <div>
-              <b>{t(hud.view === 0 ? "正面 · 左右" : "侧面 · 前后")}</b>
-              {compact ? (
-                <button
-                  onClick={() => setMapOpen(false)}
-                  aria-label={t("关闭路线图")}
-                >
-                  ×
-                </button>
-              ) : (
-                <kbd>Q</kbd>
-              )}
-            </div>
-            <svg
-              viewBox={`${minX} ${minZ} ${maxX - minX} ${maxZ - minZ}`}
-              aria-label={t("俯视路线图")}
-            >
-              {l.platforms
-                .filter(
-                  (p) =>
-                    p.kind !== "wall" &&
-                    p.kind !== "low-roof" &&
-                    p.kind !== "railing",
-                )
-                .map((p, i) => (
-                  <rect
-                    key={i}
-                    x={p.x - p.w / 2}
-                    y={p.z - p.d / 2}
-                    width={p.w}
-                    height={p.d}
-                    rx=".2"
-                    fill="#61758a"
-                  />
-                ))}
-              {CROSSINGS[hud.level] && (
-                <rect
-                  x={
-                    CROSSINGS[hud.level].x -
-                    (CROSSINGS[hud.level].axis === "x" ? 1.3 : 0.5)
-                  }
-                  y={
-                    CROSSINGS[hud.level].z -
-                    (CROSSINGS[hud.level].axis === "z" ? 1.3 : 0.5)
-                  }
-                  width={CROSSINGS[hud.level].axis === "x" ? 2.6 : 1}
-                  height={CROSSINGS[hud.level].axis === "z" ? 2.6 : 1}
-                  fill={hud.bridgeLatched ? "#d9b66b" : "none"}
-                  stroke="#d9b66b"
-                  strokeWidth=".25"
-                  strokeDasharray={hud.bridgeLatched ? undefined : ".4 .3"}
-                />
-              )}
-              {guideEnabled && (
-                <>
-                  <polyline
-                    points={GUIDE_ROUTES[hud.level]
-                      .map((s) => `${s.target.x},${s.target.z}`)
-                      .join(" ")}
-                    fill="none"
-                    stroke="#e8d0a1"
-                    strokeWidth=".12"
-                    strokeDasharray=".35 .35"
-                    opacity=".45"
-                  />
-                  {l.keys.map(
-                    (k, i) =>
-                      !hud.keys.includes(i) && (
-                        <text
-                          key={`key-${i}`}
-                          x={k.x}
-                          y={k.z + 0.35}
-                          textAnchor="middle"
-                          fontSize="1.7"
-                          fill="#ffe5a8"
-                        >
-                          ⚿
-                        </text>
-                      ),
-                  )}
-                  {l.checkpoints.map((c, i) => (
-                    <rect
-                      key={`rack-${i}`}
-                      x={c.x - 0.35}
-                      y={c.z - 0.35}
-                      width=".7"
-                      height=".7"
-                      fill={local.checkpoint >= i ? "#b3dbbc" : "none"}
-                      stroke="#b3dbbc"
-                      strokeWidth=".15"
-                    />
-                  ))}
-                  {CAMPFIRES[hud.level].map((c, i) => (
-                    <circle
-                      key={`fire-${i}`}
-                      cx={c.x}
-                      cy={c.z}
-                      r=".22"
-                      fill="#ef9a63"
-                    />
-                  ))}
-                  {guide.current.target && (
-                    <circle
-                      className="map-guide-target"
-                      cx={guide.current.target.x}
-                      cy={guide.current.target.z}
-                      r=".9"
-                      fill="none"
-                      stroke="#ffe5a8"
-                      strokeWidth=".2"
-                    />
-                  )}
-                </>
-              )}
-              <circle cx={l.exit.x} cy={l.exit.z} r=".8" fill="#d9b66b" />
-              {hud.players.map((p) => (
-                <circle
-                  key={p.id}
-                  cx={p.x}
-                  cy={p.z}
-                  r={p.id === local.id ? 0.75 : 0.55}
-                  fill={COLORS[p.id]}
-                  stroke="white"
-                  strokeWidth=".2"
-                />
-              ))}
-            </svg>
-            {guideEnabled && (
-              <div className="map-legend">
-                {t("◎ 目标 · □ 存档 · 橙点小火")}
-              </div>
-            )}
-            <div className="depth-legend">
-              <i aria-hidden="true" />
-              {words(
-                ["亮边：当前行进层", "Bright edges: current lane"],
-                language,
-              )}
-            </div>
-            <small>
-              {t("你是")} <i style={{ background: COLORS[local.id] }} />
-              {t(NAMES[local.id])} ·{" "}
-              {t(local.checkpoint >= 0 ? "已记录许愿架" : "起点")}
-            </small>
-          </aside>
+          <GameStatus
+            game={hud}
+            slot={session?.slot ?? 0}
+            language={language}
+            compact={compact}
+            guide={guideEnabled ? guide.current : undefined}
+            onLearn={learn}
+            paused={helpRef.current}
+            multiplayer={!!session}
+            connected={connected}
+            room={room}
+          />
+          <RouteMap
+            game={hud}
+            slot={session?.slot ?? 0}
+            language={language}
+            compact={compact}
+            guide={guideEnabled ? guide.current : undefined}
+            onClose={() => setMapOpen(false)}
+          />
           <div className="bottom-hint">
             <kbd>← →</kbd>
             {t("移动")}
@@ -1846,13 +1139,19 @@ function App() {
             />
             {isPlaying && (
               <>
-                <button
+                <SafeRestartButton
                   className="primary"
-                  onClick={() => restart(false)}
-                  disabled={restartBlocked}
+                  language={language}
+                  scopeKey={hud.id}
+                  needsConfirmation={
+                    hud.time > 2 || hud.keys.length > 0 || hud.stars.length > 0
+                  }
+                  onConfirm={() => restart(false)}
+                  disabled={restartBlocked || !sceneReady.current}
+                  title={restartHint}
                 >
                   {t(session ? "发起重开投票" : "重新开始本关")}
-                </button>
+                </SafeRestartButton>
                 <p className="fine">{restartHint}</p>
               </>
             )}

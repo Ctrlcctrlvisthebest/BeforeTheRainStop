@@ -1,15 +1,16 @@
 import { CAMPAIGN_VERSION } from "./campaign-version";
 import type { PublicRoom } from "./room";
 import type { Input, Inputs } from "./game";
+import type {
+  RoomResult,
+  RoomEntryResult,
+  RoomFailure,
+  RoomServerMessage,
+} from "./room-protocol";
 export interface Session {
   code: string;
   token: string;
   slot: number;
-}
-export interface ApiResult {
-  room: PublicRoom;
-  token?: string;
-  slot?: number;
 }
 // Versioned deployments take precedence over legacy CI server settings.
 export const SERVICE = (
@@ -17,11 +18,24 @@ export const SERVICE = (
   import.meta.env?.VITE_ROOM_SERVER_URL ??
   ""
 ).replace(/\/$/, "");
+export function api(
+  path: "/rooms",
+  body: { capacity: number; level: number; name: string; playerToken: string },
+): Promise<RoomEntryResult>;
+export function api(
+  path: `/rooms/${string}/join`,
+  body: { name: string; playerToken: string },
+): Promise<RoomEntryResult>;
+export function api(
+  path: string,
+  body?: Record<string, unknown>,
+  token?: string,
+): Promise<RoomResult>;
 export async function api(
   path: string,
-  body?: unknown,
+  body?: Record<string, unknown>,
   token?: string,
-): Promise<ApiResult> {
+): Promise<RoomResult> {
   const r = await fetch(`${SERVICE}/api${path}`, {
     method: body === undefined ? "GET" : "POST",
     headers: {
@@ -31,16 +45,14 @@ export async function api(
     body:
       body === undefined
         ? undefined
-        : JSON.stringify(
-            typeof body === "object" && body !== null
-              ? { ...body, rulesVersion: CAMPAIGN_VERSION }
-              : body,
-          ),
+        : JSON.stringify({ ...body, rulesVersion: CAMPAIGN_VERSION }),
     signal: AbortSignal.timeout(10000),
   });
-  const data = (await r.json()) as ApiResult & { error?: string };
-  if (!r.ok) throw new Error(data.error ?? "暂时无法连接房间");
-  return data;
+  if (!r.ok) {
+    const failure = (await r.json()) as RoomFailure;
+    throw new Error(failure.error);
+  }
+  return (await r.json()) as RoomResult;
 }
 export function validSession(value: unknown): value is Session {
   if (!value || typeof value !== "object") return false;
@@ -93,16 +105,29 @@ export class Connection {
     };
     ws.onmessage = (e) => {
       if (!active()) return;
+      let value: unknown;
       try {
-        const m = JSON.parse(e.data);
-        if (m.type === "state") {
-          this.retries = 0;
-          this.status(true);
-          this.state(m.room, m.inputs ?? {});
-        } else if (m.type === "error") this.error(m.error);
+        value = JSON.parse(e.data);
       } catch {
         this.error("收到无效的同步消息");
+        return;
       }
+      if (!messageObject(value)) {
+        this.error("收到无效的同步消息");
+        return;
+      }
+      const m = value as RoomServerMessage;
+      if (m.type === "state") {
+        if (!messageObject(m.room) || !messageObject(m.inputs)) {
+          this.error("收到无效的同步消息");
+          return;
+        }
+        this.retries = 0;
+        this.status(true);
+        this.state(m.room, m.inputs);
+      } else if (m.type === "error" && typeof m.error === "string")
+        this.error(m.error);
+      else if (m.type !== "pong") this.error("收到无效的同步消息");
     };
     ws.onclose = (e) => {
       if (!active()) return;
@@ -163,4 +188,8 @@ export class Connection {
       ws.close(1000, "离开");
     }
   }
+}
+
+function messageObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
 }

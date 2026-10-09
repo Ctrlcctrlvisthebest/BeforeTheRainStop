@@ -16,7 +16,7 @@ export const words = (value: Copy, language: Language) =>
   value[language === "en" ? 1 : 0];
 export type Lesson =
   "basics" | "turn" | "bridge" | "rain" | "save" | "wind" | "gate";
-export type StepKind =
+type StepKind =
   | "walk"
   | "jump"
   | "rack"
@@ -253,7 +253,7 @@ export const GUIDE_ROUTES: RouteStep[][] = [
   ],
   ...CHALLENGE_MAPS.map((m) => m.route),
 ];
-export interface GuideTracker {
+interface GuideTracker {
   gameId: string;
   level: number;
   slot: number;
@@ -269,17 +269,27 @@ export const newGuideTracker = (): GuideTracker => ({
 });
 export interface Guidance {
   step: number;
-  total: number;
   kind: StepKind;
   lesson: Lesson;
   title: Copy;
   body: Copy;
   keys: string[];
   target?: Point;
-  warning?: Copy;
+  warning?: { text: Copy; lesson: "rain" | "save" };
   direction?: "left" | "right" | "turn" | "up" | "stay";
 }
 const distance = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.z - b.z);
+// Rain Weave's two upper landings are star detours. Derive their pickups from
+// the map so guidance cannot mistake them for mandatory key routes.
+function optionalWindStar(g: Game, step: RouteStep): number | undefined {
+  if (g.level !== 25 || step.kind !== "wind") return;
+  const id = LEVELS[g.level].stars.findIndex(
+    (star) =>
+      distance(star, step.target) < 0.75 &&
+      Math.abs(star.y - step.target.y - 0.7) < 0.1,
+  );
+  return id >= 0 ? id : undefined;
+}
 function reached(g: Game, p: Bird, s: RouteStep, previous: Point): boolean {
   if (s.kind === "key") return g.keys.includes(s.id!);
   if (s.requiredKey !== undefined && !g.keys.includes(s.requiredKey))
@@ -375,10 +385,15 @@ export function guideFor(
       // A return visit to the same corner must not skip the outward journey.
       // Stop looking beyond an outstanding key, including one above a ferry.
       const previous = route[i - 1];
+      const optionalStar = optionalWindStar(g, previous);
       if (
         (previous.kind === "key" && !g.keys.includes(previous.id!)) ||
         (previous.requiredKey !== undefined &&
-          !g.keys.includes(previous.requiredKey))
+          !g.keys.includes(previous.requiredKey)) ||
+        (optionalStar !== undefined &&
+          !g.stars.includes(optionalStar) &&
+          distance(p, previous.from!) < 1.4 &&
+          p.y < previous.target.y - 0.35)
       )
         break;
       if (
@@ -408,6 +423,7 @@ export function guideFor(
         (s.requiredKey !== undefined && !g.keys.includes(s.requiredKey))),
   );
   const s = route[missingEarlier >= 0 ? missingEarlier : tracker.index];
+  const optionalStar = optionalWindStar(g, s);
   const takeoffAxis = s.view === 0 ? "x" : "z";
   const pastAirCorner =
     !!s.via &&
@@ -430,7 +446,10 @@ export function guideFor(
     ];
     keys = ["空格"];
     if (g.level === 38 && !g.keys.includes(1) && s.target.x === 19.55) {
-      title = ["侧廊取钥，或先开闸", "Fetch the side key, or open the gate first"];
+      title = [
+        "侧廊取钥，或先开闸",
+        "Fetch the side key, or open the gate first",
+      ];
       body = [
         "右侧两级短台通往钥匙，取到后原路回来。多人可留两位同伴踩板，其他人取钥；单人两种顺序都能走通。",
         "Two short ledges lead to the key; return the same way. Two friends can hold the plates while others fetch it. Solo can do either task first.",
@@ -486,12 +505,28 @@ export function guideFor(
       "风柱会自动托起纸鹤；升到平台上方后，按方向键移过去。",
       "The wind lifts you automatically. Once above the ledge, move sideways onto it.",
     ];
+    if (optionalStar !== undefined) {
+      title = rising
+        ? ["可选摘星：乘黄叶升高", "Optional star: ride the rising leaves"]
+        : ["移向外侧高台摘星", "Collect the star on the outer ledge"];
+      body = [
+        "黄叶通往高台上的星星，摘到后回这座许愿架。只想通关可跳过这条支线，沿下层短台继续取钥；全星需走两侧高台。",
+        "The leaves lead to a high star; return to this rack afterward. You can skip this detour and follow the lower ledges for keys. Visit both upper ledges for all stars.",
+      ];
+    }
   }
   if (g.level === 2 && s.kind === "wind" && s.view === 1) {
-    title = p.y < s.target.y + 0.45
-      ? ["进入第二处黄叶，先升高", "Enter the second rising leaves and gain height"]
-      : ["向右到路标，准备转面", "Move right to the marker, ready to turn"];
-    body = ["先让风托起你；到上方路标后再转面，不用连续按 Q。", "Let the wind lift you. Reach the upper marker before turning; do not keep pressing Q."];
+    title =
+      p.y < s.target.y + 0.45
+        ? [
+            "进入第二处黄叶，先升高",
+            "Enter the second rising leaves and gain height",
+          ]
+        : ["向右到路标，准备转面", "Move right to the marker, ready to turn"];
+    body = [
+      "先让风托起你；到上方路标后再转面，不用连续按 Q。",
+      "Let the wind lift you. Reach the upper marker before turning; do not keep pressing Q.",
+    ];
   }
   if (s.kind === "ferry") {
     lesson = "wind";
@@ -764,12 +799,30 @@ export function guideFor(
       keys = ["Q", "空格"];
     }
     if (g.level === 2 && g.keys.includes(0)) {
-      title = requiredView === 1
-        ? ["拿到钥匙，转向侧廊", "Key collected: turn toward the side path"]
-        : ["升到高处，转向右侧平台", "Turn toward the raised platform on the right"];
-      body = requiredView === 1
-        ? ["按一次 Q，再向右沿侧廊前进，寻找第二处上升的黄叶。", "Press Q once, then move right along the side path toward the second rising leaves."]
-        : ["按一次 Q，向右跳并按住空格滑翔，落到高台上的许愿架。", "Press Q once, jump right and hold Space to glide onto the raised checkpoint platform."];
+      title =
+        requiredView === 1
+          ? ["拿到钥匙，转向侧廊", "Key collected: turn toward the side path"]
+          : [
+              "升到高处，转向右侧平台",
+              "Turn toward the raised platform on the right",
+            ];
+      body =
+        requiredView === 1
+          ? [
+              "按一次 Q，再向右沿侧廊前进，寻找第二处上升的黄叶。",
+              "Press Q once, then move right along the side path toward the second rising leaves.",
+            ]
+          : [
+              "按一次 Q，向右跳并按住空格滑翔，落到高台上的许愿架。",
+              "Press Q once, jump right and hold Space to glide onto the raised checkpoint platform.",
+            ];
+    }
+    if (optionalStar !== undefined) {
+      title = ["可选摘星：先转面", "Optional star: turn toward the leaves"];
+      body = [
+        "按一次 Q，再乘黄叶到外侧高台摘星，取到后回许愿架。不摘星也能通关：转面后沿下层短台继续取钥。",
+        "Press Q once, ride the leaves to the outer star, then return to the rack. Stars are optional: after turning, the lower ledges lead to the next key.",
+      ];
     }
     direction = "turn";
   } else if (direction !== "stay")
@@ -786,39 +839,51 @@ export function guideFor(
     direction = "stay";
     keys = [];
   }
-  let warning: Copy | undefined;
+  let warning: Guidance["warning"];
   if (p.heat >= 65) {
-    warning = [
-      "纸正在烤脆！马上离开火光圈，到 100 会失败。",
-      "Paper is turning brittle! Leave the fire ring now; 100 heat causes failure.",
-    ];
+    warning = {
+      lesson: "rain",
+      text: [
+        "纸正在烤脆！马上离开火光圈，到 100 会失败。",
+        "Paper is turning brittle! Leave the fire ring now; 100 heat causes failure.",
+      ],
+    };
   } else if (p.nearFire && p.wetness < 5 && p.heat > 10) {
-    warning = [
-      "已经烤干，离开火边再继续。久留会烤脆。",
-      "You are dry. Leave the fire before the paper turns brittle.",
-    ];
+    warning = {
+      lesson: "rain",
+      text: [
+        "已经烤干，离开火边再继续。久留会烤脆。",
+        "You are dry. Leave the fire before the paper turns brittle.",
+      ],
+    };
   } else if (p.wetness >= 55) {
-    warning = p.nearFire
-      ? [
-          "小火正在烤干纸张，干了就走；别等烘烤到 65。",
-          "The small fire is drying you. Leave once dry, before heat reaches 65.",
-        ]
-      : [
-          "纸已很湿：屋檐只挡雨，靠近小火才能烤干。S 不能烘干。",
-          "Paper is wet: roofs block rain; only small fires dry it. S cannot dry paper.",
-        ];
+    warning = {
+      lesson: "rain",
+      text: p.nearFire
+        ? [
+            "小火正在烤干纸张，干了就走；别等烘烤到 65。",
+            "The small fire is drying you. Leave once dry, before heat reaches 65.",
+          ]
+        : [
+            "纸已很湿：屋檐只挡雨，靠近小火才能烤干。S 不能烘干。",
+            "Paper is wet: roofs block rain; only small fires dry it. S cannot dry paper.",
+          ],
+    };
   } else if (
     l.hazards.some((h) => distance(p, h) < 3 && Math.abs(p.y - h.y) < 1.4)
   ) {
-    warning = [
-      "前方旺火碰到就失败，提前起跳，不要贴着火再跳。",
-      "Blazing fire burns on contact. Jump early, before you get close.",
-    ];
+    warning = {
+      lesson: "rain",
+      text: [
+        "前方旺火碰到就失败，提前起跳，不要贴着火再跳。",
+        "Blazing fire burns on contact. Jump early, before you get close.",
+      ],
+    };
     const pulsing = l.hazards.find(
       (h) => h.period && distance(p, h) < 3 && Math.abs(p.y - h.y) < 1.4,
     );
     if (pulsing)
-      warning = activeHazard(pulsing.period, g.time)
+      warning.text = activeHazard(pulsing.period, g.time)
         ? [
             "前方是间歇旺火：等火焰熄灭再通过，或提前跳过。",
             "Pulsing fire ahead: wait for the flame to go out, or jump early.",
@@ -828,20 +893,22 @@ export function guideFor(
             "The flame is out briefly. Cross now; it will reignite next cycle.",
           ];
   } else if (p.foldsLeft <= 1) {
-    warning = atRepairRack(g, p)
-      ? [
-          "耐折不足：站稳按住 F 两秒修补。",
-          "Low folds: stand still and hold F for 2 seconds to mend.",
-        ]
-      : [
-          "耐折快用完了，去许愿架修补。走、跳仍然可用。",
-          "Folds are running low. Mend at a rack; you can still walk and jump.",
-        ];
+    warning = {
+      lesson: "save",
+      text: atRepairRack(g, p)
+        ? [
+            "耐折不足：站稳按住 F 两秒修补。",
+            "Low folds: stand still and hold F for 2 seconds to mend.",
+          ]
+        : [
+            "耐折快用完了，去许愿架修补。走、跳仍然可用。",
+            "Folds are running low. Mend at a rack; you can still walk and jump.",
+          ],
+    };
   }
   if (p.arrived)
     return {
       step: route.length,
-      total: route.length,
       kind: "exit",
       lesson: "gate",
       title: ["你已到家，等同伴抵达", "You are home. Wait for your friends"],
@@ -854,18 +921,31 @@ export function guideFor(
     };
   // Choosing the gate branch must not make the route marker send a gate keeper
   // away while another player is fetching the chapter's independent side key.
-  if (g.level === 38 && !g.keys.includes(1) && l.pads.some((pad) => isOnGatePad(p, pad)))
+  if (
+    g.level === 38 &&
+    !g.keys.includes(1) &&
+    l.pads.some((pad) => isOnGatePad(p, pad))
+  )
     return {
       step: tracker.index + 1,
-      total: route.length,
       kind: "pads",
       lesson: "gate",
       title: g.gateOpen
-        ? ["门已开，再带回侧廊的钥匙", "Gate open; bring back the side-path key"]
+        ? [
+            "门已开，再带回侧廊的钥匙",
+            "Gate open; bring back the side-path key",
+          ]
         : ["先踩板开闸也可以", "You can open the gate first"],
-      body: g.mode === 1
-        ? ["踩住四秒后门会保持打开。再回到岔口，跳上侧廊取钥；单人不需要同时守门。", "Hold for four seconds; the gate stays open. Return to the fork and fetch the side key. Solo never needs to hold both routes at once."]
-        : ["两位同伴各踩一块板，其他人可去右侧短台取钥。门开后就能离开踏板，在后面的许愿架集合。", "Two friends hold separate plates while others fetch the key on the right-hand ledges. Leave the plates once open and meet at the next rack."],
+      body:
+        g.mode === 1
+          ? [
+              "踩住四秒后门会保持打开。再回到岔口，跳上侧廊取钥；单人不需要同时守门。",
+              "Hold for four seconds; the gate stays open. Return to the fork and fetch the side key. Solo never needs to hold both routes at once.",
+            ]
+          : [
+              "两位同伴各踩一块板，其他人可去右侧短台取钥。门开后就能离开踏板，在后面的许愿架集合。",
+              "Two friends hold separate plates while others fetch the key on the right-hand ledges. Leave the plates once open and meet at the next rack.",
+            ],
       target: { ...p },
       keys: [],
       warning,
@@ -873,13 +953,12 @@ export function guideFor(
     };
   return {
     step: tracker.index + 1,
-    total: route.length,
     kind: s.kind,
     lesson,
     title,
     body,
     keys,
-    target: p.arrived ? undefined : target,
+    target,
     warning,
     direction,
   };

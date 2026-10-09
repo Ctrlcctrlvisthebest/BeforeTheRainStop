@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type ButtonHTMLAttributes } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+} from "react";
 import type { Language } from "./i18n";
 
 type Props = Omit<ButtonHTMLAttributes<HTMLButtonElement>, "onClick"> & {
@@ -30,7 +36,7 @@ export function SafeRestartButton({
     armedAt.current = null;
     setArmed(false);
   }
-  useEffect(() => {
+  useLayoutEffect(() => {
     clear();
     return () => clearTimeout(timer.current);
   }, [scopeKey, disabled, needsConfirmation]);

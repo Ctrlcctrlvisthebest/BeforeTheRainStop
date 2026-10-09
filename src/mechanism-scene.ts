@@ -9,17 +9,17 @@ const OCHRE = "#a46c3e";
 /** A folded paper slip for live interactions. Text changes at tenths of a
  * second; the ink stroke grows without uploading a texture every frame. */
 export class MechanismCard extends THREE.Group {
-  private canvas = document.createElement("canvas");
   private context: CanvasRenderingContext2D;
   private texture: THREE.CanvasTexture;
   private fill: THREE.Mesh;
   private lastText = "";
   constructor() {
     super();
-    this.canvas.width = WIDTH;
-    this.canvas.height = HEIGHT;
-    this.context = this.canvas.getContext("2d")!;
-    this.texture = new THREE.CanvasTexture(this.canvas);
+    const canvas = document.createElement("canvas");
+    canvas.width = WIDTH;
+    canvas.height = HEIGHT;
+    this.context = canvas.getContext("2d")!;
+    this.texture = new THREE.CanvasTexture(canvas);
     this.texture.colorSpace = THREE.SRGBColorSpace;
     const face = new THREE.Mesh(
       new THREE.PlaneGeometry(1, HEIGHT / WIDTH),

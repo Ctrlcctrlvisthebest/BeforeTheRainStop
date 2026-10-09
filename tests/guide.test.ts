@@ -5,6 +5,74 @@ import { newGame, LEVELS, stepGame, idleInput } from "../src/game";
 import { bankPoint, CROSSINGS } from "../src/bridges";
 import { completeLevel } from "./journey";
 import { gateState, gateStatusCopy } from "../src/gate-state";
+test("chapter 26: both rising-leaf star detours are explained at their entrances", () => {
+  for (const [checkpoint, star, windIndex] of [
+    [1, 1, 12],
+    [3, 3, 23],
+  ]) {
+    const g = newGame(1, 25),
+      p = g.players[0],
+      tracker = newGuideTracker();
+    g.keys = Array.from({ length: checkpoint === 1 ? 1 : 2 }, (_, i) => i);
+    Object.assign(p, LEVELS[25].checkpoints[checkpoint], {
+      checkpoint,
+      grounded: true,
+    });
+    g.view = 1;
+    const before = JSON.stringify(g);
+    let cue = guideFor(g, 0, tracker);
+    assert.equal(
+      cue.kind,
+      "wind",
+      "the return-to-rack step must not swallow the detour",
+    );
+    assert.match(words(cue.title, "zh"), /可选摘星/);
+    assert.match(words(cue.body, "en"), /optional|skip/i);
+    assert.equal(cue.direction, "turn");
+    assert.equal(
+      JSON.stringify(g),
+      before,
+      "guidance never changes collectibles or terrain",
+    );
+    g.view = 0;
+    Object.assign(p, GUIDE_ROUTES[25][windIndex].from);
+    cue = guideFor(g, 0, tracker);
+    assert.equal(cue.direction, "up");
+    assert.match(words(cue.body, "zh"), /全星/);
+    g.stars.push(star);
+    Object.assign(p, GUIDE_ROUTES[25][windIndex].target);
+    cue = guideFor(g, 0, tracker);
+    assert.equal(
+      cue.kind,
+      "jump",
+      "collecting the high star leads back to the rack",
+    );
+    assert.deepEqual(cue.target, LEVELS[25].checkpoints[checkpoint]);
+    Object.assign(p, LEVELS[25].checkpoints[checkpoint]);
+    assert.notEqual(guideFor(g, 0, tracker).kind, "wind");
+  }
+});
+
+test("chapter 26: skipping optional upper stars still rejoins the lower key route", () => {
+  for (const [checkpoint, windIndex] of [
+    [1, 12],
+    [3, 23],
+  ]) {
+    const g = newGame(1, 25),
+      p = g.players[0],
+      tracker = newGuideTracker();
+    g.keys = Array.from({ length: checkpoint === 1 ? 1 : 2 }, (_, i) => i);
+    Object.assign(p, LEVELS[25].checkpoints[checkpoint], {
+      checkpoint,
+      grounded: true,
+    });
+    guideFor(g, 0, tracker);
+    Object.assign(p, GUIDE_ROUTES[25][windIndex + 2].target);
+    const cue = guideFor(g, 0, tracker);
+    assert.equal(cue.kind, "key");
+    assert.equal(g.stars.length, 0);
+  }
+});
 test("guidance rejoins later landmarks after shortcuts, while still pointing out missing keys", () => {
   const g = newGame(2, 1),
     p = g.players[0];
@@ -105,8 +173,28 @@ test("the guide explains automatic solo bridging and heat warnings without chang
   const before = JSON.stringify(g),
     guide = guideFor(g, 0, newGuideTracker());
   assert.match(words(guide.body, "en"), /Solo/);
-  assert.match(words(guide.warning!, "en"), /Leave the fire/);
+  assert.match(words(guide.warning!.text, "en"), /Leave the fire/);
+  assert.equal(guide.warning!.lesson, "rain");
   assert.equal(JSON.stringify(g), before);
+});
+
+test("warning help topics follow gameplay state, including rain taking priority over low folds", () => {
+  const game = newGame(1),
+    player = game.players[0],
+    warning = () => guideFor(game, 0, newGuideTracker()).warning;
+  assert.equal(warning(), undefined);
+  player.foldsLeft = 1;
+  assert.equal(warning()!.lesson, "save");
+  player.wetness = 60;
+  assert.equal(warning()!.lesson, "rain");
+  player.wetness = 0;
+  player.heat = 70;
+  assert.equal(warning()!.lesson, "rain");
+  player.heat = 20;
+  player.nearFire = true;
+  assert.equal(warning()!.lesson, "rain");
+  player.nearFire = false;
+  assert.equal(warning()!.lesson, "save");
 });
 
 test("every mandatory key is included in the guide, including ferry pickups", () => {
@@ -379,7 +467,9 @@ test("the midair corner cue keeps the glide held while requesting a view change"
 });
 
 test("chapter three explains both turns and the second updraft before the raised landing", () => {
-  const g = newGame(1, 2), p = g.players[0], tracker = newGuideTracker();
+  const g = newGame(1, 2),
+    p = g.players[0],
+    tracker = newGuideTracker();
   g.keys = [0];
   Object.assign(p, { x: 11, z: 0, y: 4.1, grounded: true });
   let cue = guideFor(g, 0, tracker);

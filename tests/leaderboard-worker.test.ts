@@ -42,7 +42,10 @@ const {
   `data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text + "\n//# sourceURL=worker-under-test.js").toString("base64")}`
 );
 
-function context(db = new DatabaseSync(":memory:")) {
+function context(
+  db = new DatabaseSync(":memory:"),
+  sockets: ReturnType<typeof roomSocket>[] = [],
+) {
   let alarm: number | null = null,
     ready: Promise<unknown> = Promise.resolve();
   const pending: Promise<unknown>[] = [];
@@ -71,7 +74,7 @@ function context(db = new DatabaseSync(":memory:")) {
   return {
     storage,
     db,
-    getWebSockets: () => [],
+    getWebSockets: () => sockets,
     blockConcurrencyWhile(fn: () => Promise<unknown>) {
       ready = fn();
     },
@@ -83,6 +86,50 @@ function context(db = new DatabaseSync(":memory:")) {
       while (pending.length) await Promise.all(pending.splice(0));
     },
   };
+}
+function roomSocket(slot: number, token: string) {
+  let attachment = { slot, token, seq: -1, window: Date.now(), count: 0 };
+  return {
+    readyState: 1,
+    messages: [] as string[],
+    closeCode: null as number | null,
+    deserializeAttachment: () => structuredClone(attachment),
+    serializeAttachment: (value: typeof attachment) => {
+      attachment = structuredClone(value);
+    },
+    send(data: string) {
+      this.messages.push(data);
+    },
+    close(code: number) {
+      this.closeCode = code;
+      this.readyState = 3;
+    },
+  };
+}
+
+async function recoveryRoom(env = {}) {
+  const sockets: ReturnType<typeof roomSocket>[] = [];
+  const ctx = context(undefined, sockets);
+  const object = new RainRoom(ctx, env);
+  await ctx.ready();
+  const created = await object.operate("create", "ABCDEFGH", "", {
+    capacity: 3,
+    level: 15,
+    name: "host",
+  });
+  const first = await object.operate("join", "ABCDEFGH", "", { name: "first" });
+  const second = await object.operate("join", "ABCDEFGH", "", {
+    name: "second",
+  });
+  const tokens = [created.data.token, first.data.token, second.data.token];
+  tokens.forEach((token, slot) => sockets.push(roomSocket(slot, token)));
+  const room = object.room as Room;
+  room.players.forEach((p) => (p.online = true));
+  room.phase = "game";
+  room.game = newGame(3, 15, "recovery-game");
+  room.game.time = 12;
+  object.save(room);
+  return { ctx, object, sockets, tokens };
 }
 
 test("SQLite keeps the global fastest three; faster replacements, ties and persistence", () => {
@@ -676,6 +723,190 @@ test("expired rooms cannot start or continue the simulation while an alarm is de
     assert.equal(object.timer, null);
   } finally {
     object.stop();
+    ctx.db.close();
+  }
+});
+
+test("regroup alarm finishes existing consent, broadcasts and revokes offline seats before replacement", async (t) => {
+  t.mock.timers.enable({ apis: ["Date", "setInterval"], now: Date.now() });
+  const { ctx, object, sockets, tokens } = await recoveryRoom();
+  try {
+    object.applyCommand(
+      tokens[0],
+      { type: "regroup", gameId: "recovery-game" },
+      Date.now(),
+    );
+    object.applyCommand(
+      tokens[1],
+      { type: "regroup", gameId: "recovery-game" },
+      Date.now(),
+    );
+    sockets[0].readyState = 3;
+    object.webSocketClose(sockets[0]);
+    sockets[2].readyState = 3;
+    object.webSocketClose(sockets[2]);
+    await ctx.drain();
+    assert.deepEqual(object.room.regroupVotes, [1]);
+    const state = JSON.parse(sockets[1].messages.at(-1)!);
+    assert.deepEqual(state.room.regroupVotes, [1]);
+    assert.equal(state.room.players.filter((p: any) => p.online).length, 1);
+    assert.equal(await ctx.storage.getAlarm(), Date.now() + 15000);
+    t.mock.timers.tick(14999);
+    await object.alarm();
+    assert.equal(object.room.phase, "game");
+    t.mock.timers.tick(1);
+    await object.alarm();
+    await ctx.drain();
+    assert.equal(object.room.phase, "lobby");
+    assert.equal(object.room.level, 15);
+    assert.equal(object.room.host, 1);
+    assert.equal(object.room.game, null);
+    assert.equal(JSON.parse(sockets[1].messages.at(-1)!).room.phase, "lobby");
+    assert.equal(sockets[0].deserializeAttachment().slot, -1);
+    assert.equal(sockets[2].deserializeAttachment().slot, -1);
+    assert.equal(sockets[0].closeCode, 1008);
+    assert.equal(
+      (await object.operate("state", "ABCDEFGH", tokens[0], {})).status,
+      401,
+    );
+    assert.equal(
+      ctx.db.prepare("SELECT COUNT(*) n FROM score_outbox").get()!.n,
+      0,
+    );
+    const replaced = await object.operate("join", "ABCDEFGH", "", {
+      name: "replacement",
+    });
+    assert.equal(replaced.status, 200);
+    assert.equal(replaced.data.slot, 0);
+    assert.equal(
+      (await object.operate("state", "ABCDEFGH", tokens[0], {})).status,
+      401,
+    );
+  } finally {
+    object.stop();
+    await ctx.drain();
+    ctx.db.close();
+  }
+});
+
+for (const action of ["reconnect", "cancel"] as const)
+  test(`regroup alarm rechecks ${action} immediately before the deadline`, async (t) => {
+    t.mock.timers.enable({ apis: ["Date", "setInterval"], now: Date.now() });
+    const { ctx, object, sockets, tokens } = await recoveryRoom();
+    try {
+      sockets[0].readyState = 3;
+      object.webSocketClose(sockets[0]);
+      object.applyCommand(
+        tokens[1],
+        { type: "regroup", gameId: "recovery-game" },
+        Date.now(),
+      );
+      object.applyCommand(
+        tokens[2],
+        { type: "regroup", gameId: "recovery-game" },
+        Date.now(),
+      );
+      await ctx.drain();
+      assert.equal(await ctx.storage.getAlarm(), Date.now() + 15000);
+      t.mock.timers.tick(14999);
+      if (action === "cancel") {
+        object.applyCommand(
+          tokens[1],
+          { type: "cancel-regroup", gameId: "recovery-game" },
+          Date.now(),
+        );
+      } else {
+        // A new authenticated socket reconnects the same seat; the stale socket
+        // is revoked and the returning player must explicitly consent again.
+        const reconnect = roomSocket(-1, tokens[0]);
+        sockets.push(reconnect);
+        object.webSocketMessage(
+          reconnect,
+          JSON.stringify({
+            type: "hello",
+            version: object.room.game.rulesVersion,
+            token: tokens[0],
+          }),
+        );
+        assert.equal(object.room.players[0].online, true);
+        assert.ok(!object.room.regroupVotes.includes(0));
+        assert.equal(sockets[0].deserializeAttachment().slot, -1);
+      }
+      t.mock.timers.tick(1);
+      await object.alarm();
+      await ctx.drain();
+      assert.equal(object.room.phase, "game");
+      assert.equal(object.room.game.id, "recovery-game");
+      assert.equal(object.room.players.length, 3);
+      assert.equal(await ctx.storage.getAlarm(), object.room.expiresAt);
+    } finally {
+      object.stop();
+      await ctx.drain();
+      ctx.db.close();
+    }
+  });
+
+test("regroup deadline survives object reload and does not replace a score retry or expiry deadline", async (t) => {
+  t.mock.timers.enable({ apis: ["Date", "setInterval"], now: Date.now() });
+  const env = {
+    LEADERBOARDS: {
+      getByName: () => ({
+        submitVerified: async () => {
+          throw new Error("outage");
+        },
+      }),
+    },
+  };
+  const { ctx, object, sockets, tokens } = await recoveryRoom(env);
+  let restored: typeof object | undefined;
+  try {
+    const room = object.room as Room;
+    room.game!.status = "won";
+    room.game!.stars = LEVELS[15].stars.map((_, id) => id);
+    object.enqueueScore(room);
+    await ctx.drain();
+    const queued = ctx.db.prepare("SELECT data FROM score_outbox").get()!.data;
+    sockets[0].readyState = 3;
+    object.webSocketClose(sockets[0]);
+    object.applyCommand(
+      tokens[1],
+      { type: "regroup", gameId: "recovery-game" },
+      Date.now(),
+    );
+    object.applyCommand(
+      tokens[2],
+      { type: "regroup", gameId: "recovery-game" },
+      Date.now(),
+    );
+    await ctx.drain();
+    assert.equal(await ctx.storage.getAlarm(), Date.now() + 15000);
+    restored = new RainRoom(ctx, env);
+    await ctx.ready();
+    assert.deepEqual(restored.room.regroupVotes, [1, 2]);
+    // Constructor may schedule a quicker durable score retry; it must not drop
+    // the upcoming grace period while processing that earlier alarm.
+    assert.equal(await ctx.storage.getAlarm(), Date.now() + 1000);
+    t.mock.timers.tick(1000);
+    await restored.alarm();
+    await ctx.drain();
+    assert.equal(await ctx.storage.getAlarm(), Date.now() + 14000);
+    t.mock.timers.tick(14000);
+    await restored.alarm();
+    await ctx.drain();
+    assert.equal(restored.room.phase, "lobby");
+    assert.equal(restored.room.level, 16);
+    assert.equal(
+      ctx.db.prepare("SELECT data FROM score_outbox").get()!.data,
+      queued,
+    );
+    assert.equal(await ctx.storage.getAlarm(), Date.now() + 60000);
+    restored.room.expiresAt = Date.now() + 1000;
+    await restored.scheduleAlarm();
+    assert.equal(await ctx.storage.getAlarm(), restored.room.expiresAt);
+  } finally {
+    object.stop();
+    restored?.stop();
+    await ctx.drain();
     ctx.db.close();
   }
 });

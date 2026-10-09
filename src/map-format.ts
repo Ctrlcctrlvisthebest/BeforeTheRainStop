@@ -38,12 +38,14 @@ export const MAP_LIMITS = {
   awnings: 30,
   route: 180,
 } as const;
-const object = (v: unknown): v is Record<string, any> =>
-  !!v && typeof v === "object" && !Array.isArray(v);
+const isArray = (v: unknown): v is unknown[] => Array.isArray(v);
+const object = (v: unknown): v is Record<string, unknown> =>
+  !!v && typeof v === "object" && !isArray(v);
 export function validateMap(
-  value: unknown,
+  input: unknown,
   campaignChapter?: number,
 ): MapReport {
+  const value = input;
   const errors: string[] = [],
     warnings: string[] = [];
   const fail = (path: string, message: string) =>
@@ -65,7 +67,7 @@ export function validateMap(
     num(v.z, path + ".z", -42, 42);
     num(v.y, path + ".y", -4, 24);
   };
-  const size = (v: Record<string, any>, path: string) => {
+  const size = (v: Record<string, unknown>, path: string) => {
     num(v.w, path + ".w", 0.1, 72);
     num(v.d, path + ".d", 0.1, 72);
   };
@@ -77,13 +79,14 @@ export function validateMap(
     num(v.h, path + ".h", 0.1, 30);
     if (
       v.kind !== undefined &&
-      !["wall", "step", "moving", "low-roof", "railing"].includes(v.kind)
+      (typeof v.kind !== "string" ||
+        !["wall", "step", "moving", "low-roof", "railing"].includes(v.kind))
     )
       fail(path, "未知平台种类");
     if (v.motion !== undefined) {
       if (!object(v.motion)) fail(path + ".motion", "需要移动参数");
       else {
-        if (!["x", "z"].includes(v.motion.axis))
+        if (v.motion.axis !== "x" && v.motion.axis !== "z")
           fail(path, "移动轴只能是 x 或 z");
         num(v.motion.range, path + ".motion.range", 0.1, 20);
         num(v.motion.period, path + ".motion.period", 1, 60);
@@ -96,7 +99,7 @@ export function validateMap(
     max: number,
     check: (x: unknown, p: string) => void,
   ) => {
-    if (!Array.isArray(v)) {
+    if (!isArray(v)) {
       fail(path, "需要数组");
       return;
     }
@@ -108,7 +111,8 @@ export function validateMap(
     fail("version", "需要 before-the-rain-map 第 1 版格式");
   if (
     value.chapter !== undefined &&
-    (!Number.isInteger(value.chapter) ||
+    (typeof value.chapter !== "number" ||
+      !Number.isInteger(value.chapter) ||
       value.chapter < 1 ||
       value.chapter > 999)
   )
@@ -139,12 +143,13 @@ export function validateMap(
       point(v, path);
       if (!object(v)) return;
       if (v.text !== undefined) str(v.text, path + ".text", 100);
-      if (v.view !== undefined && ![0, 1].includes(v.view))
+      if (v.view !== undefined && v.view !== 0 && v.view !== 1)
         fail(path, "视角只能是 0 或 1");
     });
   if (l.gate !== undefined) {
     platform(l.gate, "gate");
-    if (!l.pads?.length) fail("pads", "门需要至少一个开门踏板");
+    if (!isArray(l.pads) || !l.pads.length)
+      fail("pads", "门需要至少一个开门踏板");
   }
   list(l.winds, "winds", MAP_LIMITS.winds, (v, path) => {
     point(v, path);
@@ -181,12 +186,20 @@ export function validateMap(
     const c = value.crossing;
     point(c, "crossing");
     if (object(c)) {
-      if (!["x", "z"].includes(c.axis) || ![-1, 1].includes(c.near))
+      if ((c.axis !== "x" && c.axis !== "z") || (c.near !== -1 && c.near !== 1))
         fail("crossing", "检查方向与起始岸");
       num(c.span, "crossing.span", 0.5, 2.8);
       num(c.depth, "crossing.depth", 1, 5);
     }
   }
+  const reference = (items: unknown, index: unknown): unknown =>
+    isArray(items) && typeof index === "number" && Number.isInteger(index)
+      ? items[index]
+      : undefined;
+  const movingPlatform = (index: unknown) => {
+    const target = reference(l.platforms, index);
+    return object(target) && Boolean(target.motion);
+  };
   list(value.route, "route", MAP_LIMITS.route, (v, path) => {
     if (!object(v)) {
       fail(path, "需要引导点");
@@ -194,6 +207,7 @@ export function validateMap(
     }
     point(v.target, path + ".target");
     if (
+      typeof v.kind !== "string" ||
       ![
         "walk",
         "jump",
@@ -207,7 +221,7 @@ export function validateMap(
       ].includes(v.kind)
     )
       fail(path, "未知引导种类");
-    if (![0, 1].includes(v.view)) fail(path, "需要视角 0 或 1");
+    if (v.view !== 0 && v.view !== 1) fail(path, "需要视角 0 或 1");
     const ref =
       v.kind === "key"
         ? l.keys
@@ -216,20 +230,20 @@ export function validateMap(
           : v.kind === "ferry"
             ? l.platforms
             : null;
-    if (ref && (!Number.isInteger(v.id) || !ref[v.id]))
+    if (ref && !reference(ref, v.id))
       fail(path + ".id", "引用对象不存在（编号从 0 开始）");
     if (
       v.kind === "ferry" &&
+      typeof v.id === "number" &&
       Number.isInteger(v.id) &&
-      !l.platforms?.[v.id]?.motion
+      !movingPlatform(v.id)
     )
       fail(path, "渡台引导必须引用移动平台");
     if (
       v.landingId !== undefined &&
       (v.kind !== "ferry" ||
-        !Number.isInteger(v.landingId) ||
         v.landingId === v.id ||
-        !l.platforms?.[v.landingId]?.motion)
+        !movingPlatform(v.landingId))
     )
       fail(path + ".landingId", "换乘目标必须是另一座移动平台");
     if (v.via !== undefined) {
@@ -238,29 +252,24 @@ export function validateMap(
       if (
         object(v.via) &&
         object(v.target) &&
-        [0, 1].includes(v.view) &&
+        (v.view === 0 || v.view === 1) &&
         v.via[v.view === 0 ? "x" : "z"] !== v.target[v.view === 0 ? "x" : "z"]
       )
         fail(path + ".via", "转弯点必须与最终平台的起跳轴坐标对齐");
     }
     if (v.kind === "wind") point(v.from, path + ".from");
     if (v.kind === "bridge" && !value.crossing) fail(path, "没有纸桥断口");
-    if (v.kind === "pads" && !l.pads?.length) fail(path, "没有开门踏板");
-    if (
-      v.requiredKey !== undefined &&
-      (!Number.isInteger(v.requiredKey) || !l.keys?.[v.requiredKey])
-    )
+    if (v.kind === "pads" && (!isArray(l.pads) || !l.pads.length))
+      fail(path, "没有开门踏板");
+    if (v.requiredKey !== undefined && !reference(l.keys, v.requiredKey))
       fail(path, "渡台钥匙引用不存在");
   });
-  if (
-    !Array.isArray(value.route) ||
-    !value.route.length ||
-    value.route.at(-1)?.kind !== "exit"
-  )
+  const lastStep = isArray(value.route) ? value.route.at(-1) : undefined;
+  if (!object(lastStep) || lastStep.kind !== "exit")
     fail("route", "最后一个引导点必须是终点 exit");
   if (
-    Array.isArray(value.route) &&
-    value.route.slice(0, -1).some((r) => r?.kind === "exit")
+    isArray(value.route) &&
+    value.route.slice(0, -1).some((r) => object(r) && r.kind === "exit")
   )
     fail("route", "终点引导只能出现一次，并且必须放在最后");
   if (value.translations !== undefined) {
@@ -276,7 +285,8 @@ export function validateMap(
       });
   }
   if (errors.length) return { errors, warnings };
-  const m = value as MapFile;
+  // Every schema field has passed the checks above; geometry rules now consume that schema.
+  const m = input as MapFile;
   for (const run of oversizedGroundRuns(m.level.platforms))
     fail(
       `platforms[${run.platforms.join(",")}]`,
@@ -300,9 +310,9 @@ export function validateMap(
         Math.abs(q.z - p.z) <= p.d / 2,
     );
   for (const [name, q] of [
-    ["起点", l.spawn],
-    ["终点", l.exit],
-    ...l.checkpoints.map((q: Point, i: number) => [`存档点 ${i + 1}`, q]),
+    ["起点", m.level.spawn],
+    ["终点", m.level.exit],
+    ...m.level.checkpoints.map((q, i) => [`存档点 ${i + 1}`, q]),
   ] as [string, Point][])
     if (!supported(q))
       warnings.push(`${name} 下方没有同高的固定平台，请试玩检查落点。`);

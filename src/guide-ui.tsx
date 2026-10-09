@@ -8,13 +8,11 @@ interface LessonData {
   title: Copy;
   steps: Copy[];
   note: Copy;
-  keys: string[];
 }
-export const LESSONS: Record<Lesson, LessonData> = {
+const LESSONS: Record<Lesson, LessonData> = {
   basics: {
     name: ["走与跳", "Move & jump"],
     title: ["跑到边缘，再跳向对面", "Run to the edge, then jump across"],
-    keys: ["← → / A D", "空格"],
     steps: [
       [
         "左右键或 A / D 移动。先看清平台边缘和落脚处。",
@@ -40,7 +38,6 @@ export const LESSONS: Record<Lesson, LessonData> = {
       "路在拐角后面，按 Q 才能走进去",
       "Press Q to follow a path around the corner",
     ],
-    keys: ["Q / E", "← →"],
     steps: [
       [
         "走到拐角，让纸鹤与下一条走廊对齐。",
@@ -66,7 +63,6 @@ export const LESSONS: Record<Lesson, LessonData> = {
       "一人借出纸面，一人放下木桥",
       "One lends the paper; another lowers the deck",
     ],
-    keys: ["Shift / B", "→"],
     steps: [
       [
         "低檐断口跳不过。对齐金色桥钉，按住 Shift，整只纸鹤变成桥。",
@@ -92,7 +88,6 @@ export const LESSONS: Record<Lesson, LessonData> = {
       "屋檐挡雨，小火烤干，旺火要跳过",
       "Roofs shelter, small fires dry, blazes burn",
     ],
-    keys: ["S / ↓", "空格"],
     steps: [
       [
         "淋雨会增加湿度，达到 100% 就会失败。屋檐只停止淋湿；靠近小火光圈才会烤干。",
@@ -118,7 +113,6 @@ export const LESSONS: Record<Lesson, LessonData> = {
       "拿到不等于存好，带到下一座许愿架",
       "Carry each pickup to the next wishing rack",
     ],
-    keys: ["F", "R"],
     steps: [
       [
         "靠近钥匙或星星自动拾取。找齐钥匙即可通关；收齐全部星星才计入本地记录和排行榜。",
@@ -144,7 +138,6 @@ export const LESSONS: Record<Lesson, LessonData> = {
       "借风登高，借渡台过长断口",
       "Rise on the wind; ride across wide gaps",
     ],
-    keys: ["← →", "空格"],
     steps: [
       [
         "站进发光风柱会自动上升。升到高台上方，再按方向键移到平台。",
@@ -170,7 +163,6 @@ export const LESSONS: Record<Lesson, LessonData> = {
       "踩踏板移开路障，再一起走到终点",
       "Open the barrier, then bring everyone to the exit",
     ],
-    keys: [],
     steps: [
       [
         "带齐钥匙，向终点前进。遇到挡路闸门，可以找门形标记的石踏板开门，也可以尝试绕过去。",
@@ -310,10 +302,11 @@ export function GuideCard({
 }) {
   const w = (c: Copy) =>
       compact ? touchCopy(words(c, language), language) : words(c, language),
-    l = LEVELS[g.level];
+    l = LEVELS[g.level],
+    warning = guide.warning;
   return (
     <section
-      className={`journey-guide direction-${guide.direction} lesson-${guide.lesson} ${guide.warning ? "has-warning" : ""}`}
+      className={`journey-guide direction-${guide.direction} lesson-${guide.lesson} ${warning ? "has-warning" : ""}`}
       aria-label={w(["当前玩法引导", "Current gameplay guide"])}
     >
       <div className="guide-heading">
@@ -352,18 +345,10 @@ export function GuideCard({
           </span>
         )}
       </div>
-      {guide.warning && (
+      {warning && (
         <p className="guide-warning">
-          ! {w(guide.warning)}{" "}
-          <button
-            onClick={() =>
-              onLearn(
-                guide.warning && guide.warning[0].includes("耐折")
-                  ? "save"
-                  : "rain",
-              )
-            }
-          >
+          ! {w(warning.text)}{" "}
+          <button onClick={() => onLearn(warning.lesson)}>
             {w(["看说明", "Details"])}
           </button>
         </p>

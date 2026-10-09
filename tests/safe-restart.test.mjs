@@ -39,7 +39,14 @@ async function page() {
   let now = 0;
   Object.defineProperty(w.performance, "now", { value: () => now });
   w.eval(bundle.outputFiles[0].text);
-  await settle();
+  const mountedBy = Date.now() + 2000;
+  while (!w.document.getElementById("restart")) {
+    if (Date.now() > mountedBy) {
+      w.close();
+      assert.fail("Restart control did not mount");
+    }
+    await settle();
+  }
   return {
     w,
     advance: (value) => {
