@@ -22,19 +22,29 @@
   border-color: #b99b6d80;
   transform: none;
 }
-.app .tools button {
+.app .tools :is(button, .map-workshop-link) {
   border: 0;
   background: #203343d9;
   color: var(--paper-light);
   min-height: 44px;
   font-size: 12px;
 }
-.app .tools button:hover {
+.app .tools :is(button, .map-workshop-link):hover {
   background: var(--rain-blue);
 }
 .app .tools .language,
-.app .tools .music-active {
+.app .tools .music-active,
+.app .tools .map-workshop-link {
   color: var(--lantern);
+}
+.app .tools .map-workshop-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 12px;
+  border-radius: 2px;
+  text-decoration: none;
+  white-space: nowrap;
 }
 .app .intro {
   position: fixed;
@@ -354,7 +364,7 @@
   font-size: 11px;
   color: var(--mist);
 }
-.app :is(button, input, select, summary):focus-visible {
+.app :is(button, input, select, summary, .map-workshop-link):focus-visible {
   outline: 2px solid var(--lantern);
   outline-offset: 3px;
 }
@@ -405,6 +415,14 @@
   max-width: 540px;
   margin: calc(var(--safe-top) + 150px) auto 28px;
   padding: 0 26px;
+}
+.app.compact.menu-screen:not(.minitool) .tools {
+  position: relative;
+  inset: auto;
+  margin: calc(var(--safe-top) + 74px) var(--safe-right) 0 var(--safe-left);
+}
+.app.compact.menu-screen:not(.minitool) .intro {
+  margin-top: 24px;
 }
 .app.compact .intro-title {
   display: block;

@@ -459,7 +459,7 @@ function App() {
   }, [isPlaying]);
   return (
     <main
-      className={`app ${MINITOOL ? "minitool" : ""} ${isPlaying ? "playing" : ""} ${compact ? "compact" : ""} ${toolsOpen ? "tools-open" : ""} ${mapOpen ? "map-open" : ""} ${guideEnabled ? "with-guide" : ""}`}
+      className={`app ${MINITOOL ? "minitool" : ""} ${phase === "menu" ? "menu-screen" : ""} ${isPlaying ? "playing" : ""} ${compact ? "compact" : ""} ${toolsOpen ? "tools-open" : ""} ${mapOpen ? "map-open" : ""} ${guideEnabled ? "with-guide" : ""}`}
       lang={language === "zh" ? "zh-CN" : "en"}
       translate="no"
     >
@@ -529,6 +529,17 @@ function App() {
         </nav>
       )}
       <nav className="tools" id="game-tools">
+        {!MINITOOL && phase === "menu" && (
+          <a
+            className="map-workshop-link"
+            href="https://ctrlcctrlvisthebest.github.io/BeforeTheRainStopMap/"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={t("地图工坊（新标签页）")}
+          >
+            {t("地图工坊")} <span aria-hidden="true">↗</span>
+          </a>
+        )}
         <button
           className="language"
           aria-label={t("切换语言")}

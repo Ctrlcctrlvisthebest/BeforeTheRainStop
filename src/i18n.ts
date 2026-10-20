@@ -281,6 +281,8 @@ const english: Record<string, string> = {
   "♪ 关": "♪ Off",
   "♪ 开": "♪ On",
   操作说明: "How to play",
+  地图工坊: "Map studio",
+  "地图工坊（新标签页）": "Map studio (new tab)",
   返回大厅: "Lobby",
   "1 / 2 / 3 / 6 人 · 纸上合作冒险":
     "1 / 2 / 3 / 6 PLAYERS · A PAPER ADVENTURE",

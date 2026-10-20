@@ -70,7 +70,9 @@ LibreWolf 等启用反指纹保护的浏览器可能不向网页发送 Shift 事
 
 ## 独立地图编辑器
 
-打开 [雨中造景](https://ctrlcctrlvisthebest.github.io/BeforeTheRainStop/editor.html)，选择组件后点击画布放置。支持俯视、正面、侧面视图，精确属性、拖动吸附、复制、删除、撤销重做、40 关模板、自动保存和 JSON 导入导出。可设置回访许愿架存档、空中转弯点和船间换乘目标。
+游戏首页顶部的「地图工坊 ↗」可在新标签页打开独立的 [雨中祈愿地图工坊](https://ctrlcctrlvisthebest.github.io/BeforeTheRainStopMap/)，入口随界面切换中英文。工坊支持地图编辑与单人试玩，草稿独立保存。原版内置的 [雨中造景](https://ctrlcctrlvisthebest.github.io/BeforeTheRainStop/editor.html) 继续保留。
+
+在编辑器中选择组件后点击画布放置。支持俯视、正面、侧面视图，精确属性、拖动吸附、复制、删除、撤销重做、40 关模板、自动保存和 JSON 导入导出。可设置回访许愿架存档、空中转弯点和船间换乘目标。
 
 编辑器提供五步制作引导，以及纸桥、平台、渡台、天气和路线的分类说明。选择物件后，右侧会解释它的用途和参数；移动平台可播放或拖动时间预览轨迹。
 
