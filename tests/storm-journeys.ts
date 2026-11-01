@@ -47,18 +47,18 @@ export function completeStormLevel(
   ) => {
     for (let i = 0; i < frames; i++) {
       const input = { ...idleInput(), ...partial };
-      beforeStep?.(g, input);
-      stepGame(
-        g,
-        Object.fromEntries(
-          g.players.map((q) => [
-            q.id,
-            holdingGate && q.id < 2
-              ? { ...idleInput(), shelter: true }
-              : perPlayer ? { ...idleInput(), ...perPlayer(q.id) } : input,
-          ]),
-        ),
+      const inputs = Object.fromEntries(
+        g.players.map((q) => [
+          q.id,
+          holdingGate && q.id < 2
+            ? { ...idleInput(), shelter: true }
+            : perPlayer
+              ? { ...idleInput(), ...perPlayer(q.id) }
+              : input,
+        ]),
       );
+      beforeStep?.(g, inputs[0]);
+      stepGame(g, inputs);
       observe?.(g);
       const failed = g.players.find((q) => q.deaths);
       if (failed)
@@ -136,11 +136,13 @@ export function completeStormLevel(
       // The gate keepers walk onto separate plates while the rest wait at the
       // fork. They keep holding as the courier follows the real side path.
       for (let frame = 0; frame < 100; frame++)
-        tick({}, 1, (slot) => slot < 2
-          ? Math.abs(g.players[slot].z - l.pads[slot].z) < 0.1
-            ? { shelter: true }
-            : steer(slot, l.pads[slot].z, "z")
-          : { shelter: true });
+        tick({}, 1, (slot) =>
+          slot < 2
+            ? Math.abs(g.players[slot].z - l.pads[slot].z) < 0.1
+              ? { shelter: true }
+              : steer(slot, l.pads[slot].z, "z")
+            : { shelter: true },
+        );
       holdingGate = true;
       p = g.players[2];
     }
@@ -216,6 +218,43 @@ export function completeStormLevel(
           240,
         );
         tick();
+      }
+      // Transverse boarding can leave the group off-centre on the deck. Use
+      // the same turn and movement controls a player uses to line up the exit.
+      if (
+        transverse &&
+        g.players.some(
+          (q) =>
+            Math.abs(q[other] - platformAt(platform, g.motionTime)[other]) >
+            0.16,
+        )
+      ) {
+        tick({ turn: true });
+        tick({ shelter: true }, 55);
+        for (
+          let i = 0;
+          i < 360 &&
+          g.players.some(
+            (q) =>
+              Math.abs(q[other] - platformAt(platform, g.motionTime)[other]) >
+              0.12,
+          );
+          i++
+        )
+          tick({}, 1, (slot) => {
+            const delta =
+              platformAt(platform, g.motionTime)[other] -
+              g.players[slot][other];
+            return {
+              axis:
+                Math.abs(delta) < 0.04
+                  ? 0
+                  : Math.sign(delta) * (g.view === 0 ? 1 : -1),
+            };
+          });
+        tick({}, 8);
+        tick({ turn: true });
+        tick({ shelter: true }, 55);
       }
       const pickup =
         s.requiredKey === undefined ? undefined : l.keys[s.requiredKey];

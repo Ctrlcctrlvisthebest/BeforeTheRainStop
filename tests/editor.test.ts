@@ -126,7 +126,7 @@ test("all campaign maps round trip through the exact editor export format", () =
       JSON.parse(JSON.stringify(m)),
     );
   });
-  assert.equal(CHALLENGE_MAPS.length, 32);
+  assert.equal(CHALLENGE_MAPS.length, 92);
 });
 test("invalid imports fail cleanly before replacing a draft or running physics", () => {
   const valid = starterMap();

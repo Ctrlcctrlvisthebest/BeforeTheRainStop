@@ -196,9 +196,48 @@ test("S holds position and reduces own rain while protecting a nearby teammate",
   assert.equal(g.players[0].x, 19);
   assert.equal(g.players[0].y, 0);
   assert.ok(g.players[0].wetness > 0);
-  assert.ok(g.players[0].wetness < exposed.players[0].wetness * 0.35);
+  assert.ok(
+    Math.abs(g.players[0].wetness - exposed.players[0].wetness * 0.1) < 1e-9,
+  );
   assert.equal(g.players[1].rainCover, "ally");
   assert.equal(g.players[1].wetness, 40);
+  const released = structuredClone(g);
+  const before = g.players[0].wetness;
+  stepGame(g, { 0: { ...idleInput(), shelter: true } });
+  stepGame(released, {});
+  assert.ok(
+    Math.abs(
+      (g.players[0].wetness - before) * 10 -
+        (released.players[0].wetness - before),
+    ) < 1e-9,
+    "releasing shelter restores normal rain exposure",
+  );
+});
+test("solo shelter buys thinking time but continued rain still soaks the crane", () => {
+  const sheltered = newGame(1);
+  Object.assign(sheltered.players[0], { x: 19, y: 0, z: -7, wetness: 70 });
+  const exposed = structuredClone(sheltered);
+  for (
+    let frame = 1;
+    frame <= 3600 && sheltered.players[0].deaths === 0;
+    frame++
+  ) {
+    const before = sheltered.players[0].wetness;
+    stepGame(sheltered, { 0: { ...idleInput(), shelter: true } });
+    if (sheltered.players[0].deaths === 0)
+      assert.ok(
+        sheltered.players[0].wetness > before,
+        "shelter never stops the rain or dries paper",
+      );
+    if (exposed.players[0].deaths === 0) stepGame(exposed, {});
+  }
+  assert.equal(exposed.players[0].deaths, 1);
+  assert.ok(
+    sheltered.time > exposed.time * 5,
+    "there is a meaningful pause to think",
+  );
+  assert.equal(sheltered.players[0].deaths, 1);
+  assert.equal(sheltered.players[0].lastFailure, "soaked");
 });
 test("two cranes can mutually shelter, in either camera view and independent of slot order", () => {
   for (const view of [0, 1] as const) {

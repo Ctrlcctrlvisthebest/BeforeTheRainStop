@@ -122,7 +122,7 @@ test("offline menu excludes online entry points and restores legacy built-ins", 
     await settle();
     assert.equal(
       d.querySelectorAll('.chapter-select [role="option"]').length,
-      40,
+      100,
     );
     d.querySelector('.chapter-select [role="combobox"]').click();
     await settle();

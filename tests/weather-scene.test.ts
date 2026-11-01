@@ -56,7 +56,7 @@ test("rain falls downward above high platforms, is clipped by moving cover and r
   assert.equal(rain.visible, true);
 });
 
-test("wind leaves stay within real updraft bounds on all forty maps", () => {
+test("wind leaves stay within real updraft bounds on all hundred maps", () => {
   for (const level of LEVELS) {
     const wind = new WindLeaves(level.winds);
     for (const time of [0, 1.4, 67]) {
@@ -96,10 +96,10 @@ test("reduced motion freezes ambient rain and wind independently of game time", 
   }
 });
 
-test("all forty title translations remain distinct and every rain scene is finite", () => {
-  assert.equal(LEVELS.length, 40);
-  assert.equal(new Set(LEVELS.map((l) => l.name)).size, 40);
-  assert.equal(new Set(LEVELS.map((l) => translate("en", l.name))).size, 40);
+test("all hundred title translations remain distinct and every rain scene is finite", () => {
+  assert.equal(LEVELS.length, 100);
+  assert.equal(new Set(LEVELS.map((l) => l.name)).size, 100);
+  assert.equal(new Set(LEVELS.map((l) => translate("en", l.name))).size, 100);
   LEVELS.forEach((l, i) => {
     assert.notEqual(translate("en", l.name), l.name, l.name);
     const rain = new RainCurtain(WEATHER[i], []);

@@ -20,7 +20,7 @@ const english: Record<string, string> = {
     "Hold Shift / B beneath the eaves for 2s · lower the bridge",
   "在雨幕与许愿架之间，带着愿望前行。":
     "Carry your wish through rain and wishing racks.",
-  "单人探索 · 40 段雨中旅途": "Solo exploration · 40 rainy journeys",
+  "单人探索 · {count} 段雨中旅途": "Solo exploration · {count} rainy journeys",
   本地通关记录: "Local records",
   "全星通关才计入记录 · 仅保存在此设备":
     "All stars to record · saved on this device only",

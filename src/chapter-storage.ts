@@ -1,3 +1,5 @@
+import { CAMPAIGN_LENGTH, V9_CAMPAIGN_LENGTH } from "./campaign-version";
+
 /** Historical storage suffixes, indexed by the existing numeric chapter ID.
  * Never derive identity from Level.name. These literals are frozen exclusively
  * to keep existing browser records and server leaderboard partitions intact.
@@ -43,4 +45,8 @@ export const CHAPTER_STORAGE_SUFFIXES: readonly string[] = Object.freeze([
   "风暴织机",
   "长夜守灯",
   "雨尽归灯",
+  ...Array.from(
+    { length: CAMPAIGN_LENGTH - V9_CAMPAIGN_LENGTH },
+    (_, index) => `chapter-${index + V9_CAMPAIGN_LENGTH + 1}`,
+  ),
 ]);

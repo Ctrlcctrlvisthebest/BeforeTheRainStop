@@ -616,9 +616,9 @@ function App() {
               <span className="intro-players">
                 {t(
                   MINITOOL
-                    ? "单人探索 · 40 段雨中旅途"
+                    ? "单人探索 · {count} 段雨中旅途"
                     : "1 / 2 / 3 / 6 人 · 纸上合作冒险",
-                )}
+                ).replace("{count}", String(LEVELS.length))}
               </span>
               <GoalFlow language={language} soloOnly={MINITOOL} />
               <div className="intro-controls">

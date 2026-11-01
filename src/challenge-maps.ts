@@ -31,6 +31,9 @@ import ferries from "./maps/15-twin-ferries.json";
 import gallery from "./maps/16-folded-rain-gallery.json";
 import light from "./maps/17-before-first-light.json";
 import { parseMap } from "./map-format";
+import { CHAPTERS_41_60 } from "./campaign-41-60";
+import { CHAPTERS_61_80 } from "./campaign-61-80";
+import { CHAPTERS_81_100 } from "./campaign-81-100";
 
 // Add editor exports here. Terrain, weather, bridges, guides and translations
 // are all registered from the same versioned file on the client and server.
@@ -67,6 +70,9 @@ export const CHALLENGE_MAPS = [
   chapter38,
   chapter39,
   chapter40,
+  ...CHAPTERS_41_60,
+  ...CHAPTERS_61_80,
+  ...CHAPTERS_81_100,
 ].map((map, index) => parseMap(map, index + 9));
 export const CHALLENGE_START = 8;
 export const MAP_TRANSLATIONS = Object.assign(

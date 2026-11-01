@@ -1,3 +1,5 @@
+import { CAMPAIGN_LENGTH } from "../src/campaign-version";
+
 /** CPU submission time is not GPU execution time. Keep tail latency visible. */
 export function summarize(values: readonly number[]) {
   const sorted = values
@@ -23,7 +25,7 @@ export const RENDER_CASES = [
   [1, 0] as const,
   [6, 10] as const,
   [6, 11] as const,
-  ...Array.from({ length: 13 }, (_, i) => [
+  ...Array.from({ length: CAMPAIGN_LENGTH - 27 }, (_, i) => [
     [1, i + 27] as const,
     [6, i + 27] as const,
   ]).flat(),

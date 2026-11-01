@@ -19,6 +19,7 @@ import {
   rainfall,
   underAwning,
   SHIELD_RADIUS,
+  SELF_SHELTER_RAIN_FACTOR,
   besideCampfire,
   FIRE_DRY_RATE,
   FIRE_HEAT_RATE,
@@ -856,7 +857,11 @@ export function applyRain(g: Game, dt: number): void {
     if (p.invulnerable > 0) return;
     const rate = rainfall(g.level, p, g.motionTime);
     const change =
-      p.rainCover === "rain" ? rate : p.rainCover === "self" ? rate * 0.28 : 0;
+      p.rainCover === "rain"
+        ? rate
+        : p.rainCover === "self"
+          ? rate * SELF_SHELTER_RAIN_FACTOR
+          : 0;
     p.wetness = Math.max(
       0,
       Math.min(

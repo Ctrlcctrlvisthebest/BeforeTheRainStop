@@ -376,7 +376,9 @@ test("v9 imports every unchanged v7 map and mode while preserving the old store"
       for (let index = 0; index < LEVELS.length; index++)
         assert.equal(
           bestTimeFor(records.times, index, mode),
-          remade.includes(index) ? undefined : 1000 + index * 100 + mode,
+          index >= 40 || remade.includes(index)
+            ? undefined
+            : 1000 + index * 100 + mode,
         );
     records.record(finish(80, 39));
     assert.equal(bestTimeFor(new LocalRecords().times, 39, 1), 80000);
@@ -390,7 +392,7 @@ test("all forty renamed display titles preserve existing save and board keys", a
   const { default: historical } =
     await import("./fixtures/chapter-storage-v8.json");
   const { boardName } = await import("../src/leaderboard");
-  assert.deepEqual([...CHAPTER_STORAGE_SUFFIXES], historical);
+  assert.deepEqual(CHAPTER_STORAGE_SUFFIXES.slice(0, 40), historical);
   const titles = LEVELS.map((l) => l.name);
   withStorage((disk) => {
     const legacy = Object.fromEntries(
@@ -451,4 +453,32 @@ test("v9 preserves all original v8 saves and only excludes the two redesigned ch
     records.record(finish(60, 37));
     assert.equal(disk.get("rain-best-times-all-stars-v8"), old);
     assert.equal(bestTimeFor(new LocalRecords().times, 37, 1), 60000);
+  }));
+
+test("v10 preserves every v9 chapter and leaves new chapter records empty", () =>
+  withStorage((disk) => {
+    const old = JSON.stringify(
+      Object.fromEntries(
+        MODES.flatMap((mode) =>
+          CHAPTER_STORAGE_SUFFIXES.slice(0, 40).map((suffix, index) => [
+            `${mode}:${suffix}`,
+            2000 + index * 100 + mode,
+          ]),
+        ),
+      ),
+    );
+    disk.set("rain-best-times-all-stars-v9", old);
+    const records = new LocalRecords();
+    for (const mode of MODES)
+      for (let index = 0; index < LEVELS.length; index++)
+        assert.equal(
+          bestTimeFor(records.times, index, mode),
+          index < 40 ? 2000 + index * 100 + mode : undefined,
+        );
+    records.record(finish(90, LEVELS.length - 1));
+    assert.equal(disk.get("rain-best-times-all-stars-v9"), old);
+    assert.equal(
+      bestTimeFor(new LocalRecords().times, LEVELS.length - 1, 1),
+      90000,
+    );
   }));

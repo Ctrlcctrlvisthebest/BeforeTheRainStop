@@ -191,7 +191,7 @@ test("benchmark reports tail spikes instead of hiding them in the mean and cover
   assert.equal(stats.max, 400);
   assert.equal(stats.over50ms, 2);
   assert.equal(summarize([NaN, Infinity]).samples, 0);
-  for (let level = 27; level < 40; level++)
+  for (let level = 27; level < 100; level++)
     for (const mode of [1, 6])
       assert.ok(RENDER_CASES.some(([m, l]) => m === mode && l === level));
   assert.equal(

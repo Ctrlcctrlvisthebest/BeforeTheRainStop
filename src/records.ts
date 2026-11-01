@@ -6,6 +6,7 @@ import {
   V6_CAMPAIGN_LENGTH,
   REBUILT_LEVELS_V8,
   REBUILT_LEVELS_V9,
+  V9_CAMPAIGN_LENGTH,
 } from "./campaign-version";
 import { MODES, isMode, type Game, type Mode } from "./game";
 import { save, stored } from "./storage";
@@ -26,7 +27,7 @@ export function loadBestTimes(): BestTimes {
   let value = stored<unknown>("local", RECORDS_KEY);
   // Preserve historical stores and carry forward only maps with identical terrain.
   if (value == null) {
-    for (const version of [8, 7, 6, 5, 4, 3]) {
+    for (const version of [9, 8, 7, 6, 5, 4, 3]) {
       const legacy = stored<unknown>(
         "local",
         `rain-best-times-all-stars-v${version}`,
@@ -34,17 +35,19 @@ export function loadBestTimes(): BestTimes {
       if (!legacy || typeof legacy !== "object" || Array.isArray(legacy))
         continue;
       const candidates =
-        version === 8
-          ? chapterNames
+        version >= 8
+          ? chapterNames.slice(0, V9_CAMPAIGN_LENGTH)
           : version === 7
-            ? chapterNames.filter(
-                (_, index) => !REBUILT_LEVELS_V8.includes(index),
-              )
+            ? chapterNames
+                .slice(0, V9_CAMPAIGN_LENGTH)
+                .filter((_, index) => !REBUILT_LEVELS_V8.includes(index))
             : version === 6
               ? chapterNames.slice(0, V6_CAMPAIGN_LENGTH)
               : UNCHANGED_LEVELS_V6.map((index) => chapterNames[index]);
       const unchanged = candidates.filter(
-        (name) => !REBUILT_LEVELS_V9.includes(chapterNames.indexOf(name)),
+        (name) =>
+          version === 9 ||
+          !REBUILT_LEVELS_V9.includes(chapterNames.indexOf(name)),
       );
       value = Object.fromEntries(
         MODES.flatMap((mode) =>

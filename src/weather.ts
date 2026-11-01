@@ -135,3 +135,4 @@ export function underAwning(level: number, p: Point): boolean {
   );
 }
 export const SHIELD_RADIUS = 2.6;
+export const SELF_SHELTER_RAIN_FACTOR = 0.1;
