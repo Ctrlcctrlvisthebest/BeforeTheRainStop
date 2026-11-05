@@ -40,6 +40,7 @@ import {
   type QualityMode,
 } from "./render-quality";
 import { ContextRecovery, type ContextStatus } from "./context-recovery";
+import { updateCameraFocus } from "./camera-follow";
 import { isOnGatePad } from "./gate-state";
 import * as THREE from "three";
 import {
@@ -1149,17 +1150,13 @@ export class PaperScene {
     });
     const yawTarget = (g.view * Math.PI) / 2;
     this.yaw += (yawTarget - this.yaw) * Math.min(1, dt * 12);
-    const goal = this.goal.set(
-      player.x + (g.view === 0 ? 4 * player.facing : 0),
-      Math.max(1.3, player.y + 1.3),
-      player.z - (g.view === 1 ? 4 * player.facing : 0),
-    );
+    updateCameraFocus(this.goal, player, !this.initialized);
     if (!this.initialized) {
-      this.target.copy(goal);
+      this.target.copy(this.goal);
       this.yaw = yawTarget;
       this.initialized = true;
     }
-    this.target.lerp(goal, 1 - Math.exp(-dt * 6));
+    this.target.lerp(this.goal, 1 - Math.exp(-dt * 6));
     this.backdrop.position.set(this.target.x, 0, this.target.z);
     this.backdrop.rotation.y = this.yaw;
     const aspect = this.width / this.height;

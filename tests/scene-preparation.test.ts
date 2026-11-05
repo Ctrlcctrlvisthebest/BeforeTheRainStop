@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as THREE from "three";
 import { PaperScene } from "../src/scene";
-import { LEVELS, newGame } from "../src/game";
+import { idleInput, LEVELS, newGame, stepGame } from "../src/game";
 import { AdaptiveQuality } from "../src/render-quality";
 import { SceneryOcclusion } from "../src/scenery-occlusion";
 import { translate } from "../src/i18n";
@@ -11,7 +11,7 @@ import { editionCopy } from "../src/edition-copy";
 
 // Exercise real scene construction, camera/update logic and resource teardown.
 // Only GPU submission and canvas drawing are replaced; this is not a GPU test.
-function fixture() {
+function fixture(width = 1000, height = 600) {
   const previous = Object.getOwnPropertyDescriptor(globalThis, "document");
   Object.defineProperty(globalThis, "document", {
     configurable: true,
@@ -61,7 +61,8 @@ function fixture() {
   const calls: string[] = [];
   const view = Object.create(PaperScene.prototype) as PaperScene;
   const root = new THREE.Group(),
-    scene = new THREE.Scene();
+    scene = new THREE.Scene(),
+    camera = new THREE.OrthographicCamera();
   scene.add(root);
   Object.assign(view, {
     scene,
@@ -69,7 +70,7 @@ function fixture() {
     backdrop: new THREE.Group(),
     sceneryOcclusion: new SceneryOcclusion(),
     visibilitySubjects: [],
-    camera: new THREE.OrthographicCamera(),
+    camera,
     birds: [],
     rain: null,
     windLeaves: null,
@@ -99,8 +100,8 @@ function fixture() {
     yaw: 0,
     target: new THREE.Vector3(4, 1, 0),
     initialized: false,
-    width: 1000,
-    height: 600,
+    width,
+    height,
     clock: 0,
     gameId: "",
     language: "zh",
@@ -133,6 +134,7 @@ function fixture() {
   return {
     view,
     root,
+    camera,
     calls,
     frame: async () => {
       const pending = [...frames.values()];
@@ -196,6 +198,137 @@ function resources(root: THREE.Object3D) {
   });
   return ids;
 }
+
+test("small movements, turns and ordinary jumps keep the camera still in both views and screen shapes", () => {
+  for (const [width, height] of [
+    [1000, 600],
+    [390, 844],
+  ]) {
+    for (const view of [0, 1] as const) {
+      const f = fixture(width, height),
+        game = newGame(1, 0),
+        player = game.players[0],
+        start = { x: player.x, y: player.y, z: player.z };
+      try {
+        game.view = view;
+        f.view.render(game, 0, 0);
+        const position = f.camera.position.clone(),
+          rotation = f.camera.quaternion.clone();
+        for (let frame = 0; frame < 60; frame++) {
+          player.x = start.x + Math.sin(frame / 5) * 1.5;
+          player.z = start.z + Math.cos(frame / 5) * 1.5;
+          player.facing = frame % 2 ? -1 : 1;
+          f.view.render(game, 0, 1 / 60);
+          assert.deepEqual(f.camera.position, position);
+          assert.ok(f.camera.quaternion.equals(rotation));
+        }
+        Object.assign(player, start);
+        let peak = player.y;
+        for (let frame = 0; frame < 90; frame++) {
+          stepGame(game, { 0: { ...idleInput(), jump: frame === 0 } });
+          peak = Math.max(peak, player.y);
+          f.view.render(game, 0, 1 / 60);
+          assert.deepEqual(f.camera.position, position);
+          assert.ok(f.camera.quaternion.equals(rotation));
+        }
+        assert.ok(peak > start.y + 1, "a real jump took place");
+      } finally {
+        f.close();
+      }
+    }
+  }
+});
+
+test("long travel follows smoothly, nearby reversals stay put and Q preserves the new view's tracking", () => {
+  const f = fixture(),
+    game = newGame(1, 0),
+    player = game.players[0];
+  const renderFrames = (count: number) => {
+    for (let frame = 0; frame < count; frame++) f.view.render(game, 0, 1 / 60);
+  };
+  try {
+    f.view.render(game, 0, 0);
+    const start = f.camera.position.clone();
+    player.x += 8;
+    renderFrames(1);
+    assert.ok(f.camera.position.x > start.x);
+    assert.ok(f.camera.position.x < player.x, "follow starts smoothly");
+    renderFrames(240);
+    const settled = f.camera.position.clone();
+    assert.ok(settled.x > start.x + 3, "long travel moved the camera");
+    assert.ok(
+      player.x - settled.x > 1,
+      "stopping does not recenter the player",
+    );
+    player.x -= 1.5;
+    player.facing = -1;
+    renderFrames(120);
+    player.x += 0.5;
+    renderFrames(120);
+    assert.ok(f.camera.position.distanceTo(settled) < 1e-7);
+
+    const direction = f.camera.getWorldDirection(new THREE.Vector3());
+    game.view = 1;
+    renderFrames(240);
+    const turned = f.camera.position.clone(),
+      turnedDirection = f.camera.getWorldDirection(new THREE.Vector3());
+    assert.ok(Math.abs(turnedDirection.x) > 0.9);
+    assert.ok(Math.abs(turnedDirection.z) < 1e-7);
+    assert.ok(Math.abs(turnedDirection.y - direction.y) < 1e-7);
+    assert.ok(Math.abs(turned.y - settled.y) < 1e-7);
+    assert.ok(
+      Math.abs(turned.x + turned.z - settled.x - settled.z) < 1e-7,
+      "turning orbits the existing focus instead of recentering it",
+    );
+    player.z -= 8;
+    renderFrames(1);
+    assert.ok(f.camera.position.z < turned.z);
+    assert.ok(f.camera.position.z > player.z);
+    renderFrames(240);
+    assert.ok(f.camera.position.z < turned.z - 3);
+    assert.ok(Math.abs(f.camera.position.x - turned.x) < 1e-7);
+
+    const beforeClimb = f.camera.position.y;
+    player.y += 6;
+    renderFrames(1);
+    assert.ok(f.camera.position.y > beforeClimb);
+    renderFrames(240);
+    assert.ok(f.camera.position.y > beforeClimb + 2);
+  } finally {
+    f.close();
+  }
+});
+
+test("multiplayer follows the local slot and a new level immediately resets its framing", () => {
+  const f = fixture(),
+    game = newGame(2, 0),
+    local = game.players[1];
+  try {
+    Object.assign(local, { x: 8, y: 2, z: -4 });
+    f.view.render(game, 1, 0);
+    const start = f.camera.position.clone(),
+      offset = start.clone().sub(new THREE.Vector3(local.x, local.y, local.z));
+    assert.equal(start.x, local.x);
+    game.players[0].x += 30;
+    for (let frame = 0; frame < 90; frame++) f.view.render(game, 1, 1 / 60);
+    assert.deepEqual(
+      f.camera.position,
+      start,
+      "the remote player cannot drag the camera",
+    );
+    local.x += 8;
+    f.view.render(game, 1, 1 / 60);
+    assert.ok(f.camera.position.x > start.x);
+
+    const next = newGame(1, 47),
+      spawn = next.players[0];
+    f.view.render(next, 0, 0);
+    const expected = new THREE.Vector3(spawn.x, spawn.y, spawn.z).add(offset);
+    assert.ok(f.camera.position.distanceTo(expected) < 1e-10);
+  } finally {
+    f.close();
+  }
+});
 
 test("preparation builds/compiles/draws before play without advancing game or visual clocks", async () => {
   const f = fixture(),
