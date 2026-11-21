@@ -1,0 +1,29 @@
+.app-header {
+  display: contents;
+}
+.app:not(.compact) .app-header {
+  position: absolute;
+  top: 30px;
+  left: 38px;
+  right: 32px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 16px 24px;
+  z-index: 12;
+}
+.app:not(.compact) .app-header > .brand {
+  position: static;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
+.app:not(.compact) .brand > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.app:not(.compact) .app-header > .tools {
+  position: static;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}

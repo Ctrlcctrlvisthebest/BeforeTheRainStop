@@ -12,12 +12,14 @@ import {
   NamePolicyError,
 } from "./name-policy";
 import type { Game, Mode } from "../src/game";
+import { isRainDifficulty, type RainDifficulty } from "../src/rain-difficulty";
 
 export interface VerifiedScore extends RankingEntry {
   version: number;
   stars: number[];
   level: number;
   mode: Mode;
+  rainDifficulty: RainDifficulty;
   participant: string;
 }
 export class RainLeaderboard extends DurableObject<Env> {
@@ -47,7 +49,8 @@ export class RainLeaderboard extends DurableObject<Env> {
       }));
   }
   submitVerified(score: VerifiedScore) {
-    boardName(score.level, score.mode);
+    if (!isRainDifficulty(score.rainDifficulty)) throw new Error("成绩无效");
+    boardName(score.level, score.mode, score.rainDifficulty);
     if (
       score.version !== RANKING_VERSION ||
       !Array.isArray(score.stars) ||
@@ -88,9 +91,10 @@ export class RainLeaderboard extends DurableObject<Env> {
         (body.mode !== undefined && body.mode !== 1)
       )
         throw new Error("关卡或人数无效");
-      boardName(body.level, 1);
+      if (!isRainDifficulty(body.rainDifficulty)) throw new Error("雨速无效");
+      boardName(body.level, 1, body.rainDifficulty);
       name = requirePlayerName(body.name);
-      game = verifyReplay(body.level, body.replay);
+      game = verifyReplay(body.level, body.replay, body.rainDifficulty);
       if (!rankedClear(game)) throw new Error("收齐全部星星的通关才计入记录");
     } catch (error) {
       return {
@@ -104,11 +108,20 @@ export class RainLeaderboard extends DurableObject<Env> {
       id: crypto.randomUUID(),
       level: game.level,
       mode: 1,
+      rainDifficulty: game.rainDifficulty,
       participant: `1:${participant}`,
       names: [name],
       timeMs: Math.round(game.time * 1000),
       achievedAt: Date.now(),
     });
-    return { status: 200, data: { level: game.level, mode: 1, entries } };
+    return {
+      status: 200,
+      data: {
+        level: game.level,
+        mode: 1,
+        rainDifficulty: game.rainDifficulty,
+        entries,
+      },
+    };
   }
 }

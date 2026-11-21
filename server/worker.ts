@@ -1,5 +1,6 @@
 import { rankedClear } from "../src/score-rules";
 import { CAMPAIGN_VERSION } from "../src/campaign-version";
+import { isRainDifficulty } from "../src/rain-difficulty";
 import { DurableObject } from "cloudflare:workers";
 import {
   authenticate,
@@ -68,6 +69,9 @@ export class RainRoom extends DurableObject<Env> {
         .exec<{ data: string }>("SELECT data FROM room WHERE id=1")
         .toArray();
       this.room = rows[0] ? (JSON.parse(rows[0].data) as Room) : null;
+      // Rooms persisted before rain difficulty was introduced used normal rain.
+      if (this.room && this.room.rainDifficulty === undefined)
+        this.room.rainDifficulty = "normal";
       if (this.room?.game && this.room.game.rulesVersion !== CAMPAIGN_VERSION) {
         this.room.game = null;
         this.room.phase = "lobby";
@@ -121,6 +125,7 @@ export class RainRoom extends DurableObject<Env> {
       id: g.id,
       level: g.level,
       mode: g.mode,
+      rainDifficulty: g.rainDifficulty,
       participant: `${g.mode}:${room.players
         .map((p) => p.rankKey ?? p.token)
         .sort()
@@ -155,7 +160,20 @@ export class RainRoom extends DurableObject<Env> {
         .toArray()[0];
       if (!row) break;
       try {
-        const score = JSON.parse(row.data) as VerifiedScore;
+        let score = JSON.parse(row.data) as VerifiedScore;
+        // Version 10 had only normal rain; keep those pending verified clears.
+        if (score.version === 10 && score.rainDifficulty === undefined) {
+          score = {
+            ...score,
+            version: RANKING_VERSION,
+            rainDifficulty: "normal",
+          };
+          this.ctx.storage.sql.exec(
+            "UPDATE score_outbox SET data=? WHERE id=?",
+            JSON.stringify(score),
+            row.id,
+          );
+        }
         if (score.version !== RANKING_VERSION) {
           this.ctx.storage.sql.exec(
             "CREATE TABLE IF NOT EXISTS legacy_score_outbox(id TEXT PRIMARY KEY,data TEXT NOT NULL)",
@@ -172,7 +190,7 @@ export class RainRoom extends DurableObject<Env> {
           continue;
         }
         await this.env.LEADERBOARDS.getByName(
-          boardName(score.level, score.mode),
+          boardName(score.level, score.mode, score.rainDifficulty),
         ).submitVerified(score);
         this.ctx.storage.sql.exec(
           "DELETE FROM score_outbox WHERE id=?",
@@ -344,7 +362,15 @@ export class RainRoom extends DurableObject<Env> {
       let r = this.room;
       if (kind === "create") {
         if (r) return { status: 409, data: { error: "请重新创建房间" } };
-        r = makeRoom(code, body.capacity, body.level, body.name, secret, now);
+        r = makeRoom(
+          code,
+          body.capacity,
+          body.level,
+          body.name,
+          secret,
+          now,
+          body.rainDifficulty,
+        );
         r.players[0].rankKey = rankKey;
         this.save(r);
         await this.scheduleAlarm();
@@ -658,17 +684,22 @@ export default {
           throw new RoomError("操作太频繁，请稍后重试", 429);
         if (request.method === "POST") {
           const body = await boundedJson(request, 512 * 1024);
+          if (body.version !== RANKING_VERSION)
+            throw new RoomError("玩法已更新，请刷新后重新挑战", 409);
           const participant = await rankIdentity(body.playerToken);
           if (typeof body.level !== "number")
             throw new RoomError("关卡或人数无效");
+          const rainDifficulty = body.rainDifficulty;
+          if (!isRainDifficulty(rainDifficulty))
+            throw new RoomError("下雨难度无效");
           let target: string;
           try {
-            target = boardName(body.level, 1);
+            target = boardName(body.level, 1, rainDifficulty);
           } catch {
             throw new RoomError("关卡或人数无效");
           }
           const result = await env.LEADERBOARDS.getByName(target).submitSolo(
-            body,
+            { ...body, rainDifficulty },
             participant,
           );
           return Response.json(result.data, { status: result.status, headers });
@@ -678,14 +709,21 @@ export default {
         if (!levelValue || !modeValue) throw new RoomError("关卡或人数无效");
         const level = Number(levelValue),
           mode = Number(modeValue) as import("../src/game").Mode;
+        const rainDifficulty =
+          url.searchParams.get("rainDifficulty") ?? "normal";
+        if (!isRainDifficulty(rainDifficulty))
+          throw new RoomError("下雨难度无效");
         let target: string;
         try {
-          target = boardName(level, mode);
+          target = boardName(level, mode, rainDifficulty);
         } catch {
           throw new RoomError("关卡或人数无效");
         }
         const entries = await env.LEADERBOARDS.getByName(target).top();
-        return Response.json({ level, mode, entries }, { headers });
+        return Response.json(
+          { level, mode, rainDifficulty, entries },
+          { headers },
+        );
       }
       let kind: string;
       let roomCode: string;
@@ -726,7 +764,10 @@ export default {
       if (kind === "state" || kind === "command" || kind === "score") {
         if (!validPlayerToken(token)) throw new RoomError("请先加入房间", 401);
       }
-      if (kind === "command" && body.rulesVersion !== CAMPAIGN_VERSION)
+      if (
+        (kind === "create" || kind === "join" || kind === "command") &&
+        body.rulesVersion !== CAMPAIGN_VERSION
+      )
         throw new RoomError("地图与计分规则已更新，请刷新页面重新加入。", 409);
       const result = await env.ROOMS.getByName("v2:" + roomCode).operate(
         kind,

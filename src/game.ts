@@ -1,4 +1,5 @@
 import { CAMPAIGN_VERSION } from "./campaign-version";
+import { RAIN_RATE_FACTORS, type RainDifficulty } from "./rain-difficulty";
 import { EXTRA_LEVELS } from "./chapters";
 import { CHALLENGE_MAPS } from "./challenge-maps";
 import {
@@ -334,6 +335,7 @@ export interface Bird extends Point {
 }
 export interface Game {
   rulesVersion: number;
+  rainDifficulty: RainDifficulty;
   id: string;
   mode: Mode;
   level: number;
@@ -358,12 +360,18 @@ export type Inputs = Record<number, Input>;
 export function isMode(v: unknown): v is Mode {
   return MODES.includes(v as Mode);
 }
-export function newGame(mode: Mode, level = 0, id = "solo"): Game {
+export function newGame(
+  mode: Mode,
+  level = 0,
+  id = "solo",
+  rainDifficulty: RainDifficulty = "normal",
+): Game {
   if (!isMode(mode) || !Number.isInteger(level) || !LEVELS[level])
     throw new Error("无效模式或关卡");
   const l = LEVELS[level];
   return {
     rulesVersion: CAMPAIGN_VERSION,
+    rainDifficulty,
     id,
     mode,
     level,
@@ -855,7 +863,8 @@ export function applyRain(g: Game, dt: number): void {
     p.rainCover = states[index];
     p.nearFire = besideCampfire(g.level, p);
     if (p.invulnerable > 0) return;
-    const rate = rainfall(g.level, p, g.motionTime);
+    const rate =
+      rainfall(g.level, p, g.motionTime) * RAIN_RATE_FACTORS[g.rainDifficulty];
     const change =
       p.rainCover === "rain"
         ? rate

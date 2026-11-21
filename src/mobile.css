@@ -6,6 +6,7 @@
   display: none;
 }
 .app.compact {
+  --mobile-header-height: 62px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: max(12px, env(safe-area-inset-left, 0px));
@@ -22,7 +23,7 @@
 }
 .compact input,
 .compact select {
-  font-size: 16px;
+  font-size: calc(16px * var(--text-scale));
   min-height: 44px;
 }
 .compact:not(.playing) .brand {
@@ -40,7 +41,7 @@
 .compact .tools button {
   min-height: 44px;
   padding: 8px 10px;
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
 }
 .compact:not(.playing) .intro {
   position: relative;
@@ -51,13 +52,13 @@
   margin: calc(var(--safe-top) + 146px) 24px 44px;
 }
 .compact:not(.playing) .intro h1 {
-  font-size: clamp(27px, 7vw, 36px);
+  font-size: calc(clamp(27px, 7vw, 36px) * var(--text-scale));
   line-height: 1.45;
   margin: 16px 0;
 }
 .compact:not(.playing) .intro p {
   max-width: none;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   line-height: 1.8;
 }
 .compact .intro .goal-flow,
@@ -78,10 +79,10 @@
   padding: 15px 2px 10px;
 }
 .compact .modes span {
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
 }
 .compact .chapter-brief p {
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
 }
 .compact .chapter-brief button,
 .compact .lobby-guide button,
@@ -136,10 +137,10 @@
   max-width: 100%;
 }
 .compact .stage > b {
-  font-size: 23px;
+  font-size: calc(23px * var(--text-scale));
 }
 .app.compact .stage > div {
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   line-height: 1.4;
   white-space: nowrap;
   overflow: hidden;
@@ -150,7 +151,7 @@
   display: none;
 }
 .compact .stats {
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   gap: 10px;
   background: none;
   border: 0;
@@ -169,7 +170,7 @@
 .mobile-toolbar button {
   min-width: 44px;
   min-height: 44px;
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
   padding: 8px;
   background: #1b2c3ee8;
   color: #dce1e5;
@@ -183,7 +184,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  top: calc(var(--safe-top) + 60px);
+  top: calc(var(--safe-top) + var(--mobile-header-height));
   right: var(--safe-right);
   left: auto;
   width: min(340px, calc(100% - var(--safe-left) - var(--safe-right)));
@@ -191,7 +192,12 @@
   background: #1b2d40;
   border: 1px solid #a3b1bc55;
   box-shadow: 0 12px 40px #0d182b80;
-  z-index: 14;
+  z-index: 16;
+  max-height: calc(
+    100dvh - var(--safe-top) - var(--mobile-header-height) -
+      var(--safe-bottom) - 12px
+  );
+  overflow-y: auto;
 }
 .compact .music-panel {
   position: fixed;
@@ -238,15 +244,15 @@
 }
 .compact .meter-heading {
   gap: 4px;
-  line-height: 22px;
+  line-height: calc(22px * var(--text-scale));
 }
 .compact .meter-heading span {
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   letter-spacing: 0;
 }
 .compact .meter-heading strong,
 .compact .meter-heading b {
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   white-space: nowrap;
 }
 .compact .wet-track,
@@ -269,9 +275,9 @@
   left: var(--safe-left);
   right: var(--safe-right);
   color: #b9c8d4;
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
   text-align: center;
-  line-height: 16px;
+  line-height: calc(16px * var(--text-scale));
 }
 .compact .mobile-condition-note.urgent {
   color: #ffc0a3;
@@ -285,12 +291,12 @@
   padding: 12px;
 }
 .compact .compass > div {
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
 }
 .compact .compass button {
   width: 44px;
   height: 44px;
-  font-size: 22px;
+  font-size: calc(22px * var(--text-scale));
   padding: 0;
 }
 .compact .compass svg {
@@ -298,30 +304,30 @@
 }
 .compact .compass small,
 .compact .compass .map-legend {
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
   line-height: 1.6;
 }
 .compact .guide-heading {
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   letter-spacing: 0;
 }
 .compact .guide-heading button {
   min-height: 44px;
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
 }
 .compact .guide-action {
   gap: 7px;
   margin-top: 0;
 }
 .compact .guide-action h2 {
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
 }
 .compact .guide-arrow {
-  font-size: 23px;
+  font-size: calc(23px * var(--text-scale));
 }
 .compact .journey-guide > p {
   display: block;
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
   line-height: 1.5;
   margin: 5px 0;
 }
@@ -337,7 +343,7 @@
   height: 28px;
   padding: 4px 8px;
   border: 0;
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   justify-content: center;
   max-width: calc(100% - var(--safe-left) - var(--safe-right));
 }
@@ -381,12 +387,14 @@
   min-height: 44px;
   height: auto;
   padding: 4px 2px;
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   gap: 3px;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
   border: 1px solid #9bb2c566;
   background: #2a3e51f5;
   color: #e1e7ea;
@@ -397,16 +405,17 @@
   box-shadow: 0 3px 0 #101e2d;
 }
 .compact .touch-key small {
-  font-size: 11px;
+  max-width: 100%;
+  font-size: calc(11px * var(--text-scale));
   font-weight: 400;
   opacity: 0.72;
 }
 .compact .touch-axis {
-  font-size: 32px;
+  font-size: calc(32px * var(--text-scale));
 }
 .compact .touch-reset,
 .compact .touch-restart {
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   background: #253647;
 }
 .compact .touch-restart {
@@ -417,7 +426,7 @@
   grid-column: span 2;
   background: #a25949;
   border-color: #d7987d;
-  font-size: 18px;
+  font-size: calc(18px * var(--text-scale));
 }
 .compact .touch-key:hover {
   transform: none;
@@ -441,7 +450,7 @@
   width: max-content;
   max-width: calc(100% - 24px);
   padding: 8px 12px;
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
 }
 .compact .vote button {
   min-height: 44px;
@@ -474,7 +483,7 @@
   padding-right: 44px;
 }
 .compact .how-to-play h2 {
-  font-size: 20px;
+  font-size: calc(20px * var(--text-scale));
   margin-right: 22px;
 }
 .compact .lesson-tabs {
@@ -482,11 +491,11 @@
 }
 .compact .lesson-tabs button {
   min-height: 44px;
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
 }
 .compact .how-to-play ol,
 .compact .help p {
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
 }
 @media (min-width: 560px) {
   .compact:not(.playing) .intro,
@@ -523,7 +532,7 @@
     display: none;
   }
   .compact .guide-action h2 {
-    font-size: 12px;
+    font-size: calc(12px * var(--text-scale));
   }
   .compact .guide-heading small {
     display: none;
@@ -554,4 +563,29 @@
     --control-height: 132px;
     --utility-height: 48px;
   }
+}
+@media (max-width: 440px) {
+  .app.compact[lang="en"][data-text-size="largest"] {
+    --control-height: 198px;
+  }
+  .app.compact[lang="en"][data-text-size="largest"] .touch-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 380px) {
+  .app.compact[lang="en"][data-text-size="largest"] .touch-movement {
+    grid-template-rows: 44px 44px minmax(0, 1fr);
+  }
+  .app.compact[lang="en"][data-text-size="largest"]
+    :is(.touch-reset, .touch-restart) {
+    grid-column: span 2;
+  }
+}
+.compact .touch-controls .touch-actions {
+  flex: 1;
+}
+.compact .touch-key > span {
+  max-width: 100%;
+  hyphens: auto;
 }

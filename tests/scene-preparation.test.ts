@@ -8,6 +8,10 @@ import { SceneryOcclusion } from "../src/scenery-occlusion";
 import { translate } from "../src/i18n";
 import { touchCopy } from "../src/mobile";
 import { editionCopy } from "../src/edition-copy";
+import { TEXT_SIZE_FACTORS } from "../src/text-size";
+import { SPRITE_FONT_HEIGHT, type TextSprite } from "../src/scene-text";
+import { MechanismCard, MECHANISM_CARD_ASPECT } from "../src/mechanism-scene";
+import { CROSSINGS, bankPoint } from "../src/bridges";
 
 // Exercise real scene construction, camera/update logic and resource teardown.
 // Only GPU submission and canvas drawing are replaced; this is not a GPU test.
@@ -24,8 +28,9 @@ function fixture(width = 1000, height = 600) {
               canvas.text = "";
             },
             fillText: (text: string) => {
-              canvas.text = text;
+              canvas.text += text;
             },
+            measureText: (text: string) => ({ width: [...text].length * 16 }),
           },
           { get: (target, key) => Reflect.get(target, key) ?? (() => {}) },
         );
@@ -115,6 +120,7 @@ function fixture(width = 1000, height = 600) {
     movingPlatforms: [],
     scratch: new THREE.Vector3(),
     goal: new THREE.Vector3(),
+    textPoint: new THREE.Vector3(),
     wetColor: new THREE.Color("#586f82"),
     heatColor: new THREE.Color("#553725"),
     sun: new THREE.DirectionalLight(),
@@ -143,7 +149,7 @@ function fixture(width = 1000, height = 600) {
       await Promise.resolve();
     },
     internals: view as unknown as {
-      textLabels: { sprite: THREE.Sprite; source: string; shorten: boolean }[];
+      textLabels: { sprite: TextSprite; source: string; shorten: boolean }[];
       clock: number;
       contextRecovery: { lost: boolean };
       interruptPreparation: () => void;
@@ -366,7 +372,7 @@ test("preparation builds/compiles/draws before play without advancing game or vi
   }
 });
 
-test("every map keeps terrain/birds/lights/textures while translating all landmark labels and changing compact layout", async () => {
+test("every map keeps terrain/birds/lights/textures while translating, resizing labels and changing compact layout", async () => {
   const f = fixture();
   try {
     for (let level = 0; level < LEVELS.length; level++) {
@@ -399,13 +405,111 @@ test("every map keeps terrain/birds/lights/textures while translating all landma
         );
         const expected = shorten ? touchCopy(translated, "en") : translated;
         assert.equal(
-          (sprite.material.map!.image as { text: string }).text,
-          expected,
+          (sprite.material.map!.image as { text: string }).text.replace(
+            /\s+/g,
+            "",
+          ),
+          expected.replace(/\s+/g, ""),
         );
       }
       f.view.render(game, 0, 0, false, "zh", LEVELS[level].exit, false);
       assert.deepEqual(resources(f.root), ids);
+      const base = labels.map(({ sprite }) => sprite.scale.clone());
+      const versions = labels.map(({ sprite }) => sprite.material.map!.version);
+      const before = structuredClone(game);
+      for (const size of ["large", "largest", "standard"] as const) {
+        f.view.render(game, 0, 0, false, "zh", LEVELS[level].exit, false, size);
+        labels.forEach(({ sprite }, index) => {
+          assert.ok(
+            Math.abs(sprite.scale.x - base[index].x * TEXT_SIZE_FACTORS[size]) <
+              1e-10,
+          );
+          assert.ok(
+            Math.abs(sprite.scale.y - base[index].y * TEXT_SIZE_FACTORS[size]) <
+              1e-10,
+          );
+        });
+        assert.deepEqual(
+          labels.map(({ sprite }) => sprite.material.map!.version),
+          versions,
+          "resizing reuses the rasterized text without another texture upload",
+        );
+        assert.deepEqual(resources(f.root), ids);
+        assert.deepEqual(game, before);
+        assert.equal(f.internals.clock, clock);
+      }
     }
+  } finally {
+    f.close();
+  }
+});
+
+test("phone landmark text keeps a readable pixel size and visible ink stays in the viewport", () => {
+  const f = fixture(320, 100);
+  try {
+    const game = newGame(1);
+    for (const size of ["standard", "large", "largest"] as const) {
+      f.view.render(game, 0, 0, false, "en", undefined, true, size);
+      const worldPerPixel = (f.camera.right - f.camera.left) / 320;
+      for (const { sprite } of f.internals.textLabels) {
+        const factor = sprite.scale.x / 6.4;
+        assert.ok(
+          (SPRITE_FONT_HEIGHT * factor) / worldPerPixel >=
+            10 * TEXT_SIZE_FACTORS[size] - 1e-8,
+        );
+        if (!sprite.visible) continue;
+        const center = sprite
+          .getWorldPosition(new THREE.Vector3())
+          .project(f.camera);
+        const halfWidth =
+          ((sprite.textWidth / 100) * factor) / worldPerPixel / 320;
+        const halfHeight =
+          ((sprite.textHeight / 100) * factor) / worldPerPixel / 100;
+        assert.ok(Math.abs(center.x) + halfWidth <= 1 + 1e-8);
+        assert.ok(Math.abs(center.y) + halfHeight <= 1 + 1e-8);
+      }
+    }
+  } finally {
+    f.close();
+  }
+});
+
+test("live mechanism slips and crane numbers resize without resetting progress or replacing resources", () => {
+  const f = fixture(320, 408);
+  try {
+    const game = newGame(1, 1);
+    Object.assign(game.players[0], bankPoint(CROSSINGS[1], CROSSINGS[1].near));
+    for (let frame = 0; frame < 30; frame++)
+      stepGame(game, { 0: { ...idleInput(), fold: true } });
+    f.view.render(game, 0, 0, false, "en", undefined, true, "standard");
+    const card = f.root.children.find((node) => node instanceof MechanismCard)!;
+    assert.ok(card);
+    const numbers: THREE.Sprite[] = [];
+    f.root.traverse((node) => {
+      if (node instanceof THREE.Sprite && node.name === "label")
+        numbers.push(node);
+    });
+    const widths = numbers.map((node) => node.scale.x);
+    const width = card.scale.x;
+    const ids = resources(f.root);
+    const before = structuredClone(game);
+    f.view.render(game, 0, 0, false, "en", undefined, true, "largest");
+    assert.ok(Math.abs(card.scale.x - width * 1.4) < 1e-10);
+    numbers.forEach((node, index) =>
+      assert.ok(Math.abs(node.scale.x - widths[index] * 1.4) < 1e-10),
+    );
+    const worldPerPixel = (f.camera.right - f.camera.left) / 320;
+    const center = card.getWorldPosition(new THREE.Vector3()).project(f.camera);
+    assert.ok(
+      Math.abs(center.x) + card.scale.x / worldPerPixel / 320 <= 1 + 1e-8,
+    );
+    assert.ok(
+      Math.abs(center.y) +
+        (card.scale.x * MECHANISM_CARD_ASPECT) / worldPerPixel / 408 <=
+        1 + 1e-8,
+    );
+    assert.deepEqual(game, before);
+    assert.deepEqual(resources(f.root), ids);
   } finally {
     f.close();
   }

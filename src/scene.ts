@@ -2,6 +2,7 @@ import { editionCopy } from "./edition-copy";
 import { mergeDecorations, colorSlab } from "./render-geometry";
 import type { RainCover } from "./rain-occlusion";
 import { RainCurtain, WindLeaves } from "./weather-scene";
+import { RAIN_RATE_FACTORS } from "./rain-difficulty";
 import {
   disposeObjectTree,
   platformVisual,
@@ -13,7 +14,14 @@ import { stabilizeTerrain, styleTerrainDepth } from "./terrain-scene";
 import { TerrainEdges, topOutline } from "./terrain-edges";
 import { translate, type Language } from "./i18n";
 import { touchCopy } from "./mobile";
-import { textSprite, writeSpriteText } from "./scene-text";
+import {
+  textSprite,
+  writeSpriteText,
+  setSpriteTextScale,
+  SPRITE_FONT_HEIGHT,
+  type TextSprite,
+} from "./scene-text";
+import { TEXT_SIZE_FACTORS, type TextSize } from "./text-size";
 import {
   CROSSINGS,
   bankPoint,
@@ -33,7 +41,7 @@ import { gatePad, gateMark, animateGatePad } from "./gate-scene";
 import { SceneryOcclusion, prepareBackdrop } from "./scenery-occlusion";
 import { bridgeSocket, animateBridgeSocket } from "./bridge-scene";
 import { bridgeSocketState, mechanismFeedback } from "./mechanism-state";
-import { MechanismCard } from "./mechanism-scene";
+import { MechanismCard, MECHANISM_CARD_ASPECT } from "./mechanism-scene";
 import {
   AdaptiveQuality,
   qualitySettings,
@@ -455,10 +463,12 @@ export class PaperScene {
   private language: Language = "zh";
   private compact = false;
   private textLabels: {
-    sprite: THREE.Sprite;
+    sprite: TextSprite;
     source: string;
     color: string;
     shorten: boolean;
+    scale: number;
+    anchor: THREE.Vector3;
   }[] = [];
   private disposed = false;
   private preparationRevision = 0;
@@ -468,6 +478,7 @@ export class PaperScene {
   private movingPlatforms: Platform[] = [];
   private scratch = new THREE.Vector3();
   private goal = new THREE.Vector3();
+  private textPoint = new THREE.Vector3();
   private wetColor = new THREE.Color("#586f82");
   private heatColor = new THREE.Color("#553725");
   private readonly sun = new THREE.DirectionalLight("#c4d6eb", 2.2);
@@ -479,13 +490,47 @@ export class PaperScene {
     return this.compact ? touchCopy(translated, this.language) : translated;
   }
   private label(source: string, color = "#d6d9dc", scale = 1, shorten = true) {
+    const variants = (["zh", "en"] as const).flatMap((language) => {
+      const translated = translate(
+        language,
+        shorten ? editionCopy(source) : source,
+      );
+      return shorten
+        ? [translated, touchCopy(translated, language)]
+        : [translated];
+    });
     const sprite = textSprite(
       shorten ? this.text(source) : translate(this.language, source),
       color,
       scale,
+      variants,
     );
-    this.textLabels.push({ sprite, source, color, shorten });
+    this.textLabels.push({
+      sprite,
+      source,
+      color,
+      shorten,
+      scale,
+      anchor: new THREE.Vector3(),
+    });
     return sprite;
+  }
+  private keepTextInView(
+    node: THREE.Object3D,
+    width: number,
+    height: number,
+    worldPerPixel: number,
+  ) {
+    node.updateWorldMatrix(true, false);
+    const point = this.textPoint
+      .setFromMatrixPosition(node.matrixWorld)
+      .project(this.camera);
+    const limitX = Math.max(0, 1 - (width / worldPerPixel + 8) / this.width);
+    const limitY = Math.max(0, 1 - (height / worldPerPixel + 8) / this.height);
+    point.x = THREE.MathUtils.clamp(point.x, -limitX, limitX);
+    point.y = THREE.MathUtils.clamp(point.y, -limitY, limitY);
+    point.unproject(this.camera);
+    node.position.copy(node.parent!.worldToLocal(point));
   }
   private presentation(language: Language, compact: boolean) {
     if (language === this.language && compact === this.compact) return;
@@ -1036,6 +1081,8 @@ export class PaperScene {
       ),
     );
     this.initialized = false;
+    for (const { sprite, anchor } of this.textLabels)
+      anchor.copy(sprite.position);
   }
   private preparationFrame() {
     return new Promise<boolean>((resolve) => {
@@ -1064,6 +1111,7 @@ export class PaperScene {
     language: Language = "zh",
     guideTarget?: Point,
     compact = false,
+    textSize: TextSize = "standard",
   ): Promise<boolean> {
     if (this.disposed || this.contextRecovery.lost) return false;
     this.interruptPreparation();
@@ -1074,7 +1122,18 @@ export class PaperScene {
       revision === this.preparationRevision;
     // Yield before costly construction so the loading UI gets a frame.
     if (!(await this.preparationFrame()) || !active()) return false;
-    if (!this.updateScene(g, local, 0, preview, language, guideTarget, compact))
+    if (
+      !this.updateScene(
+        g,
+        local,
+        0,
+        preview,
+        language,
+        guideTarget,
+        compact,
+        textSize,
+      )
+    )
       return false;
     // compileAsync polls Three's material cache after context restoration has
     // replaced that cache. Use the synchronous compiler while loading instead
@@ -1093,8 +1152,20 @@ export class PaperScene {
     language: Language = "zh",
     guideTarget?: Point,
     compact = false,
+    textSize: TextSize = "standard",
   ) {
-    if (this.updateScene(g, local, dt, preview, language, guideTarget, compact))
+    if (
+      this.updateScene(
+        g,
+        local,
+        dt,
+        preview,
+        language,
+        guideTarget,
+        compact,
+        textSize,
+      )
+    )
       this.renderer.render(this.scene, this.camera);
   }
   private updateScene(
@@ -1105,10 +1176,14 @@ export class PaperScene {
     language: Language = "zh",
     guideTarget?: Point,
     compact = false,
+    textSize: TextSize = "standard",
   ) {
     if (this.disposed || this.contextRecovery.lost) return false;
     this.presentation(language, compact);
     if (g.level !== this.level || g.mode !== this.count) this.build(g);
+    for (const { sprite, anchor } of this.textLabels)
+      sprite.position.copy(anchor);
+    const textScale = TEXT_SIZE_FACTORS[textSize];
     if (this.gameId !== g.id) {
       this.gameId = g.id;
       this.initialized = false;
@@ -1178,6 +1253,14 @@ export class PaperScene {
       );
     this.camera.lookAt(this.target);
     this.camera.updateProjectionMatrix();
+    this.camera.updateMatrixWorld();
+    const worldPerPixel = viewWidth / this.width;
+    for (const label of this.textLabels) {
+      const scale =
+        Math.max(label.scale, (10 * worldPerPixel) / SPRITE_FONT_HEIGHT) *
+        textScale;
+      setSpriteTextScale(label.sprite, scale);
+    }
     const solid = bodies(g);
     this.tiles.forEach((node, i) => {
       const b = solid[i];
@@ -1267,7 +1350,13 @@ export class PaperScene {
       label.position.y = p.sheltering ? 2.4 : 1.6;
       label.visible = !preview;
       label.material.opacity = i === local ? 1 : 0.55;
-      label.scale.set(i === local ? 3.2 : 2.56, i === local ? 0.48 : 0.384, 1);
+      setSpriteTextScale(
+        label,
+        Math.max(
+          i === local ? 0.5 : 0.4,
+          (10 * worldPerPixel) / SPRITE_FONT_HEIGHT,
+        ) * textScale,
+      );
       node.traverse((o) => {
         if (o instanceof THREE.Mesh && o.name !== "glow" && p.invulnerable > 0)
           o.visible = Math.sin(this.clock * 16) > -0.5;
@@ -1430,9 +1519,25 @@ export class PaperScene {
         this.mechanismCards.set(item.id, card);
         this.root.add(card);
       }
-      card.update(item, this.camera, viewWidth / this.width, compact);
+      card.update(item, this.camera, worldPerPixel, compact, textScale);
+      this.keepTextInView(
+        card,
+        card.scale.x,
+        card.scale.x * MECHANISM_CARD_ASPECT,
+        worldPerPixel,
+      );
     }
     this.portal.getObjectByName("exit-label")!.visible = nearbyLabel(l.exit);
+    for (const { sprite } of this.textLabels)
+      if (sprite.visible) {
+        const scale = sprite.scale.x / 6.4;
+        this.keepTextInView(
+          sprite,
+          (sprite.textWidth / 100) * scale,
+          (sprite.textHeight / 100) * scale,
+          worldPerPixel,
+        );
+      }
     this.windLeaves?.update(this.clock, this.reducedMotion.matches);
     const glow = this.portal.getObjectByName("glow") as THREE.Mesh;
     const pm = glow.material as THREE.MeshBasicMaterial;
@@ -1459,6 +1564,7 @@ export class PaperScene {
         rainStrength(g.level, g.motionTime),
         movingCovers,
         this.reducedMotion.matches,
+        RAIN_RATE_FACTORS[g.rainDifficulty],
       );
     }
     let subjectCount = 0;

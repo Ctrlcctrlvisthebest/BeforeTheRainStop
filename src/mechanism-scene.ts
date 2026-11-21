@@ -3,6 +3,7 @@ import type { MechanismFeedback } from "./mechanism-state";
 
 const WIDTH = 640;
 const HEIGHT = 224;
+export const MECHANISM_CARD_ASPECT = HEIGHT / WIDTH;
 const INK = "#463c32";
 const OCHRE = "#a46c3e";
 
@@ -62,11 +63,12 @@ export class MechanismCard extends THREE.Group {
     camera: THREE.Camera,
     worldPerPixel: number,
     compact: boolean,
+    textScale = 1,
   ) {
     this.visible = true;
     this.position.set(item.anchor.x, item.anchor.y + 2.3, item.anchor.z);
     this.quaternion.copy(camera.quaternion);
-    this.scale.setScalar((compact ? 188 : 208) * worldPerPixel);
+    this.scale.setScalar((compact ? 188 : 208) * textScale * worldPerPixel);
     const progress = Math.max(0, Math.min(1, item.progress));
     this.fill.scale.x = progress;
     this.fill.visible = progress > 0;

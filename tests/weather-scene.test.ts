@@ -5,6 +5,7 @@ import { RainCurtain, WindLeaves } from "../src/weather-scene";
 import { LEVELS } from "../src/game";
 import { WEATHER } from "../src/weather";
 import { translate } from "../src/i18n";
+import { RAIN_RATE_FACTORS, RAIN_DIFFICULTIES } from "../src/rain-difficulty";
 
 function positions(group: THREE.Group) {
   return group.children.map(
@@ -73,6 +74,31 @@ test("wind leaves stay within real updraft bounds on all hundred maps", () => {
         }
       }
     }
+  }
+});
+
+test("rain difficulty scales falling speed while leaving coverage and reduced motion unchanged", () => {
+  const focus = { x: 0, y: 0, z: 0 };
+  for (const difficulty of RAIN_DIFFICULTIES) {
+    const factor = RAIN_RATE_FACTORS[difficulty];
+    const rain = new RainCurtain(weather, []);
+    const normal = new RainCurtain(weather, []);
+    rain.update(0, focus, 0.75, [], false, factor);
+    const y0 = positions(rain)[0].getY(0);
+    rain.update(0.01, focus, 0.75, [], false, factor);
+    normal.update(0, focus, 0.75, []);
+    const normalY0 = positions(normal)[0].getY(0);
+    normal.update(0.01, focus, 0.75, []);
+    const expectedFall = (normalY0 - positions(normal)[0].getY(0)) * factor;
+    assert.ok(
+      Math.abs(y0 - positions(rain)[0].getY(0) - expectedFall) < 0.00001,
+    );
+    rain.update(2, focus, 1.45, [], true, factor);
+    normal.update(20, focus, 1.45, [], true);
+    assert.deepEqual(
+      positions(rain).map((p) => Array.from(p.array)),
+      positions(normal).map((p) => Array.from(p.array)),
+    );
   }
 });
 const positionsOf = positions;

@@ -3,6 +3,7 @@ import { Buffer } from "node:buffer";
 import { isMode, newGame, LEVELS, type Mode, type Game } from "./game";
 import { requirePlayerName, publicPlayerName } from "../server/name-policy";
 import { regroupStatus } from "./regroup";
+import { isRainDifficulty, type RainDifficulty } from "./rain-difficulty";
 interface Player {
   slot: number;
   name: string;
@@ -17,6 +18,7 @@ export interface Room {
   capacity: Mode;
   host: number;
   level: number;
+  rainDifficulty: RainDifficulty;
   players: Player[];
   phase: "lobby" | "game";
   game: Game | null;
@@ -48,16 +50,19 @@ export function makeRoom(
   name: unknown,
   token: string,
   now: number,
+  rainDifficulty: unknown = "normal",
 ): Room {
   if (!isMode(capacity) || capacity === 1)
     throw new RoomError("请选择 2、3 或 6 人房间");
   if (typeof level !== "number" || !Number.isInteger(level) || !LEVELS[level])
     throw new RoomError("关卡不存在");
+  if (!isRainDifficulty(rainDifficulty)) throw new RoomError("下雨难度无效");
   return {
     version: 2,
     code,
     capacity,
     level,
+    rainDifficulty,
     host: 0,
     players: [
       {
@@ -161,7 +166,13 @@ export function command(
     if (r.players.length !== r.capacity || r.players.some((p) => !p.online))
       throw new RoomError("等所有同伴连接后再出发", 409);
     r.phase = "game";
-    r.game = newGame(r.capacity, r.level, id);
+    r.game = newGame(r.capacity, r.level, id, r.rainDifficulty);
+  } else if (body.type === "rain-difficulty") {
+    if (p.slot !== r.host) throw new RoomError("由房主选择下雨难度", 403);
+    if (r.phase !== "lobby") throw new RoomError("请在大厅选择下雨难度", 409);
+    if (!isRainDifficulty(body.rainDifficulty))
+      throw new RoomError("下雨难度无效");
+    r.rainDifficulty = body.rainDifficulty;
   } else if (body.type === "leave") {
     if (r.phase !== "lobby")
       throw new RoomError("游戏中保留座位，请关闭标签页暂离", 409);
@@ -201,7 +212,7 @@ export function command(
     if (!r.votes.includes(p.slot)) r.votes.push(p.slot);
     if (r.votes.length === r.capacity) {
       r.level = next ? (r.level + 1) % LEVELS.length : r.level;
-      r.game = newGame(r.capacity, r.level, id);
+      r.game = newGame(r.capacity, r.level, id, r.rainDifficulty);
       delete r.rankingStatus;
       r.votes = [];
       r.voteNext = null;

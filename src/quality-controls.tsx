@@ -3,7 +3,6 @@ import type { Language } from "./i18n";
 import { qualityMode, type QualityMode } from "./render-quality";
 import { save, stored } from "./storage";
 import { RainSelect } from "./rain-select";
-import "./quality-controls.css";
 
 const KEY = "rain-render-quality";
 export function useQualityPreference() {
@@ -30,7 +29,7 @@ export function QualityControls({
   const english = language === "en";
   return (
     <RainSelect
-      className="quality-control"
+      className="quality-control tool-select"
       label={english ? "Graphics" : "画质"}
       prefix={english ? "Graphics" : "画质"}
       value={value}

@@ -7,6 +7,7 @@ import {
 } from "./leaderboard";
 import type { Replay } from "./replay";
 import { LEVELS, isMode } from "./game";
+import { isRainDifficulty, type RainDifficulty } from "./rain-difficulty";
 
 export function playerIdentity() {
   const saved = stored<unknown>("local", "rain-player-token-v1");
@@ -17,6 +18,7 @@ export function playerIdentity() {
 }
 export interface SoloScore {
   level: number;
+  rainDifficulty: RainDifficulty;
   name: string;
   playerToken: string;
   replay: Replay;
@@ -36,6 +38,7 @@ function validLeaderboardData(value: unknown): value is LeaderboardData {
     data.level >= 0 &&
     data.level < LEVELS.length &&
     isMode(data.mode) &&
+    isRainDifficulty(data.rainDifficulty) &&
     Array.isArray(data.entries) &&
     data.entries.every((entry: unknown) => {
       if (!entry || typeof entry !== "object" || Array.isArray(entry))
@@ -61,6 +64,10 @@ export async function rankingRequest(
   body?: SoloScore,
   signal?: AbortSignal,
 ): Promise<LeaderboardData> {
+  const rainDifficulty = body
+    ? body.rainDifficulty
+    : (new URLSearchParams(path).get("rainDifficulty") ?? "normal");
+  if (!isRainDifficulty(rainDifficulty)) throw new Error("雨速无效");
   const response = await fetch(`${SERVICE}/api/leaderboard${path}`, {
     method: body ? "POST" : "GET",
     headers: body ? { "Content-Type": "application/json" } : undefined,
@@ -74,6 +81,7 @@ export async function rankingRequest(
   if (!response.ok) throw new RankingError(response.status);
   const data: unknown = await response.json();
   // Do not let invalid network data reach the leaderboard's array rendering.
-  if (!validLeaderboardData(data)) throw new Error("排行榜返回的数据无效");
+  if (!validLeaderboardData(data) || data.rainDifficulty !== rainDifficulty)
+    throw new Error("排行榜返回的数据无效");
   return data;
 }

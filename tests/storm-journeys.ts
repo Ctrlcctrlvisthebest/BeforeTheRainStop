@@ -11,6 +11,8 @@ import {
 } from "../src/game";
 import { GUIDE_ROUTES } from "../src/guide";
 import { bankPoint, CROSSINGS } from "../src/bridges";
+import type { RainDifficulty } from "../src/rain-difficulty";
+import { shelterWhileWaiting } from "./rain-strategy";
 
 // Follow the exported map's public instructions with ordinary controls. This
 // catches missing landings, uncollectable ferry keys and misleading route points.
@@ -21,8 +23,9 @@ export function completeStormLevel(
   startDelay = 0,
   mode: Mode = 1,
   parallelDetour?: { start: number; end: number },
+  rainDifficulty: RainDifficulty = "normal",
 ) {
-  const g = newGame(mode, level),
+  const g = newGame(mode, level, "solo", rainDifficulty),
     l = LEVELS[level];
   let p = g.players[0];
   let holdingGate = false;
@@ -57,6 +60,8 @@ export function completeStormLevel(
               : input,
         ]),
       );
+      for (const q of g.players)
+        inputs[q.id] = shelterWhileWaiting(q, inputs[q.id], rainDifficulty);
       beforeStep?.(g, inputs[0]);
       stepGame(g, inputs);
       observe?.(g);
@@ -69,8 +74,13 @@ export function completeStormLevel(
   };
   const steer = (slot: number, target: number, axis: "x" | "z") => ({
     axis:
-      Math.max(-1, Math.min(1, ((target - g.players[slot][axis]) * 3) / 5.3)) *
-      (g.view === 0 ? 1 : -1),
+      rainDifficulty === "hard" &&
+      Math.abs(target - g.players[slot][axis]) < 0.005
+        ? 0
+        : Math.max(
+            -1,
+            Math.min(1, ((target - g.players[slot][axis]) * 3) / 5.3),
+          ) * (g.view === 0 ? 1 : -1),
   });
   const gather = (target: number, axis: "x" | "z") => {
     for (let i = 0; i < 360; i++)
@@ -354,6 +364,13 @@ export function completeStormLevel(
       if (s.kind === "jump") land();
       if (s.kind === "rack") tick({}, 100);
     }
+    // The solo star excursion in the fire corridor returns to checkpoint 4's
+    // campfire. Dry and mend here before leaving for the exposed final corridor.
+    if (rainDifficulty === "hard" && level === 15 && mode === 1 && index === 26)
+      until(
+        () => p.wetness === 0,
+        () => ({ repair: true }),
+      );
   }
   if (g.status !== "won") throw new Error("not won " + detail());
   return g;

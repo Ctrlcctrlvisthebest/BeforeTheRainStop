@@ -7,14 +7,71 @@ import {
   width,
   LEVELS,
   cleanInput,
+  applyRain,
   type Game,
   type Input,
 } from "../src/game";
 import { completeLevel } from "./journey";
 import { CROSSINGS } from "../src/bridges";
+import { rainfall } from "../src/weather";
+import { RAIN_DIFFICULTIES } from "../src/rain-difficulty";
 function tick(g: Game, i: Partial<Input> = {}, n = 1) {
   for (let t = 0; t < n; t++) stepGame(g, { 0: { ...idleInput(), ...i } });
 }
+
+test("rain difficulty changes exposure while normal preserves the original per-tick rate", () => {
+  assert.deepEqual(newGame(1), newGame(1, 0, "solo", "normal"));
+  for (const time of [0, 8]) {
+    const wetness = RAIN_DIFFICULTIES.map((difficulty) => {
+      const game = newGame(1, 0, "rain", difficulty);
+      game.motionTime = time;
+      const bird = game.players[0];
+      Object.assign(bird, { x: 19, y: 0, z: -7 });
+      const originalRate = rainfall(game.level, bird, time);
+      assert.ok(originalRate > 0);
+      applyRain(game, 1 / 60);
+      if (difficulty === "normal")
+        assert.equal(bird.wetness, originalRate * (1 / 60));
+      return bird.wetness;
+    });
+    assert.ok(Math.abs(wetness[0] - wetness[1] * 0.7) < 1e-12);
+    assert.ok(Math.abs(wetness[2] - wetness[1] * 1.3) < 1e-12);
+  }
+});
+
+test("each rain difficulty preserves shelter protection, drying and heat", () => {
+  for (const difficulty of RAIN_DIFFICULTIES) {
+    const exposed = newGame(2, 0, "rain", difficulty);
+    Object.assign(exposed.players[0], { x: 19, y: 0, z: -7 });
+    Object.assign(exposed.players[1], { x: 20.5, y: 0, z: -7, wetness: 40 });
+    const sheltered = structuredClone(exposed);
+    sheltered.players[0].sheltering = true;
+    applyRain(exposed, 1 / 60);
+    applyRain(sheltered, 1 / 60);
+    assert.equal(sheltered.players[0].rainCover, "self");
+    assert.ok(sheltered.players[0].wetness > 0);
+    assert.ok(
+      Math.abs(
+        sheltered.players[0].wetness - exposed.players[0].wetness * 0.1,
+      ) < 1e-12,
+    );
+    assert.equal(sheltered.players[1].rainCover, "ally");
+    assert.equal(sheltered.players[1].wetness, 40);
+
+    const fire = newGame(1, 0, "fire", difficulty);
+    Object.assign(fire.players[0], {
+      x: 10,
+      y: 0,
+      z: 0,
+      wetness: 70,
+      heat: 20,
+    });
+    applyRain(fire, 1);
+    assert.equal(fire.players[0].wetness, 44);
+    assert.equal(fire.players[0].heat, 32.5);
+    assert.equal(fire.players[0].rainCover, "roof");
+  }
+});
 
 for (let level = 0; level < LEVELS.length; level++)
   test(`chapter ${level + 1}: any route to the exit is valid in every mode, but keys and all players are still required`, () => {

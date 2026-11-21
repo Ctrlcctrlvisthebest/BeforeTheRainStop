@@ -27,7 +27,7 @@
 .app .rain-select-detail {
   color: #c4d0d6;
   font:
-    12px "Noto Sans SC",
+    calc(12px * var(--text-scale)) "Noto Sans SC",
     system-ui,
     sans-serif;
   font-variant-numeric: tabular-nums;
@@ -63,7 +63,7 @@
   min-height: 48px;
   padding: 10px 12px;
   color: var(--paper-light);
-  font-size: 15px;
+  font-size: calc(15px * var(--text-scale));
   line-height: 1.5;
   border-bottom: 1px solid #acbdc617;
   cursor: pointer;
@@ -84,15 +84,38 @@
 .app .chapter-field {
   margin: 13px 0 8px;
   color: var(--mist);
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
 }
 .app .chapter-select {
   margin-top: 8px;
 }
 .app .chapter-select .rain-select-trigger {
   font-family: var(--serif);
-  font-size: 17px;
+  font-size: calc(17px * var(--text-scale));
 }
 .app .chapter-select .rain-select-option {
-  font-size: 16px;
+  font-size: calc(16px * var(--text-scale));
+}
+
+.app .tools .tool-select .rain-select-trigger {
+  width: auto;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 2px;
+  background: #203343d9;
+  color: var(--paper-light);
+  font-size: calc(12px * var(--text-scale));
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.app .tools .tool-select .rain-select-trigger:hover,
+.app .tools .tool-select .rain-select-trigger[aria-expanded="true"] {
+  background: var(--rain-blue);
+}
+.rain-control-field {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }

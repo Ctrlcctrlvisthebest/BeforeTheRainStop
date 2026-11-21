@@ -1,7 +1,6 @@
 import { CHAPTER_STORAGE_SUFFIXES } from "./chapter-storage";
 import { rankedClear } from "./score-rules";
 import {
-  CAMPAIGN_VERSION,
   UNCHANGED_LEVELS_V6,
   V6_CAMPAIGN_LENGTH,
   REBUILT_LEVELS_V8,
@@ -10,8 +9,10 @@ import {
 } from "./campaign-version";
 import { MODES, isMode, type Game, type Mode } from "./game";
 import { save, stored } from "./storage";
+import { isRainDifficulty, type RainDifficulty } from "./rain-difficulty";
 
-export const RECORDS_KEY = `rain-best-times-all-stars-v${CAMPAIGN_VERSION}`;
+// Normal rain preserves the released v10 rules and all existing records.
+export const RECORDS_KEY = "rain-best-times-all-stars-v10";
 export type BestTimes = Record<string, number>;
 // Compatibility encoding only; gameplay identity remains the numeric level ID.
 const chapterNames = CHAPTER_STORAGE_SUFFIXES;
@@ -23,10 +24,19 @@ function recordKey(level: number, mode: Mode) {
 const validTime = (value: unknown): value is number =>
   typeof value === "number" && Number.isSafeInteger(value) && value > 0;
 
-export function loadBestTimes(): BestTimes {
-  let value = stored<unknown>("local", RECORDS_KEY);
+function recordsStorageKey(rainDifficulty: RainDifficulty) {
+  if (!isRainDifficulty(rainDifficulty)) throw new Error("雨速无效");
+  return rainDifficulty === "normal"
+    ? RECORDS_KEY
+    : `${RECORDS_KEY}-${rainDifficulty}`;
+}
+
+export function loadBestTimes(
+  rainDifficulty: RainDifficulty = "normal",
+): BestTimes {
+  let value = stored<unknown>("local", recordsStorageKey(rainDifficulty));
   // Preserve historical stores and carry forward only maps with identical terrain.
-  if (value == null) {
+  if (value == null && rainDifficulty === "normal") {
     for (const version of [9, 8, 7, 6, 5, 4, 3]) {
       const legacy = stored<unknown>(
         "local",
@@ -89,6 +99,7 @@ export interface Completion {
   gameId: string;
   level: number;
   mode: Mode;
+  rainDifficulty: RainDifficulty;
   timeMs: number;
   bestMs: number;
   previousMs: number | undefined;
@@ -97,24 +108,30 @@ export interface Completion {
 }
 
 export class LocalRecords {
-  times = loadBestTimes();
+  times: BestTimes;
   private last: Completion | null = null;
+
+  constructor(readonly rainDifficulty: RainDifficulty = "normal") {
+    this.times = loadBestTimes(rainDifficulty);
+  }
 
   /** Only call with the actual simulation/server state, never a predicted frame. */
   record(game: Game): Completion | null {
-    if (!rankedClear(game)) return null;
+    if (game.rainDifficulty !== this.rainDifficulty || !rankedClear(game))
+      return null;
     const key = recordKey(game.level, game.mode);
     const timeMs = Math.round(game.time * 1000);
     if (!key || !validTime(timeMs)) return null;
     if (
       this.last?.gameId === game.id &&
       this.last.level === game.level &&
-      this.last.mode === game.mode
+      this.last.mode === game.mode &&
+      this.last.rainDifficulty === game.rainDifficulty
     )
       return null;
 
     // Re-read at completion so a stale tab cannot overwrite a newer, faster best.
-    const disk = loadBestTimes();
+    const disk = loadBestTimes(this.rainDifficulty);
     const times = { ...disk };
     for (const [key, time] of Object.entries(this.times))
       times[key] = Math.min(time, times[key] ?? Infinity);
@@ -126,12 +143,13 @@ export class LocalRecords {
     // memory. Retry the entire pending store even when this run is slower.
     const persisted =
       Object.entries(times).every(([key, time]) => disk[key] === time) ||
-      save("local", RECORDS_KEY, times);
+      save("local", recordsStorageKey(this.rainDifficulty), times);
     this.times = times;
     this.last = {
       gameId: game.id,
       level: game.level,
       mode: game.mode,
+      rainDifficulty: game.rainDifficulty,
       timeMs,
       bestMs,
       previousMs,

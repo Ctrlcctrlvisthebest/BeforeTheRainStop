@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import {
   LEVELS,
   MAX_FOLDS,
@@ -16,6 +16,7 @@ import { GuideCard } from "./guide-ui";
 import type { Guidance, Lesson } from "./guide";
 import { TeamSignal } from "./team-controls";
 import type { PublicRoom } from "./room";
+import { RAIN_DIFFICULTY_LABELS } from "./rain-difficulty";
 
 interface GameStatusProps {
   game: Game;
@@ -28,6 +29,7 @@ interface GameStatusProps {
   multiplayer: boolean;
   connected: boolean;
   room: PublicRoom | null;
+  children?: ReactNode;
 }
 
 export function GameStatus({
@@ -41,52 +43,65 @@ export function GameStatus({
   multiplayer,
   connected,
   room,
+  children,
 }: GameStatusProps) {
   const t = (text: string) => translate(language, editionCopy(text));
   const l = LEVELS[game.level],
     local = game.players[slot] ?? game.players[0];
   const statusSidebar = useRef<HTMLDivElement>(null);
+  const heading = useRef<HTMLDivElement>(null);
   const carriedKeys = local.carriedKeys.length,
     carriedStars = local.carriedStars.length;
   useEffect(() => {
     const sidebar = statusSidebar.current;
-    if (!sidebar) return;
+    const header = heading.current;
+    if (!sidebar || !header) return;
     const observer = new ResizeObserver(() => {
       sidebar.parentElement?.style.setProperty(
         "--sidebar-height",
         `${Math.ceil(sidebar.getBoundingClientRect().height)}px`,
       );
+      if (compact)
+        sidebar.parentElement?.style.setProperty(
+          "--mobile-header-height",
+          `${Math.ceil(header.getBoundingClientRect().height) + 16}px`,
+        );
     });
     observer.observe(sidebar);
+    observer.observe(header);
     return () => observer.disconnect();
   }, [compact]);
   return (
     <>
-      <section className="hud">
-        <div className="stage">
-          <b>{String(game.level + 1).padStart(2, "0")}</b>
-          <div>
-            {t(l.name)}
-            <small>{t(l.sub)}</small>
+      <div className="game-heading" ref={heading}>
+        <section className="hud">
+          <div className="stage">
+            <b>{String(game.level + 1).padStart(2, "0")}</b>
+            <div>
+              {t(l.name)}
+              <small>{t(l.sub)}</small>
+            </div>
           </div>
-        </div>
-        <div className="stats">
-          <span>
-            ⚿ {game.keys.length}/{l.keys.length}
-          </span>
-          <span>
-            ✦ {game.stars.length}/{l.stars.length}
-          </span>
-          <span className="elapsed-time">
-            ◷ {formatTime(Math.round(game.time * 1000))}
-          </span>
-          {multiplayer && (
-            <span className={connected ? "online" : "offline"}>
-              {t(connected ? "● 联机" : "● 重连中")}
+          <div className="stats">
+            <span>{t(RAIN_DIFFICULTY_LABELS[game.rainDifficulty])}</span>
+            <span>
+              ⚿ {game.keys.length}/{l.keys.length}
             </span>
-          )}
-        </div>
-      </section>
+            <span>
+              ✦ {game.stars.length}/{l.stars.length}
+            </span>
+            <span className="elapsed-time">
+              ◷ {formatTime(Math.round(game.time * 1000))}
+            </span>
+            {multiplayer && (
+              <span className={connected ? "online" : "offline"}>
+                {t(connected ? "● 联机" : "● 重连中")}
+              </span>
+            )}
+          </div>
+        </section>
+        {children}
+      </div>
       {multiplayer && room && <TeamSignal room={room} language={language} />}
       <div className="status-sidebar" ref={statusSidebar}>
         <section

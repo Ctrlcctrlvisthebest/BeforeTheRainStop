@@ -61,7 +61,8 @@ const bundle = await build({
         export const loadScene = async () => ({ PaperScene: class {
           constructor(canvas, options) { window.testSceneContext = options.onContextStatus; }
           setQuality() {}
-          async prepare(game) {
+          async prepare(game, slot, preview, language, guide, compact, textSize) {
+            window.testPreparedTextSize = textSize;
             window.testPreparingGame = game;
             window.testPreparationCount = (window.testPreparationCount || 0) + 1;
             if (window.testDelayPreparation) {
@@ -71,7 +72,7 @@ const bundle = await build({
             return !window.testDisposed;
           }
           observeFrame() {}
-          render(game) { window.testGame = game; window.testFrames = (window.testFrames || 0) + 1; }
+          render(game, slot, dt, preview, language, guide, compact, textSize) { window.testRenderedTextSize = textSize; window.testGame = game; window.testFrames = (window.testFrames || 0) + 1; }
           dispose() { window.testDisposed = true; }
         }});
       `,
@@ -179,6 +180,48 @@ test("warning help uses its declared topic regardless of language or warning wor
         assert.equal(p.w.testWarningLesson, topic);
       }
     }
+    assert.deepEqual(p.errors, []);
+  } finally {
+    p.close();
+  }
+});
+
+test("mobile text-size changes reach the live scene and context restoration without starting a new run", async () => {
+  const p = await page({ compact: true });
+  try {
+    const { w, tick } = p;
+    const d = w.document;
+    d.querySelector(".menu button.primary").click();
+    await tick();
+    assert.equal(w.testPreparedTextSize, "large");
+    assert.equal(w.testRenderedTextSize, "large");
+    d.querySelector('button[aria-controls="game-tools"]').click();
+    await tick(3);
+    const game = w.testGame;
+    const time = game.time;
+    const preparations = w.testPreparationCount;
+    for (const [label, size] of [
+      ["特大", "largest"],
+      ["标准", "standard"],
+    ]) {
+      d.querySelector('.text-size-control [role="combobox"]').click();
+      await settle();
+      [...d.querySelectorAll('.text-size-control [role="option"]')]
+        .find((option) => option.textContent.includes(label))
+        .click();
+      await tick(3);
+      assert.equal(w.testRenderedTextSize, size);
+      assert.equal(w.testPreparationCount, preparations);
+      assert.equal(w.testGame, game);
+      assert.equal(game.time, time);
+    }
+    w.testSceneContext("lost");
+    w.testSceneContext("restored");
+    await tick();
+    assert.equal(w.testPreparedTextSize, "standard");
+    assert.equal(w.testRenderedTextSize, "standard");
+    assert.equal(w.testGame, game);
+    assert.equal(game.time, time);
     assert.deepEqual(p.errors, []);
   } finally {
     p.close();

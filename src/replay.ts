@@ -1,4 +1,5 @@
 import { idleInput, newGame, stepGame, type Game, type Input } from "./game";
+import { isRainDifficulty, type RainDifficulty } from "./rain-difficulty";
 
 export const MAX_REPLAY_TICKS = 60 * 60 * 2 * 60;
 export const MAX_REPLAY_SEGMENTS = 32768;
@@ -54,7 +55,12 @@ export class ReplayRecorder {
       : null;
   }
 }
-export function verifyReplay(level: number, value: unknown): Game {
+export function verifyReplay(
+  level: number,
+  value: unknown,
+  rainDifficulty: RainDifficulty = "normal",
+): Game {
+  if (!isRainDifficulty(rainDifficulty)) throw new Error("雨速无效");
   if (
     !Array.isArray(value) ||
     !value.length ||
@@ -77,7 +83,7 @@ export function verifyReplay(level: number, value: unknown): Game {
     total += part[1];
     if (total > MAX_REPLAY_TICKS) throw new Error("通关过程过长");
   }
-  const game = newGame(1, level);
+  const game = newGame(1, level, "solo", rainDifficulty);
   for (const [mask, frames] of value as Replay) {
     const inputs = { 0: maskInput(mask) };
     for (let i = 0; i < frames; i++) {

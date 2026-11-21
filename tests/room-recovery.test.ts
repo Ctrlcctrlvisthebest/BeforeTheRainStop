@@ -9,6 +9,7 @@ import {
   publicRoom,
 } from "../src/room";
 import { regroupStatus } from "../src/regroup";
+import { RAIN_DIFFICULTIES } from "../src/rain-difficulty";
 function room() {
   const r = makeRoom("ABCDEFGH", 3, 15, "host", "a", 0);
   joinRoom(r, "friend", "b", 0);
@@ -16,6 +17,24 @@ function room() {
   r.players.forEach((p) => (p.online = true));
   return command(r, "a", { type: "start" }, 0, "game");
 }
+
+test("regroup keeps the chosen rain difficulty when replacement players start", () => {
+  for (const difficulty of RAIN_DIFFICULTIES) {
+    let r = makeRoom("ABCDEFGH", 2, 15, "host", "a", 0, difficulty);
+    joinRoom(r, "peer", "b", 0);
+    r.players.forEach((p) => (p.online = true));
+    r = command(r, "a", { type: "start" }, 0, "game");
+    r.players[0].online = false;
+    r.players[0].lastSeen = 0;
+    r = command(r, "b", { type: "regroup", gameId: "game" }, 16000, "new");
+    assert.equal(r.phase, "lobby");
+    assert.equal(r.rainDifficulty, difficulty);
+    joinRoom(r, "replacement", "c", 16001);
+    r.players.forEach((p) => (p.online = true));
+    r = command(r, "b", { type: "start" }, 16002, "new");
+    assert.equal(r.game!.rainDifficulty, difficulty);
+  }
+});
 test("regroup waits for reconnection grace, needs online consent and frees offline credentials", () => {
   let r = room();
   r.players[0].online = false;

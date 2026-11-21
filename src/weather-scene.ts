@@ -81,6 +81,7 @@ export class RainCurtain extends THREE.Group {
     strength: number,
     movingCovers: readonly RainCover[],
     reducedMotion = false,
+    speedFactor = 1,
   ) {
     const ax = Math.floor(focus.x / 6) * 6,
       az = Math.floor(focus.z / 6) * 6;
@@ -122,7 +123,7 @@ export class RainCurtain extends THREE.Group {
       }
     }
     if (!this.visible) return;
-    const t = reducedMotion ? 1.7 : time;
+    const t = reducedMotion ? 1.7 : time * speedFactor;
     this.ink.opacity = reducedMotion ? 0.22 : strength > 1 ? 0.62 : 0.4;
     this.contactInk.opacity = reducedMotion ? 0 : 0.18 * strength;
     for (let i = 0; i < this.budget; i++) {

@@ -1,4 +1,6 @@
 import { completeExtraLevel } from "./chapter-journeys";
+import type { RainDifficulty } from "../src/rain-difficulty";
+import { shelterWhileWaiting } from "./rain-strategy";
 import {
   newGame,
   stepGame,
@@ -10,13 +12,19 @@ export function completeLevel(
   level: number,
   observe?: (g: Game) => void,
   beforeStep?: (g: Game, input: Input) => void,
+  rainDifficulty: RainDifficulty = "normal",
 ) {
-  if (level >= 4) return completeExtraLevel(level, observe, beforeStep);
-  const g = newGame(1, level);
+  if (level >= 4)
+    return completeExtraLevel(level, observe, beforeStep, rainDifficulty);
+  const g = newGame(1, level, "solo", rainDifficulty);
   const b = g.players[0];
   function tick(i: Partial<Input> = {}, n = 1) {
     for (let j = 0; j < n; j++) {
-      const input = { ...idleInput(), ...i };
+      const input = shelterWhileWaiting(
+        b,
+        { ...idleInput(), ...i },
+        rainDifficulty,
+      );
       beforeStep?.(g, input);
       stepGame(g, { 0: input });
       observe?.(g);

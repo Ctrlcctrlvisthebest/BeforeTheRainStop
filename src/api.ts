@@ -1,6 +1,7 @@
 import { CAMPAIGN_VERSION } from "./campaign-version";
 import type { PublicRoom } from "./room";
 import type { Input, Inputs } from "./game";
+import type { RainDifficulty } from "./rain-difficulty";
 import type {
   RoomResult,
   RoomEntryResult,
@@ -20,7 +21,13 @@ export const SERVICE = (
 ).replace(/\/$/, "");
 export function api(
   path: "/rooms",
-  body: { capacity: number; level: number; name: string; playerToken: string },
+  body: {
+    capacity: number;
+    level: number;
+    name: string;
+    playerToken: string;
+    rainDifficulty: RainDifficulty;
+  },
 ): Promise<RoomEntryResult>;
 export function api(
   path: `/rooms/${string}/join`,

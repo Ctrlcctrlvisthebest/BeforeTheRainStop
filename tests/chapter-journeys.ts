@@ -7,13 +7,25 @@ import {
   type Game,
 } from "../src/game";
 import { completeStormLevel } from "./storm-journeys";
+import type { RainDifficulty } from "../src/rain-difficulty";
+import { shelterWhileWaiting } from "./rain-strategy";
 export function completeExtraLevel(
   level: number,
   observe?: (g: Game) => void,
   beforeStep?: (g: Game, input: Input) => void,
+  rainDifficulty: RainDifficulty = "normal",
 ) {
-  if (level >= 9) return completeStormLevel(level, observe, beforeStep);
-  const g = newGame(1, level),
+  if (level >= 9)
+    return completeStormLevel(
+      level,
+      observe,
+      beforeStep,
+      0,
+      1,
+      undefined,
+      rainDifficulty,
+    );
+  const g = newGame(1, level, "solo", rainDifficulty),
     b = g.players[0];
   const state = () => ({
     x: +b.x.toFixed(2),
@@ -32,7 +44,11 @@ export function completeExtraLevel(
   };
   const tick = (input: Partial<Input> = {}, n = 1) => {
     for (let i = 0; i < n; i++) {
-      const controls = { ...idleInput(), ...input };
+      const controls = shelterWhileWaiting(
+        b,
+        { ...idleInput(), ...input },
+        rainDifficulty,
+      );
       beforeStep?.(g, controls);
       stepGame(g, { 0: controls });
       observe?.(g);

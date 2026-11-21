@@ -10,6 +10,7 @@ import { MINITOOL } from "./build-target";
 import type { Language } from "./i18n";
 import type { QualityMode } from "./render-quality";
 import type { RoomSession } from "./room-session";
+import type { TextSize } from "./text-size";
 
 export type AppPhase = "menu" | "lobby" | "game";
 type SceneStatus =
@@ -31,6 +32,7 @@ interface RuntimeOptions {
     compact: boolean;
     guideEnabled: boolean;
     quality: QualityMode;
+    textSize: TextSize;
   };
   onStep: (game: Game, input: Input) => void;
   onPickup: () => void;
@@ -152,6 +154,7 @@ export function useGameRuntime(options: RuntimeOptions) {
                 ? guide.current.target
                 : undefined,
               latest.current.presentation.compact,
+              latest.current.presentation.textSize,
             );
             if (
               cancelled ||
@@ -284,6 +287,7 @@ export function useGameRuntime(options: RuntimeOptions) {
               ? guide.current.target
               : undefined,
             latest.current.presentation.compact,
+            latest.current.presentation.textSize,
           );
           if (now - ui > 100) {
             latest.current.onHud(structuredClone(game.current));

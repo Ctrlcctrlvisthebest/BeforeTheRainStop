@@ -4,6 +4,7 @@ import { rankingRequest, RankingError, type SoloScore } from "./ranking-client";
 import type { RankingEntry } from "./leaderboard";
 import { formatTime } from "./records";
 import { translate, type Language } from "./i18n";
+import { RAIN_DIFFICULTY_LABELS, type RainDifficulty } from "./rain-difficulty";
 
 export function useScoreSubmission() {
   const latest = useRef<{ id: string; score: SoloScore } | null>(null);
@@ -66,11 +67,13 @@ export function useScoreSubmission() {
 export function Leaderboard({
   level,
   mode,
+  rainDifficulty = "normal",
   language,
   refresh = "",
 }: {
   level: number;
   mode: Mode;
+  rainDifficulty?: RainDifficulty;
   language: Language;
   refresh?: string;
 }) {
@@ -81,12 +84,12 @@ export function Leaderboard({
     entries: RankingEntry[];
   } | null>(null);
   const [status, setStatus] = useState("loading");
-  const key = `${level}:${mode}`;
+  const key = `${level}:${mode}:${rainDifficulty}`;
   useEffect(() => {
     const controller = new AbortController();
     setStatus("loading");
     void rankingRequest(
-      `?level=${level}&mode=${mode}`,
+      `?level=${level}&mode=${mode}&rainDifficulty=${rainDifficulty}`,
       undefined,
       controller.signal,
     )
@@ -99,7 +102,7 @@ export function Leaderboard({
         if (!controller.signal.aborted) setStatus("error");
       });
     return () => controller.abort();
-  }, [key, level, mode, reload, refresh]);
+  }, [key, level, mode, rainDifficulty, reload, refresh]);
   const entries = data?.key === key ? data.entries : [];
   return (
     <section className="leaderboard" aria-label={t("全球前三名")}>
@@ -116,6 +119,7 @@ export function Leaderboard({
       </div>
       <p className="ranking-chapter">
         {t(LEVELS[level].name)} · {mode} {t("人")} ·{" "}
+        {t(RAIN_DIFFICULTY_LABELS[rainDifficulty])} ·{" "}
         {t("全星通关 · 用时越短，排名越高")}
       </p>
       {entries.length > 0 && (

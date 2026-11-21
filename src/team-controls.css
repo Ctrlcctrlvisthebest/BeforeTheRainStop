@@ -23,7 +23,7 @@
 }
 .team-controls-panel p {
   margin: 0;
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
   line-height: 1.6;
 }
 .team-controls-panel button {
@@ -40,7 +40,7 @@
   background: #263849;
   color: #ead4ac;
   pointer-events: none;
-  font-size: 15px;
+  font-size: calc(15px * var(--text-scale));
 }
 .compact .team-controls-panel {
   position: static;

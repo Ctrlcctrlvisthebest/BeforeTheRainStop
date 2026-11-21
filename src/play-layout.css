@@ -1,5 +1,49 @@
 /* Keep status and guidance in one flowing column. Canvas space is reserved,
    so translated copy and extra teammates never cover the playable scene. */
+.game-heading {
+  display: contents;
+}
+.compact.playing .game-heading {
+  position: absolute;
+  top: calc(var(--safe-top) + 8px);
+  left: var(--safe-left);
+  right: var(--safe-right);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px 8px;
+  z-index: 14;
+}
+.compact.playing .game-heading > .hud {
+  position: static;
+  width: auto;
+  min-width: 0;
+  flex: 1 1 calc(100px * var(--text-scale));
+}
+.compact.playing .game-heading > .mobile-toolbar {
+  position: static;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.app.compact:not([data-text-size="standard"]) .stage > div {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.app:not(.compact) .hud {
+  top: calc(var(--app-header-bottom) + 16px);
+}
+.app:not(.compact) .compass {
+  top: calc(var(--app-header-bottom) + 16px);
+}
+.app:not(.compact) .status-sidebar {
+  top: calc(var(--app-header-bottom) + 88px);
+  max-height: calc(100dvh - var(--app-header-bottom) - 148px);
+}
+.app.compact:not([data-text-size="standard"]) .status-sidebar .meter-heading {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+}
 .playing .status-sidebar {
   position: absolute;
   top: 156px;
@@ -26,7 +70,7 @@
   padding: 12px 14px;
 }
 .status-sidebar .guide-action h2 {
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
 }
 .status-sidebar .guide-heading {
   gap: 8px;
@@ -41,7 +85,7 @@
   padding-top: 6px;
   margin-top: 7px;
   color: #d6c7a4;
-  font-size: 9px;
+  font-size: calc(9px * var(--text-scale));
 }
 .depth-legend i {
   width: 16px;
@@ -54,20 +98,29 @@
    The measured stack height includes warnings and multi-line English titles. */
 .app.compact.playing {
   --sidebar-height: 140px;
-  --scene-top: calc(var(--safe-top) + 62px + var(--sidebar-height) + 20px);
+  --scene-top: calc(
+    var(--safe-top) + var(--mobile-header-height) + var(--sidebar-height) + 20px
+  );
   --scene-bottom: calc(var(--control-space) + 28px);
 }
 .compact.playing .status-sidebar {
-  top: calc(var(--safe-top) + 62px);
+  top: calc(var(--safe-top) + var(--mobile-header-height));
   left: var(--safe-left);
   right: var(--safe-right);
   width: auto;
-  max-height: none;
+  max-height: max(
+    68px,
+    calc(
+      100dvh - var(--safe-top) - var(--mobile-header-height) -
+        var(--scene-bottom) - 160px
+    )
+  );
   gap: 4px;
-  overflow: visible;
+  overflow-y: auto;
 }
 .app.compact.playing .status-sidebar > .rain-hud {
-  height: 44px;
+  height: auto;
+  min-height: 44px;
 }
 .app.compact.playing .status-sidebar > .journey-guide {
   display: grid;
@@ -86,13 +139,13 @@
   grid-column: 1;
   grid-row: 1;
   color: #cead75;
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
 }
 .compact .status-sidebar .guide-heading button {
   grid-column: 2;
   grid-row: 1 / span 3;
   min-height: 44px;
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
   padding: 4px;
   border: 1px solid #aa926157;
   text-decoration: none;
@@ -104,11 +157,11 @@
   margin: 0;
 }
 .compact .status-sidebar .guide-action h2 {
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   line-height: 1.4;
 }
 .compact .status-sidebar .guide-arrow {
-  font-size: 21px;
+  font-size: calc(21px * var(--text-scale));
   min-width: 22px;
 }
 .compact .status-sidebar .journey-guide > p:not(.guide-warning) {
@@ -119,7 +172,9 @@
   margin: 2px 0 0;
 }
 .compact.playing .mobile-condition-note {
-  top: calc(var(--safe-top) + 62px + var(--sidebar-height) + 4px);
+  top: calc(
+    var(--safe-top) + var(--mobile-header-height) + var(--sidebar-height) + 4px
+  );
   left: var(--safe-left);
   right: var(--safe-right);
   width: auto;
@@ -130,14 +185,15 @@
 /* Landscape phones keep the stack to the left, preserving vertical space. */
 @media (orientation: landscape) {
   .app.compact.playing {
-    --scene-top: calc(var(--safe-top) + 62px);
+    --scene-top: calc(var(--safe-top) + var(--mobile-header-height));
     --scene-bottom: 0px;
   }
   .compact.playing .status-sidebar {
     width: 220px;
     right: auto;
     max-height: calc(
-      100dvh - var(--safe-top) - 62px - var(--control-space) - 8px
+      100dvh - var(--safe-top) - var(--mobile-header-height) -
+        var(--control-space) - 8px
     );
     overflow-y: auto;
   }
@@ -145,15 +201,15 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 0;
-    line-height: 14px;
+    line-height: calc(14px * var(--text-scale));
   }
   .compact .status-sidebar .meter-heading span {
-    font-size: 9px;
-    line-height: 12px;
+    font-size: calc(9px * var(--text-scale));
+    line-height: calc(12px * var(--text-scale));
   }
   .compact .status-sidebar .meter-heading :is(strong, b) {
-    font-size: 11px;
-    line-height: 15px;
+    font-size: calc(11px * var(--text-scale));
+    line-height: calc(15px * var(--text-scale));
   }
   .compact .status-sidebar :is(.wet-track, .heat-track, .fold-pips) {
     margin-top: 2px;
@@ -163,7 +219,7 @@
     width: calc(100% - var(--safe-left) - 232px);
   }
   .compact.playing .mobile-condition-note {
-    top: calc(var(--safe-top) + 62px);
+    top: calc(var(--safe-top) + var(--mobile-header-height));
     left: calc(var(--safe-left) + 242px);
     text-align: right;
   }
@@ -183,7 +239,7 @@
 
 /* Keep actionable instructions readable on phones, especially at turns. */
 .compact .status-sidebar .guide-action h2 {
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
   line-height: 1.45;
 }
 .compact
@@ -193,7 +249,7 @@
   display: block;
   grid-column: 1 / -1;
   margin: 3px 0 0;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   line-height: 1.55;
   color: #d4dce2;
 }
@@ -209,7 +265,8 @@
   .compact.playing .status-sidebar {
     width: 196px;
     max-height: calc(
-      100dvh - var(--safe-top) - 62px - var(--control-space) - 8px
+      100dvh - var(--safe-top) - var(--mobile-header-height) -
+        var(--control-space) - 8px
     );
   }
   .compact.playing canvas {
@@ -260,6 +317,6 @@
 .app.compact .touch-controls .touch-key[data-restart-confirm="true"] {
   color: #f2ddba;
   background: #d4ba8540;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   line-height: 1.25;
 }

@@ -1,6 +1,18 @@
 import { MAP_TRANSLATIONS } from "./challenge-maps";
 export type Language = "zh" | "en";
 const english: Record<string, string> = {
+  雨速: "Rain speed",
+  简单: "Easy",
+  普通: "Normal",
+  困难: "Hard",
+  "雨速影响淋湿与雨滴速度，开局后固定。":
+    "Rain speed affects wetness and falling drops. Fixed during each run.",
+  "简单 70% · 普通 100% · 困难 130%。联机由房主在出发前选择。":
+    "Easy 70% · Normal 100% · Hard 130%. The host chooses before the journey.",
+  雨速无效: "Invalid rain speed",
+  下雨难度无效: "Invalid rain difficulty",
+  由房主选择下雨难度: "Only the host can change rain difficulty",
+  请在大厅选择下雨难度: "Choose rain difficulty in the lobby",
   "画面暂时中断，正在恢复…": "Graphics interrupted. Restoring…",
   "画面恢复失败，请重新加载。":
     "Graphics could not be restored. Please reload.",

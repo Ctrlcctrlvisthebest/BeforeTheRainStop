@@ -203,6 +203,7 @@ test("room entry endpoints return their required seat and token fields", async (
       level: 0,
       name: "纸鹤",
       playerToken: session.token,
+      rainDifficulty: "normal",
     });
     const joined = await api(`/rooms/${session.code}/join`, {
       name: "纸鹤",
@@ -243,7 +244,12 @@ test("leaderboard responses reject malformed rows before reaching the interface"
     timeMs: 12345,
     achievedAt: 100,
   };
-  const board = { level: 0, mode: 1, entries: [entry] };
+  const board = {
+    level: 0,
+    mode: 1,
+    rainDifficulty: "normal",
+    entries: [entry],
+  };
   try {
     for (const malformed of [
       null,
@@ -251,6 +257,8 @@ test("leaderboard responses reject malformed rows before reaching the interface"
       {},
       { ...board, level: -1 },
       { ...board, mode: 4 },
+      { ...board, rainDifficulty: "storm" },
+      { ...board, rainDifficulty: undefined },
       { ...board, entries: null },
       { ...board, entries: {} },
       { ...board, entries: [null] },

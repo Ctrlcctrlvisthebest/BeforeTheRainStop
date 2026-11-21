@@ -8,6 +8,94 @@ import {
   publicRoom,
   authenticate,
 } from "../src/room";
+import { RAIN_DIFFICULTIES } from "../src/rain-difficulty";
+
+test("rain difficulty is a validated lobby choice controlled by the host", () => {
+  const room = makeRoom("ABCDEFGH", 2, 0, "host", "a", 0);
+  assert.equal(room.rainDifficulty, "normal");
+  joinRoom(room, "peer", "b", 0);
+  for (const invalid of [null, "storm", 1]) {
+    assert.throws(
+      () => makeRoom("ABCDEFGH", 2, 0, "host", "a", 0, invalid),
+      /难度无效/,
+    );
+    assert.throws(
+      () =>
+        command(
+          room,
+          "a",
+          { type: "rain-difficulty", rainDifficulty: invalid },
+          0,
+          "g",
+        ),
+      /难度无效/,
+    );
+  }
+  assert.throws(
+    () =>
+      command(
+        room,
+        "b",
+        { type: "rain-difficulty", rainDifficulty: "easy" },
+        0,
+        "g",
+      ),
+    /房主/,
+  );
+  const selected = command(
+    room,
+    "a",
+    { type: "rain-difficulty", rainDifficulty: "hard" },
+    0,
+    "g",
+  );
+  assert.equal(
+    room.rainDifficulty,
+    "normal",
+    "selection preserves the previous snapshot",
+  );
+  assert.equal(selected.rainDifficulty, "hard");
+  assert.equal(publicRoom(selected).rainDifficulty, "hard");
+  selected.players.forEach((p) => (p.online = true));
+  const started = command(selected, "a", { type: "start" }, 0, "g");
+  assert.equal(started.game!.rainDifficulty, "hard");
+  assert.throws(
+    () =>
+      command(
+        started,
+        "a",
+        { type: "rain-difficulty", rainDifficulty: "easy" },
+        0,
+        "g",
+      ),
+    /大厅/,
+  );
+});
+
+test("every rain difficulty survives unanimous restart and next chapter", () => {
+  for (const difficulty of RAIN_DIFFICULTIES) {
+    let room = makeRoom("ABCDEFGH", 2, 0, "host", "a", 0, difficulty);
+    joinRoom(room, "peer", "b", 0);
+    room.players.forEach((p) => (p.online = true));
+    room = command(room, "a", { type: "start" }, 0, "g");
+    for (const token of ["a", "b"])
+      room = command(room, token, { type: "restart", gameId: "g" }, 0, "again");
+    assert.equal(room.level, 0);
+    assert.equal(room.game!.rainDifficulty, difficulty);
+    room.game!.status = "won";
+    for (const token of ["a", "b"])
+      room = command(
+        room,
+        token,
+        { type: "restart", gameId: "again", next: true },
+        0,
+        "next",
+      );
+    assert.equal(room.level, 1);
+    assert.equal(room.rainDifficulty, difficulty);
+    assert.equal(room.game!.rainDifficulty, difficulty);
+  }
+});
 test("rooms admit the requested count, keep tokens private and enforce host start", () => {
   for (const n of [2, 3, 6]) {
     const r = makeRoom("ABCDEFGH", n, 0, "host", "host-token", 0);

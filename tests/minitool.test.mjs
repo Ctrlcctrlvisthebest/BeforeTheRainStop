@@ -141,9 +141,20 @@ test("offline menu excludes online entry points and restores legacy built-ins", 
     assert.equal(typeof p.w.ResizeObserver, "function");
     assert.equal(typeof p.w.crypto.randomUUID, "function");
     assert.equal(p.w.structuredClone({ a: Infinity }).a, Infinity);
+    d.querySelector('.rain-control [role="combobox"]').click();
+    await settle();
+    [...d.querySelectorAll('.rain-control [role="option"]')]
+      .find((option) => option.textContent.includes("困难"))
+      .click();
+    await settle();
     d.querySelector(".menu .primary").click();
     await p.tick();
     assert.equal(p.w.testGame.mode, 1);
+    assert.equal(p.w.testGame.rainDifficulty, "hard");
+    assert.equal(
+      d.querySelector('.rain-control [role="combobox"]').matches(":disabled"),
+      true,
+    );
     assert.deepEqual(p.errors, []);
   } finally {
     p.close();
@@ -221,6 +232,16 @@ test("production offline packages contain no online implementation or forbidden 
   for (const silent of [false, true]) {
     const directory = silent ? "dist-minitool-silent" : "dist-minitool";
     const files = await auditPackage(directory, silent);
+    const css = await readFile(`${directory}/app.css`, "utf8");
+    for (const selector of [
+      ".rain-control-field",
+      ".rain-select-list",
+      ".app-header",
+    ])
+      assert.ok(
+        css.includes(selector),
+        `Missing component styling: ${selector}`,
+      );
     assert.equal(
       files.filter((f) => f.file.endsWith(".m4a")).length,
       silent ? 0 : 2,

@@ -107,9 +107,9 @@ await writeFile(
   ).code,
 );
 const css = await Promise.all(
-  ["style", "mobile", "play-layout", "rain-ui", "minitool/compat"].map((name) =>
-    readFile(`src/${name}.css`, "utf8"),
-  ),
+  Object.keys(result.metafile.inputs)
+    .filter((file) => file.endsWith(".css"))
+    .map((file) => readFile(file, "utf8")),
 );
 await writeFile(path.join(out, "app.css"), compatibleCss(css.join("\n")));
 await cp("public/menu-scene.webp", path.join(out, "menu-scene.webp"));

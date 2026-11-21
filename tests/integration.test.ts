@@ -64,7 +64,9 @@ for (const transport of ["http", "websocket"] as const)
       capacity: 2,
       level: 0,
       name: "host",
+      rainDifficulty: "easy",
     });
+    assert.equal(created.room.rainDifficulty, "easy");
     const joined = await post(`/rooms/${created.room.code}/join`, {
       name: "departing",
     });
@@ -75,6 +77,30 @@ for (const transport of ["http", "websocket"] as const)
       await until(
         () => !!host.room?.players.every((p) => p.online),
         "both seats connected",
+      );
+      host.ws.send(
+        JSON.stringify({
+          version: CAMPAIGN_VERSION,
+          type: "command",
+          command: { type: "rain-difficulty", rainDifficulty: "hard" },
+        }),
+      );
+      await until(
+        () =>
+          host.room?.rainDifficulty === "hard" &&
+          old.room?.rainDifficulty === "hard",
+        "host difficulty is shared with every seat",
+      );
+      old.ws.send(
+        JSON.stringify({
+          version: CAMPAIGN_VERSION,
+          type: "command",
+          command: { type: "rain-difficulty", rainDifficulty: "easy" },
+        }),
+      );
+      await until(
+        () => old.errors.includes("由房主选择下雨难度"),
+        "guest cannot change difficulty",
       );
       if (transport === "http") {
         const response = await fetch(
@@ -146,6 +172,19 @@ for (const transport of ["http", "websocket"] as const)
         () => !!replacement!.room?.game,
         "replacement can start normally",
       );
+      assert.equal(replacement.room!.game!.rainDifficulty, "hard");
+      host.ws.send(
+        JSON.stringify({
+          version: CAMPAIGN_VERSION,
+          type: "command",
+          command: { type: "rain-difficulty", rainDifficulty: "easy" },
+        }),
+      );
+      await until(
+        () => host.errors.includes("请在大厅选择下雨难度"),
+        "active run difficulty cannot change",
+      );
+      assert.equal(host.room!.game!.rainDifficulty, "hard");
       assert.equal(
         replacement.room!.players.find((p) => p.slot === next.slot)!.online,
         true,
@@ -164,7 +203,7 @@ for (const transport of ["http", "websocket"] as const)
         () => replacement!.room!.game!.players[next.slot].x > x + 0.3,
         "replacement owns movement",
       );
-      assert.deepEqual(host.errors, []);
+      assert.deepEqual(host.errors, ["请在大厅选择下雨难度"]);
     } finally {
       host.ws.close();
       old.ws.close();

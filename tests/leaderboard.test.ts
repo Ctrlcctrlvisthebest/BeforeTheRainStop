@@ -21,17 +21,111 @@ import {
   boardName,
   validPlayerToken,
   RANKING_VERSION,
+  type LeaderboardData,
 } from "../src/leaderboard";
+import { rankingRequest } from "../src/ranking-client";
 import { makeRoom, publicRoom, command, joinRoom } from "../src/room";
 import { completeLevel } from "./journey";
+import { RAIN_DIFFICULTIES } from "../src/rain-difficulty";
 test("rebuilt maps and all-star rules use a new replay version and separate leaderboard storage", () => {
-  assert.equal(RANKING_VERSION, 10);
+  assert.equal(RANKING_VERSION, 11);
   for (let level = 0; level < LEVELS.length; level++)
     for (const mode of MODES)
       assert.equal(
         boardName(level, mode),
         `v${[37, 38].includes(level) ? 5 : [28, 29, 31, 33, 34, 35, 39].includes(level) ? 4 : level === 13 || level === 14 ? 2 : 3}:${mode}:${CHAPTER_STORAGE_SUFFIXES[level]}`,
       );
+});
+
+test("rain difficulty boards retain every normal board name and isolate all three modes", () => {
+  const names = LEVELS.flatMap((_, level) =>
+    MODES.flatMap((mode) => {
+      const normal = boardName(level, mode);
+      assert.equal(boardName(level, mode, "normal"), normal);
+      assert.equal(boardName(level, mode, "easy"), `${normal}:rain-easy`);
+      assert.equal(boardName(level, mode, "hard"), `${normal}:rain-hard`);
+      return RAIN_DIFFICULTIES.map((difficulty) =>
+        boardName(level, mode, difficulty),
+      );
+    }),
+  );
+  assert.equal(new Set(names).size, LEVELS.length * MODES.length * 3);
+});
+
+test("ranking requests include difficulty and reject missing or mismatched response difficulty", async (t) => {
+  let response: unknown;
+  const calls: { url: string; body?: string }[] = [];
+  t.mock.method(
+    globalThis,
+    "fetch",
+    async (url: string, options: RequestInit) => {
+      calls.push({
+        url,
+        body: typeof options.body === "string" ? options.body : undefined,
+      });
+      return Response.json(response);
+    },
+  );
+  for (const rainDifficulty of RAIN_DIFFICULTIES) {
+    const data: LeaderboardData = {
+      level: 0,
+      mode: 1,
+      rainDifficulty,
+      entries: [],
+    };
+    response = data;
+    assert.deepEqual(
+      await rankingRequest(`?level=0&mode=1&rainDifficulty=${rainDifficulty}`),
+      data,
+    );
+    assert.ok(calls.at(-1)?.url.endsWith(`&rainDifficulty=${rainDifficulty}`));
+    await rankingRequest("", {
+      level: 0,
+      rainDifficulty,
+      name: "Paper",
+      playerToken: crypto.randomUUID(),
+      replay: [[1, 1]],
+    });
+    assert.equal(
+      JSON.parse(calls.at(-1)!.body!).rainDifficulty,
+      rainDifficulty,
+    );
+  }
+  response = { level: 0, mode: 1, rainDifficulty: "normal", entries: [] };
+  await assert.rejects(
+    rankingRequest("?level=0&mode=1&rainDifficulty=easy"),
+    /返回的数据无效/,
+  );
+  response = { level: 0, mode: 1, entries: [] };
+  await assert.rejects(rankingRequest("?level=0&mode=1"), /返回的数据无效/);
+  const before = calls.length;
+  await assert.rejects(
+    rankingRequest("?level=0&mode=1&rainDifficulty=invalid"),
+    /雨速无效/,
+  );
+  assert.equal(calls.length, before);
+});
+
+test("a replay runs with the selected rain rules rather than silently using normal rain", () => {
+  const recorder = new ReplayRecorder();
+  const original = completeLevel(12, undefined, (game, input) =>
+    recorder.record(game, input),
+  );
+  const replay = recorder.snapshot(original);
+  const variants = RAIN_DIFFICULTIES.map((difficulty) =>
+    verifyReplay(12, replay, difficulty),
+  );
+  for (const [index, difficulty] of RAIN_DIFFICULTIES.entries()) {
+    const verified = variants[index];
+    assert.equal(verified.rainDifficulty, difficulty);
+    assert.equal(verified.status, "won");
+    assert.equal(verified.time, original.time);
+    assert.deepEqual(verified.stars, original.stars);
+  }
+  assert.notEqual(
+    variants[0].players[0].wetness,
+    variants[2].players[0].wetness,
+  );
 });
 
 test("every legal combination of gameplay inputs survives replay encoding", () => {

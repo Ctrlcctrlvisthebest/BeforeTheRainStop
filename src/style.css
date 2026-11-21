@@ -1,5 +1,7 @@
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;600;700&family=Noto+Serif+SC:wght@500;600;700&display=swap");
 :root {
+  --text-scale: 1;
+  --app-header-bottom: 74px;
   font-family: "Noto Sans SC", system-ui, sans-serif;
   color: #e1e4e6;
   background: #2b3b4d;
@@ -68,9 +70,16 @@ canvas {
   outline: none;
 }
 .app {
+  font-size: calc(16px * var(--text-scale));
   min-height: 100svh;
   position: relative;
   overflow: hidden;
+}
+.app[data-text-size="large"] {
+  --text-scale: 1.2;
+}
+.app[data-text-size="largest"] {
+  --text-scale: 1.4;
 }
 .atmosphere {
   position: fixed;
@@ -99,7 +108,7 @@ canvas {
   gap: 14px;
   font-family: var(--serif);
   font-weight: 600;
-  font-size: 23px;
+  font-size: calc(23px * var(--text-scale));
   letter-spacing: 3px;
   z-index: 2;
   color: #e0dfda;
@@ -107,7 +116,7 @@ canvas {
 .brand-icon {
   display: grid;
   place-items: center;
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   letter-spacing: 2px;
   writing-mode: vertical-rl;
   width: 30px;
@@ -119,7 +128,7 @@ canvas {
 .brand small {
   display: block;
   font-family: inherit;
-  font-size: 9px;
+  font-size: calc(9px * var(--text-scale));
   letter-spacing: 5px;
   font-weight: 400;
   margin-top: 6px;
@@ -127,7 +136,7 @@ canvas {
 }
 .edition {
   font-family: inherit;
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   letter-spacing: 2px;
   border-left: 1px solid #9caab244;
   padding-left: 18px;
@@ -143,7 +152,7 @@ canvas {
   z-index: 12;
 }
 .tools button {
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
   background: #17273766;
   border-color: #bac5d133;
   color: #d2dbe2;
@@ -162,13 +171,13 @@ canvas {
   pointer-events: none;
 }
 .eyebrow {
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   letter-spacing: 2px;
   color: #a1b1c1;
 }
 .intro h1 {
   font-family: var(--serif);
-  font-size: clamp(35px, 3.8vw, 57px);
+  font-size: calc(clamp(35px, 3.8vw, 57px) * var(--text-scale));
   font-weight: 500;
   line-height: 1.7;
   letter-spacing: 4px;
@@ -180,13 +189,13 @@ canvas {
   display: block;
 }
 .intro p {
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   line-height: 2.2;
   color: #bec8d0;
   max-width: 400px;
 }
 .intro-controls {
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   color: #bdc7d0;
   margin-top: 26px;
 }
@@ -198,7 +207,7 @@ canvas {
 }
 kbd {
   font: inherit;
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   display: inline-block;
   padding: 4px 6px;
   border: 1px solid #b5c2d02b;
@@ -260,7 +269,7 @@ kbd {
   justify-content: space-between;
   align-items: center;
   font-family: var(--serif);
-  font-size: 17px;
+  font-size: calc(17px * var(--text-scale));
   margin-bottom: 18px;
   padding-bottom: 14px;
   border-bottom: 1px solid #9f84604a;
@@ -268,13 +277,13 @@ kbd {
 }
 .panel-top b {
   font-family: inherit;
-  font-size: 9px;
+  font-size: calc(9px * var(--text-scale));
   letter-spacing: 2px;
   color: #8e755a;
   font-weight: 400;
 }
 label {
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   display: block;
   margin: 13px 0 8px;
   color: #76634f;
@@ -283,7 +292,7 @@ label input,
 label select {
   display: block;
   margin-top: 8px;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
 }
 .modes {
   display: flex;
@@ -310,12 +319,12 @@ label select {
 .modes button strong {
   display: block;
   font-family: Georgia, serif;
-  font-size: 26px;
+  font-size: calc(26px * var(--text-scale));
   font-weight: 400;
 }
 .modes button span {
   display: block;
-  font-size: 8px;
+  font-size: calc(8px * var(--text-scale));
   margin-top: 5px;
   color: #806951;
 }
@@ -341,7 +350,7 @@ label select {
   padding: 14px 16px;
   font-family: var(--serif);
   letter-spacing: 1px;
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   margin-top: 20px;
   font-weight: 500;
   box-shadow: inset 0 0 0 1px #8e403366;
@@ -350,13 +359,13 @@ label select {
   background: #b25b48;
 }
 .primary span {
-  font-size: 18px;
+  font-size: calc(18px * var(--text-scale));
 }
 .separator {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 9px;
+  font-size: calc(9px * var(--text-scale));
   color: #8d765e;
   margin: 18px 0 12px;
 }
@@ -372,18 +381,18 @@ label select {
   gap: 7px;
 }
 .join input {
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   min-width: 0;
   letter-spacing: 0.5px;
 }
 .join button {
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   flex-shrink: 0;
   padding: 8px 12px;
   background: #b9a07a30;
 }
 .fine {
-  font-size: 9px;
+  font-size: calc(9px * var(--text-scale));
   line-height: 1.8;
   color: #887058;
   margin: 13px 0 0;
@@ -393,7 +402,7 @@ label select {
   margin: 13px auto 0;
   border: 0;
   background: none;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   padding: 8px;
   color: #795d49;
 }
@@ -403,7 +412,7 @@ footer {
   left: 38px;
   right: 38px;
   font-family: var(--serif);
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   letter-spacing: 2px;
   color: #a7b3c0;
   display: flex;
@@ -412,7 +421,7 @@ footer {
   padding-top: 16px;
 }
 footer span {
-  font-size: 9px;
+  font-size: calc(9px * var(--text-scale));
 }
 .lobby {
   width: min(480px, 90vw);
@@ -420,11 +429,11 @@ footer span {
 }
 .panel .eyebrow {
   color: #8b7358;
-  font-size: 9px;
+  font-size: calc(9px * var(--text-scale));
 }
 .panel h2 {
   font-family: var(--serif);
-  font-size: 25px;
+  font-size: calc(25px * var(--text-scale));
   margin: 16px 0 24px;
   font-weight: 500;
 }
@@ -438,19 +447,19 @@ footer span {
 }
 .room-code small {
   display: block;
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   color: #846b52;
 }
 .room-code strong {
   display: block;
   font-family: Georgia, serif;
-  font-size: 25px;
+  font-size: calc(25px * var(--text-scale));
   letter-spacing: 3px;
   margin-top: 4px;
   color: var(--red);
 }
 .room-code button {
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
 }
 .seats {
   margin-top: 18px;
@@ -461,23 +470,23 @@ footer span {
   gap: 12px;
   border-bottom: 1px solid #a1875e44;
   padding: 12px 5px;
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
 }
 .seat > span {
-  font-size: 26px;
+  font-size: calc(26px * var(--text-scale));
 }
 .seat small {
   display: block;
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   color: #8a715a;
   margin-top: 4px;
 }
 .seat b {
-  font-size: 9px;
+  font-size: calc(9px * var(--text-scale));
   margin-left: auto;
 }
 .seat em {
-  font-size: 9px;
+  font-size: calc(9px * var(--text-scale));
   font-style: normal;
   color: var(--red);
 }
@@ -492,7 +501,7 @@ footer span {
   border-left: 3px solid var(--red);
   box-shadow: 0 6px 25px #10203760;
   padding: 14px 20px;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   max-width: 90vw;
   cursor: pointer;
 }
@@ -502,16 +511,16 @@ footer span {
 .playing .brand {
   left: 26px;
   top: 23px;
-  font-size: 17px;
+  font-size: calc(17px * var(--text-scale));
   letter-spacing: 2px;
 }
 .playing .brand-icon {
   width: 25px;
   height: 33px;
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
 }
 .playing .brand small {
-  font-size: 7px;
+  font-size: calc(7px * var(--text-scale));
   margin-top: 4px;
 }
 .playing .edition {
@@ -537,36 +546,36 @@ footer span {
 }
 .stage > b {
   font-family: Georgia, serif;
-  font-size: 39px;
+  font-size: calc(39px * var(--text-scale));
   font-weight: 400;
   color: #d3ac7f;
 }
 .stage > div {
   font-family: var(--serif);
-  font-size: 15px;
+  font-size: calc(15px * var(--text-scale));
   font-weight: 500;
 }
 .stage small {
   display: block;
   font-weight: 400;
-  font-size: 9px;
+  font-size: calc(9px * var(--text-scale));
   margin-top: 5px;
   color: #a4b5c6;
 }
 .stats {
   display: flex;
   gap: 13px;
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
   background: #1f3044c9;
   border: 1px solid #8197ae33;
   padding: 10px 13px;
 }
 .stats .online {
-  font-size: 9px;
+  font-size: calc(9px * var(--text-scale));
   color: #acc6d7;
 }
 .stats .offline {
-  font-size: 9px;
+  font-size: calc(9px * var(--text-scale));
   color: #d99c76;
 }
 .compass {
@@ -583,7 +592,7 @@ footer span {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
 }
 .compass svg {
   width: 100%;
@@ -593,7 +602,7 @@ footer span {
 }
 .compass small {
   display: block;
-  font-size: 8px;
+  font-size: calc(8px * var(--text-scale));
   color: #a9bacc;
   text-align: center;
 }
@@ -613,7 +622,7 @@ footer span {
   align-items: center;
   gap: 8px;
   white-space: nowrap;
-  font-size: 9px;
+  font-size: calc(9px * var(--text-scale));
   color: #b8c7d6;
   background: #1a2b3ddf;
   border: 1px solid #8197ae33;
@@ -636,20 +645,20 @@ footer span {
   align-items: baseline;
 }
 .meter-heading span {
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   letter-spacing: 0.5px;
 }
 .meter-heading strong {
   font-family: Georgia, serif;
-  font-size: 22px;
+  font-size: calc(22px * var(--text-scale));
   font-weight: 400;
 }
 .meter-heading strong small {
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   margin-left: 3px;
 }
 .meter-heading b {
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   font-weight: 500;
 }
 .wet-track {
@@ -664,7 +673,7 @@ footer span {
   transition: width 0.1s linear;
 }
 .rain-hud p {
-  font-size: 9px;
+  font-size: calc(9px * var(--text-scale));
   color: #a8bbcd;
   margin: 7px 0 0;
   line-height: 1.6;
@@ -703,7 +712,7 @@ footer span {
 .repair-hint {
   margin-top: 12px;
   color: #d6bb92;
-  font-size: 9px;
+  font-size: calc(9px * var(--text-scale));
 }
 .repair-away {
   border-top: 1px solid #9db4cd22;
@@ -718,7 +727,7 @@ footer span {
   margin-top: 9px;
 }
 .team-wet span {
-  font-size: 8px;
+  font-size: calc(8px * var(--text-scale));
   color: #adbecf;
 }
 .team-wet i {
@@ -745,21 +754,21 @@ footer span {
   overflow-y: auto;
 }
 .big-star {
-  font-size: 52px;
+  font-size: calc(52px * var(--text-scale));
   color: #a56847;
   margin: 22px 0 0;
 }
 .win h2 {
-  font-size: 24px;
+  font-size: calc(24px * var(--text-scale));
   margin: 10px 0 12px;
 }
 .win p {
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
   color: #826b55;
 }
 .score {
   color: #a46c3e;
-  font-size: 30px;
+  font-size: calc(30px * var(--text-scale));
   letter-spacing: 10px;
   margin-top: 24px;
 }
@@ -778,7 +787,7 @@ footer span {
   justify-content: space-between;
   gap: 6px 12px;
   align-items: baseline;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
 }
 .chapter-record strong,
 .finish-record dd {
@@ -789,7 +798,7 @@ footer span {
 .finish-record small {
   display: block;
   margin-top: 6px;
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   line-height: 1.6;
   color: #826b55;
 }
@@ -806,12 +815,12 @@ footer span {
   margin: 0;
 }
 .finish-record dt {
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
   color: #826b55;
 }
 .finish-record dd {
   margin: 5px 0 0;
-  font-size: clamp(16px, 4.5vw, 22px);
+  font-size: calc(clamp(16px, 4.5vw, 22px) * var(--text-scale));
   font-weight: 600;
   overflow-wrap: anywhere;
 }
@@ -832,13 +841,13 @@ footer span {
   overflow: auto;
 }
 .help h2 {
-  font-size: 24px;
+  font-size: calc(24px * var(--text-scale));
 }
 .help dl {
   display: grid;
   grid-template-columns: 105px 1fr;
   gap: 13px 14px;
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
   line-height: 1.8;
 }
 .help dt {
@@ -849,7 +858,7 @@ footer span {
   color: #75624f;
 }
 .help p {
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
   line-height: 1.9;
   color: #79634f;
 }
@@ -860,7 +869,7 @@ footer span {
   padding: 3px 9px;
   background: transparent;
   border: 0;
-  font-size: 23px;
+  font-size: calc(23px * var(--text-scale));
 }
 .waiting,
 .vote {
@@ -868,7 +877,7 @@ footer span {
   bottom: 92px;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   background: #26384ded;
   border: 1px solid #9db4cd44;
   padding: 13px 18px;
@@ -879,7 +888,7 @@ footer span {
   bottom: 148px;
 }
 .vote button {
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   margin-left: 12px;
   padding: 6px 10px;
 }
@@ -887,17 +896,17 @@ footer span {
   display: none;
 }
 .app[lang="en"] .brand {
-  font-size: 19px;
+  font-size: calc(19px * var(--text-scale));
   letter-spacing: 0;
 }
 .app[lang="en"] .brand-icon {
   writing-mode: horizontal-tb;
-  font-size: 8px;
+  font-size: calc(8px * var(--text-scale));
   letter-spacing: 1px;
 }
 .app[lang="en"] .intro h1 {
   font-family: Georgia, serif;
-  font-size: clamp(34px, 3.5vw, 53px);
+  font-size: calc(clamp(34px, 3.5vw, 53px) * var(--text-scale));
   line-height: 1.35;
   letter-spacing: -1px;
   margin: 28px 0;
@@ -911,19 +920,19 @@ footer span {
 }
 .app[lang="en"] .eyebrow {
   letter-spacing: 1.1px;
-  font-size: 9px;
+  font-size: calc(9px * var(--text-scale));
 }
 .app[lang="en"] .rain-hud {
   width: 265px;
 }
 .app[lang="en"] .stage > div {
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
 }
 .app[lang="en"] .stage small {
-  font-size: 8px;
+  font-size: calc(8px * var(--text-scale));
 }
 .app[lang="en"] .bottom-hint {
-  font-size: 8px;
+  font-size: calc(8px * var(--text-scale));
   gap: 5px;
 }
 @media (max-width: 1100px) {
@@ -935,7 +944,7 @@ footer span {
     width: 46%;
   }
   .intro h1 {
-    font-size: 40px;
+    font-size: calc(40px * var(--text-scale));
     letter-spacing: 2px;
   }
   .menu {
@@ -951,25 +960,25 @@ footer span {
   }
   .stats {
     gap: 9px;
-    font-size: 10px;
+    font-size: calc(10px * var(--text-scale));
   }
   .bottom-hint {
-    font-size: 8px;
+    font-size: calc(8px * var(--text-scale));
     gap: 5px;
     padding: 9px;
   }
   .bottom-hint kbd {
-    font-size: 9px;
+    font-size: calc(9px * var(--text-scale));
   }
   .app[lang="en"] .brand {
-    font-size: 16px;
+    font-size: calc(16px * var(--text-scale));
   }
   .app[lang="en"] .intro h1 {
-    font-size: 38px;
+    font-size: calc(38px * var(--text-scale));
   }
   .app[lang="en"] .bottom-hint {
     gap: 4px;
-    font-size: 7px;
+    font-size: calc(7px * var(--text-scale));
   }
 }
 @media (max-width: 800px) {
@@ -978,14 +987,14 @@ footer span {
     width: 43%;
   }
   .intro h1 {
-    font-size: 34px;
+    font-size: calc(34px * var(--text-scale));
   }
   .intro p {
-    font-size: 10px;
+    font-size: calc(10px * var(--text-scale));
     max-width: 290px;
   }
   .intro-controls {
-    font-size: 9px;
+    font-size: calc(9px * var(--text-scale));
   }
   .intro-controls kbd {
     margin-left: 5px;
@@ -996,12 +1005,12 @@ footer span {
     padding: 20px;
   }
   .brand {
-    font-size: 19px;
+    font-size: calc(19px * var(--text-scale));
     left: 25px;
   }
   .tools button {
     padding: 8px;
-    font-size: 10px;
+    font-size: calc(10px * var(--text-scale));
   }
   .compass {
     width: 149px;
@@ -1014,7 +1023,7 @@ footer span {
     display: block;
   }
   .app[lang="en"] .intro h1 {
-    font-size: 31px;
+    font-size: calc(31px * var(--text-scale));
   }
   .bottom-hint {
     display: none;
@@ -1024,15 +1033,15 @@ footer span {
   .brand {
     left: 22px;
     top: 22px;
-    font-size: 19px;
+    font-size: calc(19px * var(--text-scale));
   }
   .brand-icon {
     width: 25px;
     height: 36px;
-    font-size: 11px;
+    font-size: calc(11px * var(--text-scale));
   }
   .brand small {
-    font-size: 7px;
+    font-size: calc(7px * var(--text-scale));
   }
   .tools {
     right: 16px;
@@ -1042,7 +1051,7 @@ footer span {
   }
   .tools button {
     padding: 7px 10px;
-    font-size: 10px;
+    font-size: calc(10px * var(--text-scale));
   }
   .intro {
     position: relative;
@@ -1053,14 +1062,14 @@ footer span {
     max-width: none;
   }
   .intro h1 {
-    font-size: 35px;
+    font-size: calc(35px * var(--text-scale));
     line-height: 1.6;
     letter-spacing: 3px;
     margin: 20px 0;
   }
   .intro p {
     display: block;
-    font-size: 11px;
+    font-size: calc(11px * var(--text-scale));
     max-width: 350px;
     line-height: 1.9;
   }
@@ -1081,7 +1090,7 @@ footer span {
     border-top-width: 10px;
   }
   .panel-top {
-    font-size: 16px;
+    font-size: calc(16px * var(--text-scale));
   }
   .modes button {
     padding-top: 17px;
@@ -1091,7 +1100,7 @@ footer span {
     left: 25px;
     right: 25px;
     bottom: 24px;
-    font-size: 9px;
+    font-size: calc(9px * var(--text-scale));
     letter-spacing: 1px;
   }
   footer span {
@@ -1103,7 +1112,7 @@ footer span {
   .playing .brand {
     left: 16px;
     top: 17px;
-    font-size: 15px;
+    font-size: calc(15px * var(--text-scale));
   }
   .playing .brand-icon {
     display: none;
@@ -1115,27 +1124,27 @@ footer span {
     gap: 5px;
   }
   .playing .tools button {
-    font-size: 9px;
+    font-size: calc(9px * var(--text-scale));
     padding: 6px 8px;
   }
   .playing .brand small {
-    font-size: 6px;
+    font-size: calc(6px * var(--text-scale));
   }
   .hud {
     left: 16px;
     top: 98px;
   }
   .stage > b {
-    font-size: 28px;
+    font-size: calc(28px * var(--text-scale));
   }
   .stage > div {
-    font-size: 12px;
+    font-size: calc(12px * var(--text-scale));
   }
   .stage small {
-    font-size: 7px;
+    font-size: calc(7px * var(--text-scale));
   }
   .stats {
-    font-size: 9px;
+    font-size: calc(9px * var(--text-scale));
     gap: 9px;
     padding: 6px 8px;
     margin-top: 8px;
@@ -1147,57 +1156,57 @@ footer span {
     padding: 8px;
   }
   .compass > div {
-    font-size: 8px;
+    font-size: calc(8px * var(--text-scale));
   }
   .compass svg {
     height: 50px;
   }
   .compass small {
-    font-size: 7px;
+    font-size: calc(7px * var(--text-scale));
   }
   .compass kbd {
-    font-size: 8px;
+    font-size: calc(8px * var(--text-scale));
     padding: 2px 4px;
   }
   .rain-hud {
     padding: 9px 11px;
   }
   .meter-heading span {
-    font-size: 9px;
+    font-size: calc(9px * var(--text-scale));
   }
   .meter-heading strong {
-    font-size: 19px;
+    font-size: calc(19px * var(--text-scale));
   }
   .rain-hud p {
-    font-size: 8px;
+    font-size: calc(8px * var(--text-scale));
   }
   .fold-condition {
     padding-top: 8px;
     margin-top: 8px;
   }
   .repair-hint {
-    font-size: 8px;
+    font-size: calc(8px * var(--text-scale));
     margin-top: 8px;
   }
   .team-wet {
     gap: 5px;
   }
   .team-wet span {
-    font-size: 7px;
+    font-size: calc(7px * var(--text-scale));
   }
   .help h2 {
-    font-size: 21px;
+    font-size: calc(21px * var(--text-scale));
   }
   .help dl {
     grid-template-columns: 83px 1fr;
     gap: 12px 10px;
-    font-size: 10px;
+    font-size: calc(10px * var(--text-scale));
   }
   .help p {
-    font-size: 10px;
+    font-size: calc(10px * var(--text-scale));
   }
   .win h2 {
-    font-size: 21px;
+    font-size: calc(21px * var(--text-scale));
   }
   .waiting {
     bottom: 115px;
@@ -1206,26 +1215,26 @@ footer span {
     bottom: 165px;
   }
   .app[lang="en"] .brand {
-    font-size: 18px;
+    font-size: calc(18px * var(--text-scale));
   }
   .app[lang="en"] .intro h1 {
-    font-size: 35px;
+    font-size: calc(35px * var(--text-scale));
   }
   .app[lang="en"] .rain-hud {
     width: 205px;
   }
   .app[lang="en"] .stage > div {
-    font-size: 11px;
+    font-size: calc(11px * var(--text-scale));
     max-width: 162px;
   }
   .app[lang="en"] .stage small {
     display: none;
   }
   .app[lang="en"] .eyebrow {
-    font-size: 8px;
+    font-size: calc(8px * var(--text-scale));
   }
   .app[lang="en"] .playing .brand {
-    font-size: 14px;
+    font-size: calc(14px * var(--text-scale));
   }
 }
 @media (pointer: coarse) {
@@ -1256,7 +1265,7 @@ footer span {
     min-width: 38px;
     height: 43px;
     padding: 7px;
-    font-size: 9px;
+    font-size: calc(9px * var(--text-scale));
     background: #24384ee8;
     border: 1px solid #9bb2c54d;
     color: #d8e2e9;
@@ -1333,7 +1342,7 @@ footer span {
   color: #574333;
   border: 4px solid #685143;
   box-shadow: 0 12px 36px #10203870;
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
   z-index: 20;
 }
 .music-heading {
@@ -1342,23 +1351,23 @@ footer span {
   gap: 12px;
 }
 .music-heading > span {
-  font-size: 27px;
+  font-size: calc(27px * var(--text-scale));
   color: #a35b41;
 }
 .music-heading strong {
   display: block;
   font-family: var(--serif);
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
   font-weight: 600;
 }
 .music-heading small {
   display: block;
-  font-size: 9px;
+  font-size: calc(9px * var(--text-scale));
   color: #90795e;
   margin-top: 4px;
 }
 .music-panel p {
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   line-height: 1.7;
   color: #816950;
   margin: 13px 0;
@@ -1367,7 +1376,7 @@ footer span {
   display: flex;
   gap: 9px;
   justify-content: space-between;
-  font-size: 9px;
+  font-size: calc(9px * var(--text-scale));
   color: #8a6f53;
   line-height: 1.6;
 }
@@ -1376,7 +1385,7 @@ footer span {
 }
 .music-panel label {
   margin-top: 15px;
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
 }
 .music-panel label > span {
   float: right;
@@ -1414,7 +1423,7 @@ footer span {
 .music-note {
   display: block;
   margin-top: 12px;
-  font-size: 8px;
+  font-size: calc(8px * var(--text-scale));
   line-height: 1.7;
   color: #8d785f;
 }
@@ -1439,7 +1448,7 @@ footer span {
     padding-right: 6px;
   }
   .music-heading strong {
-    font-size: 13px;
+    font-size: calc(13px * var(--text-scale));
   }
 }
 
@@ -1478,7 +1487,7 @@ footer span {
   background: #382b25ee;
   color: #f3c49c;
   border: 1px solid #d08d5c66;
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   text-align: center;
   max-width: calc(100vw - 32px);
   width: max-content;
@@ -1487,7 +1496,7 @@ footer span {
 @media (max-width: 650px) {
   .failure-notice {
     bottom: 210px;
-    font-size: 11px;
+    font-size: calc(11px * var(--text-scale));
   }
   .heat-condition {
     margin-top: 7px;
@@ -1507,7 +1516,7 @@ footer span {
   border: 1px solid #b6bfcc38;
   background: #1d2a36e8;
   color: #b7c4cf;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   max-width: calc(100vw - 32px);
   width: max-content;
   pointer-events: none;
@@ -1530,7 +1539,7 @@ footer span {
 @media (max-width: 850px) {
   .carry-hud {
     bottom: 155px;
-    font-size: 10px;
+    font-size: calc(10px * var(--text-scale));
     padding: 7px 12px;
     flex-direction: column;
     gap: 3px;
@@ -1544,7 +1553,7 @@ footer span {
   .carry-hud {
     bottom: 57px;
     padding: 5px 10px;
-    font-size: 10px;
+    font-size: calc(10px * var(--text-scale));
   }
   .failure-notice {
     bottom: 105px;
@@ -1557,7 +1566,7 @@ footer span {
   align-items: center;
   justify-content: space-between;
   gap: 7px;
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
   margin: 18px 0;
 }
 .goal-flow span {
@@ -1591,12 +1600,12 @@ footer span {
   border-left: 2px solid #b99761;
 }
 .chapter-brief b {
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   letter-spacing: 1px;
   color: #876c47;
 }
 .chapter-brief p {
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
   line-height: 1.7;
   color: #776952;
   margin: 5px 0;
@@ -1607,13 +1616,13 @@ footer span {
   background: none;
   padding: 3px 0;
   color: #8b663c;
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
   text-decoration: underline;
   text-underline-offset: 3px;
   cursor: pointer;
 }
 .lobby-guide {
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
   line-height: 1.8;
   color: #78644c;
 }
@@ -1630,7 +1639,7 @@ footer span {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   letter-spacing: 1px;
   color: #cead75;
 }
@@ -1644,7 +1653,7 @@ footer span {
   background: none;
   padding: 3px 0;
   color: #bacbd7;
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   cursor: pointer;
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -1657,20 +1666,20 @@ footer span {
   margin-top: 11px;
 }
 .guide-arrow {
-  font-size: 26px;
+  font-size: calc(26px * var(--text-scale));
   line-height: 1;
   color: #f5d18e;
   min-width: 29px;
 }
 .guide-action h2 {
-  font-size: 15px;
+  font-size: calc(15px * var(--text-scale));
   font-family: var(--serif);
   font-weight: 500;
   line-height: 1.5;
   margin: 0;
 }
 .journey-guide > p {
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
   color: #b8c8d3;
   line-height: 1.8;
   margin: 8px 0;
@@ -1687,16 +1696,16 @@ footer span {
   color: #ffe9b3;
   background: #b9984e17;
   padding: 4px 9px;
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
 }
 .guide-keys > span {
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   color: #bac5cb;
 }
 .guide-goal {
   border-top: 1px solid #a9b7c528;
   padding-top: 8px;
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   color: #d9bc86;
 }
 .guide-goal > span {
@@ -1705,7 +1714,7 @@ footer span {
 .guide-goal small {
   display: block;
   margin-top: 6px;
-  font-size: 9px;
+  font-size: calc(9px * var(--text-scale));
   color: #90a5b4;
 }
 .journey-guide .guide-warning {
@@ -1725,7 +1734,7 @@ footer span {
 }
 .compass .map-legend {
   display: block;
-  font-size: 8px;
+  font-size: calc(8px * var(--text-scale));
   text-align: center;
   color: #d7c398;
   margin: 5px 0 7px;
@@ -1751,7 +1760,7 @@ footer span {
   border: 1px solid #a7936c30;
 }
 .how-to-play .guide-pause-note {
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
   color: #777969;
   padding: 0 2px;
 }
@@ -1768,7 +1777,7 @@ footer span {
   color: #7d694e;
   background: #efe6d5;
   padding: 7px 10px;
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
 }
 .lesson-tabs button[aria-selected="true"] {
   background: #756348;
@@ -1776,7 +1785,7 @@ footer span {
   color: #fff2d5;
 }
 .how-to-play h3 {
-  font-size: 17px;
+  font-size: calc(17px * var(--text-scale));
   font-family: var(--serif);
   font-weight: 500;
   color: #604e39;
@@ -1792,17 +1801,17 @@ footer span {
 }
 .lesson-diagram text {
   fill: #7e6c51;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   font-family: inherit;
   text-anchor: middle;
 }
 .lesson-diagram .diagram-icon {
-  font-size: 33px;
+  font-size: calc(33px * var(--text-scale));
 }
 .how-to-play ol {
   padding-left: 22px;
   color: #6c5b45;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   line-height: 1.85;
   margin: 15px 0;
 }
@@ -1814,27 +1823,27 @@ footer span {
   border-left: 2px solid #bba06d;
   padding: 8px 12px;
   background: #c8b37d13;
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
 }
 @media (max-width: 1000px) {
   .journey-guide {
     padding: 11px 13px;
   }
   .guide-action h2 {
-    font-size: 13px;
+    font-size: calc(13px * var(--text-scale));
   }
   .guide-heading {
     gap: 5px;
     letter-spacing: 0;
   }
   .guide-heading button {
-    font-size: 9px;
+    font-size: calc(9px * var(--text-scale));
   }
   .journey-guide > p {
-    font-size: 10px;
+    font-size: calc(10px * var(--text-scale));
   }
   .goal-flow {
-    font-size: 9px;
+    font-size: calc(9px * var(--text-scale));
     gap: 4px;
   }
 }
@@ -1852,10 +1861,10 @@ footer span {
     padding: 10px 12px;
   }
   .guide-action h2 {
-    font-size: 13px;
+    font-size: calc(13px * var(--text-scale));
   }
   .guide-heading {
-    font-size: 9px;
+    font-size: calc(9px * var(--text-scale));
   }
   .guide-keys {
     margin: 5px 0;
@@ -1868,7 +1877,7 @@ footer span {
     display: none;
   }
   .journey-guide > p {
-    font-size: 10px;
+    font-size: calc(10px * var(--text-scale));
     margin: 5px 0;
   }
   .journey-guide .guide-warning {
@@ -1882,14 +1891,14 @@ footer span {
     display: none;
   }
   .lesson-tabs button {
-    font-size: 10px;
+    font-size: calc(10px * var(--text-scale));
     padding: 6px 8px;
   }
   .how-to-play ol {
-    font-size: 11px;
+    font-size: calc(11px * var(--text-scale));
   }
   .how-to-play h3 {
-    font-size: 15px;
+    font-size: calc(15px * var(--text-scale));
   }
   .help .goal-flow {
     padding: 8px 5px;
@@ -1933,13 +1942,13 @@ footer span {
     margin-top: 5px;
   }
   .guide-arrow {
-    font-size: 23px;
+    font-size: calc(23px * var(--text-scale));
   }
 }
 .challenge-label {
   display: block;
   color: #a65342;
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
   margin-bottom: 8px;
   letter-spacing: 0.08em;
 }
@@ -1970,7 +1979,7 @@ canvas[hidden] {
   padding-top: 16px;
   border-top: 1px solid #9a825644;
   text-align: left;
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
 }
 .ranking-heading {
   display: flex;
@@ -1985,11 +1994,11 @@ canvas[hidden] {
 .ranking-heading button,
 .ranking-upload button {
   padding: 5px 10px;
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
 }
 .ranking-chapter,
 .ranking-state {
-  font-size: 11px;
+  font-size: calc(11px * var(--text-scale));
   line-height: 1.6;
   opacity: 0.8;
   margin: 8px 0;
@@ -2030,13 +2039,13 @@ canvas[hidden] {
 }
 .ranking-name-hint {
   display: block;
-  font-size: 10px;
+  font-size: calc(10px * var(--text-scale));
   opacity: 0.7;
   line-height: 1.6;
   margin: -10px 0 15px;
 }
 .ranking-upload {
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   line-height: 1.6;
   margin: 16px 0 0;
 }

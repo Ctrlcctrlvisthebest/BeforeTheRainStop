@@ -1,5 +1,5 @@
-// A geometry update changes replay compatibility and comparable records.
-export const CAMPAIGN_VERSION = 10;
+// Geometry or gameplay rule changes require matching simulation and replay clients.
+export const CAMPAIGN_VERSION = 11;
 export const CAMPAIGN_LENGTH = 100;
 export const V9_CAMPAIGN_LENGTH = 40;
 // Zero-based chapter indices. Only wind wells (14) and ferry islands (15)

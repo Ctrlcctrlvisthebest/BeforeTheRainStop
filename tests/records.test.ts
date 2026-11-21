@@ -17,6 +17,7 @@ import {
   formatTime,
 } from "../src/records";
 import { completeLevel } from "./journey";
+import { RAIN_DIFFICULTIES, type RainDifficulty } from "../src/rain-difficulty";
 
 function withStorage(
   run: (disk: Map<string, string>, writes: () => number) => void,
@@ -41,13 +42,71 @@ function withStorage(
     else Reflect.deleteProperty(globalThis, "localStorage");
   }
 }
-function finish(seconds: number, level = 0, mode: Mode = 1) {
-  const game = newGame(mode, level, crypto.randomUUID());
+function finish(
+  seconds: number,
+  level = 0,
+  mode: Mode = 1,
+  rainDifficulty: RainDifficulty = "normal",
+) {
+  const game = newGame(mode, level, crypto.randomUUID(), rainDifficulty);
   game.status = "won";
   game.stars = LEVELS[level].stars.map((_, id) => id);
   game.time = seconds;
   return game;
 }
+
+test("rain difficulties preserve separate bests and reject a different difficulty's completion", () =>
+  withStorage((disk) => {
+    const records = RAIN_DIFFICULTIES.map(
+      (difficulty) => new LocalRecords(difficulty),
+    );
+    const games = RAIN_DIFFICULTIES.map((difficulty, index) => ({
+      ...finish(10 + index, 99, 6, difficulty),
+      id: "same-run-id",
+    }));
+    for (const [index, store] of records.entries()) {
+      for (const [otherIndex, game] of games.entries())
+        if (otherIndex !== index) assert.equal(store.record(game), null);
+      assert.equal(
+        store.record(games[index])?.rainDifficulty,
+        RAIN_DIFFICULTIES[index],
+      );
+      assert.equal(store.record(games[index]), null);
+    }
+    for (const [index, difficulty] of RAIN_DIFFICULTIES.entries())
+      assert.equal(
+        bestTimeFor(new LocalRecords(difficulty).times, 99, 6),
+        (10 + index) * 1000,
+      );
+    assert.equal(disk.size, 3);
+    assert.equal(
+      JSON.parse(disk.get(RECORDS_KEY)!)[`6:${CHAPTER_STORAGE_SUFFIXES[99]}`],
+      11000,
+    );
+  }));
+
+test("normal rain retains every released v10 record; new difficulty stores import no normal history", () =>
+  withStorage((disk) => {
+    assert.equal(RECORDS_KEY, "rain-best-times-all-stars-v10");
+    const legacy = Object.fromEntries(
+      MODES.flatMap((mode) =>
+        CHAPTER_STORAGE_SUFFIXES.map((name, level) => [
+          `${mode}:${name}`,
+          1000 + level * 10 + mode,
+        ]),
+      ),
+    );
+    const original = JSON.stringify(legacy);
+    disk.set(RECORDS_KEY, original);
+    disk.set("rain-best-times-all-stars-v9", original);
+    assert.deepEqual(new LocalRecords().times, legacy);
+    for (const difficulty of ["easy", "hard"] as const) {
+      assert.deepEqual(new LocalRecords(difficulty).times, {});
+      new LocalRecords(difficulty).record(finish(30, 99, 1, difficulty));
+      assert.equal(disk.get(RECORDS_KEY), original);
+    }
+    assert.equal(Object.keys(new LocalRecords().times).length, 400);
+  }));
 
 test("first completion persists; only a strictly faster run replaces it", () =>
   withStorage((_disk, writes) => {

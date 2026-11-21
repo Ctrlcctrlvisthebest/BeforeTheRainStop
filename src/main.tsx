@@ -1,6 +1,13 @@
 import { SafeRestartButton } from "./safe-restart";
+import { AppHeader } from "./app-header";
 import { createGameAudioEvents } from "./game-audio-events";
 import { QualityControls, useQualityPreference } from "./quality-controls";
+import { TextSizeControls, useTextSizePreference } from "./text-size-controls";
+import {
+  RainDifficultyControls,
+  useRainDifficultyPreference,
+} from "./rain-controls";
+import { RAIN_DIFFICULTY_LABELS, type RainDifficulty } from "./rain-difficulty";
 import { RainSelect } from "./rain-select";
 import { TeamControls } from "./team-controls";
 import { GameStatus } from "./game-status";
@@ -61,6 +68,8 @@ const initialCode = MINITOOL
   : (new URLSearchParams(location.search).get("room") ?? "");
 function App() {
   const compact = useCompactControls();
+  const [textSize, setTextSize] = useTextSizePreference(compact);
+  const [rainPreference, setRainPreference] = useRainDifficultyPreference();
   const [toolsOpen, setToolsOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [language, setLanguage] = useState<Language>(() =>
@@ -73,19 +82,21 @@ function App() {
     document.title =
       translate(language, "雨停之前") + " · " + translate(language, "纸上祈愿");
   }, [language]);
-  const [initialGame] = useState(() => newGame(1));
-  const [records] = useState(() => new LocalRecords());
+  const [initialGame] = useState(() => newGame(1, 0, "solo", rainPreference));
+  const [records] = useState(() => ({
+    easy: new LocalRecords("easy"),
+    normal: new LocalRecords("normal"),
+    hard: new LocalRecords("hard"),
+  }));
   const [playerToken] = useState(playerIdentity);
   const [replay] = useState(() => new ReplayRecorder());
   const soloName = useRef("");
   const ranking = useScoreSubmission();
   const [retryingTeamScore, setRetryingTeamScore] = useState(false);
-  const [bestTimes, setBestTimes] = useState(() => records.times);
   const [completion, setCompletion] = useState<Completion | null>(null);
   function recordWin(g: Game) {
-    const result = records.record(g);
+    const result = records[g.rainDifficulty].record(g);
     if (result) {
-      setBestTimes(records.times);
       setCompletion(result);
       if (!MINITOOL && g.mode === 1) {
         const trace = replay.snapshot(g);
@@ -94,6 +105,7 @@ function App() {
           trace
             ? {
                 level: g.level,
+                rainDifficulty: g.rainDifficulty,
                 name: soloName.current,
                 playerToken,
                 replay: trace,
@@ -239,6 +251,25 @@ function App() {
     onError: setError,
   });
   const { room, session, connected, currentRoom, currentSession } = roomSession;
+  const rainDifficulty =
+    session && room
+      ? room.rainDifficulty
+      : phase === "game"
+        ? hud.rainDifficulty
+        : rainPreference;
+  const bestTimes = records[rainDifficulty].times;
+  function selectRainDifficulty(difficulty: RainDifficulty) {
+    if (phase !== "menu" && phase !== "lobby") return;
+    if (session) {
+      roomSession.command({
+        type: "rain-difficulty",
+        rainDifficulty: difficulty,
+      });
+    } else {
+      game.current = newGame(1, level, "solo", difficulty);
+    }
+    setRainPreference(difficulty);
+  }
   const { sceneStatus, sceneReady, guide } = useGameRuntime({
     phase,
     phaseRef,
@@ -252,6 +283,7 @@ function App() {
       compact,
       guideEnabled,
       quality,
+      textSize,
     },
     onStep: (g, value) => replay.record(g, value),
     onPickup: () => sound(660),
@@ -297,7 +329,7 @@ function App() {
     if (MINITOOL || mode === 1) {
       soloName.current = nameReview.ok ? nameReview.name : "旅人";
       roomSession.clear();
-      game.current = newGame(1, level, crypto.randomUUID());
+      game.current = newGame(1, level, crypto.randomUUID(), rainPreference);
       setHud(structuredClone(game.current));
       changePhase("game");
       return;
@@ -309,6 +341,7 @@ function App() {
         level,
         name,
         playerToken,
+        rainDifficulty: rainPreference,
       });
       roomSession.enter({ code: r.room.code, token: r.token, slot: r.slot });
     } catch (e) {
@@ -340,7 +373,7 @@ function App() {
     roomSession.leave();
     setError("");
     setHelp(false);
-    game.current = newGame(1, level);
+    game.current = newGame(1, level, "solo", rainPreference);
     changePhase("menu");
     if (location.search) history.replaceState(null, "", location.pathname);
   }
@@ -375,7 +408,12 @@ function App() {
         ? (game.current.level + 1) % LEVELS.length
         : game.current.level;
       setLevel(l);
-      game.current = newGame(1, l, crypto.randomUUID());
+      game.current = newGame(
+        1,
+        l,
+        crypto.randomUUID(),
+        game.current.rainDifficulty,
+      );
       setCompletion(null);
       setHud(structuredClone(game.current));
     }
@@ -461,6 +499,7 @@ function App() {
     <main
       className={`app ${MINITOOL ? "minitool" : ""} ${phase === "menu" ? "menu-screen" : ""} ${isPlaying ? "playing" : ""} ${compact ? "compact" : ""} ${toolsOpen ? "tools-open" : ""} ${mapOpen ? "map-open" : ""} ${guideEnabled ? "with-guide" : ""}`}
       lang={language === "zh" ? "zh-CN" : "en"}
+      data-text-size={textSize}
       translate="no"
     >
       <canvas
@@ -499,97 +538,96 @@ function App() {
           }}
         />
       )}
-      <header className="brand">
-        <span className="brand-icon">{t("祈愿")}</span>
-        <div>
-          {t("雨停之前")}
-          <small>{t("纸上祈愿")}</small>
-        </div>
-        <span className="edition">{t("纸鹤 · 许愿架 · 雨中归途")}</span>
-      </header>
-      {compact && isPlaying && (
-        <nav className="mobile-toolbar" aria-label={t("游戏工具")}>
-          <button
-            aria-expanded={mapOpen}
-            aria-controls="route-map"
-            onClick={() => toggleMobilePanel("map")}
-          >
-            {t("路线")}
-          </button>
-          <button onClick={() => learn(guide.current?.lesson ?? "basics")}>
-            {t("帮助")}
-          </button>
-          <button
-            aria-expanded={toolsOpen}
-            aria-controls="game-tools"
-            onClick={() => toggleMobilePanel("tools")}
-          >
-            {t(toolsOpen ? "收起" : "菜单")}
-          </button>
-        </nav>
-      )}
-      <nav className="tools" id="game-tools">
-        {!MINITOOL && phase === "menu" && (
-          <a
-            className="map-workshop-link"
-            href="https://ctrlcctrlvisthebest.github.io/BeforeTheRainStopMap/"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={t("地图工坊（新标签页）")}
-          >
-            {t("地图工坊")} <span aria-hidden="true">↗</span>
-          </a>
-        )}
-        <button
-          className="language"
-          aria-label={t("切换语言")}
-          onClick={() => setLanguage(language === "zh" ? "en" : "zh")}
-        >
-          中文 / EN
-        </button>
-        <MusicControls audio={audio} language={language} />
-        <QualityControls
-          value={quality}
-          onChange={setQuality}
-          language={language}
-        />
-        {session && room && (
-          <TeamControls
-            room={room}
-            slot={session.slot}
-            connected={connected}
-            language={language}
-            send={(cmd) => roomSession.command(cmd)}
-          />
-        )}
-        <button
-          aria-label={t("切换玩法引导")}
-          aria-pressed={guideEnabled}
-          onClick={() => setGuideEnabled((v) => !v)}
-        >
-          {t(guideEnabled ? "引导开" : "引导关")}
-        </button>
-        <button onClick={() => (help ? setHelp(false) : learn("basics"))}>
-          {t("操作说明")}
-        </button>
-        {isPlaying && (
-          <>
-            <SafeRestartButton
-              language={language}
-              scopeKey={hud.id}
-              needsConfirmation={
-                hud.time > 2 || hud.keys.length > 0 || hud.stars.length > 0
-              }
-              onConfirm={() => restart(false)}
-              disabled={restartBlocked || !sceneReady.current}
-              title={restartHint}
+      <AppHeader>
+        <header className="brand">
+          <span className="brand-icon">{t("祈愿")}</span>
+          <div>
+            {t("雨停之前")}
+            <small>{t("纸上祈愿")}</small>
+          </div>
+          <span className="edition">{t("纸鹤 · 许愿架 · 雨中归途")}</span>
+        </header>
+        <nav className="tools" id="game-tools">
+          {!MINITOOL && phase === "menu" && (
+            <a
+              className="map-workshop-link"
+              href="https://ctrlcctrlvisthebest.github.io/BeforeTheRainStopMap/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={t("地图工坊（新标签页）")}
             >
-              {restartLabel} · T
-            </SafeRestartButton>
-            <button onClick={leave}>{t("返回大厅")}</button>
-          </>
-        )}
-      </nav>
+              {t("地图工坊")} <span aria-hidden="true">↗</span>
+            </a>
+          )}
+          <button
+            className="language"
+            aria-label={t("切换语言")}
+            onClick={() => setLanguage(language === "zh" ? "en" : "zh")}
+          >
+            中文 / EN
+          </button>
+          <MusicControls audio={audio} language={language} />
+          <QualityControls
+            value={quality}
+            onChange={setQuality}
+            language={language}
+          />
+          <TextSizeControls
+            value={textSize}
+            onChange={setTextSize}
+            language={language}
+          />
+          <RainDifficultyControls
+            value={rainDifficulty}
+            onChange={selectRainDifficulty}
+            language={language}
+            disabled={
+              busy ||
+              isPlaying ||
+              (!!session && (!connected || session.slot !== room?.host))
+            }
+            title={t(
+              "简单 70% · 普通 100% · 困难 130%。联机由房主在出发前选择。",
+            )}
+          />
+          {session && room && (
+            <TeamControls
+              room={room}
+              slot={session.slot}
+              connected={connected}
+              language={language}
+              send={(cmd) => roomSession.command(cmd)}
+            />
+          )}
+          <button
+            aria-label={t("切换玩法引导")}
+            aria-pressed={guideEnabled}
+            onClick={() => setGuideEnabled((v) => !v)}
+          >
+            {t(guideEnabled ? "引导开" : "引导关")}
+          </button>
+          <button onClick={() => (help ? setHelp(false) : learn("basics"))}>
+            {t("操作说明")}
+          </button>
+          {isPlaying && (
+            <>
+              <SafeRestartButton
+                language={language}
+                scopeKey={hud.id}
+                needsConfirmation={
+                  hud.time > 2 || hud.keys.length > 0 || hud.stars.length > 0
+                }
+                onConfirm={() => restart(false)}
+                disabled={restartBlocked || !sceneReady.current}
+                title={restartHint}
+              >
+                {restartLabel} · T
+              </SafeRestartButton>
+              <button onClick={leave}>{t("返回大厅")}</button>
+            </>
+          )}
+        </nav>
+      </AppHeader>
       {error && (
         <div role="alert" className="toast" onClick={() => setError("")}>
           {t(error)}
@@ -643,7 +681,7 @@ function App() {
                 onChange={(value) => {
                   const n = Number(value);
                   setLevel(n);
-                  game.current = newGame(1, n);
+                  game.current = newGame(1, n, "solo", rainPreference);
                 }}
                 options={LEVELS.map((l, i) => ({
                   value: String(i),
@@ -718,6 +756,7 @@ function App() {
                 </div>
               </>
             )}
+            <p className="fine">{t("雨速影响淋湿与雨滴速度，开局后固定。")}</p>
             <button
               className="primary"
               disabled={busy}
@@ -755,7 +794,8 @@ function App() {
               <div className="chapter-record" aria-label={t("本关通关记录")}>
                 <div>
                   <span>
-                    {t("本地最佳")} · {mode} {t("人")}
+                    {t("本地最佳")} · {mode} {t("人")} ·{" "}
+                    {t(RAIN_DIFFICULTY_LABELS[rainDifficulty])}
                   </span>
                   <strong>
                     {selectedBest === undefined
@@ -772,7 +812,12 @@ function App() {
                 </small>
               </div>
               {!MINITOOL && (
-                <Leaderboard level={level} mode={mode} language={language} />
+                <Leaderboard
+                  level={level}
+                  mode={mode}
+                  rainDifficulty={rainDifficulty}
+                  language={language}
+                />
               )}
             </details>
           </section>
@@ -790,6 +835,9 @@ function App() {
         <section className="panel lobby">
           <span className="eyebrow">{t("等同伴系好愿望，一起出发")}</span>
           <h2>{t(LEVELS[room.level].name)}</h2>
+          <p>
+            {t("雨速")} · {t(RAIN_DIFFICULTY_LABELS[room.rainDifficulty])}
+          </p>
           <GoalFlow language={language} soloOnly={MINITOOL} />
           <p className="lobby-guide">
             {t(LEVELS[room.level].hint)}{" "}
@@ -870,7 +918,31 @@ function App() {
             multiplayer={!!session}
             connected={connected}
             room={room}
-          />
+          >
+            {compact && (
+              <nav className="mobile-toolbar" aria-label={t("游戏工具")}>
+                <button
+                  aria-expanded={mapOpen}
+                  aria-controls="route-map"
+                  onClick={() => toggleMobilePanel("map")}
+                >
+                  {t("路线")}
+                </button>
+                <button
+                  onClick={() => learn(guide.current?.lesson ?? "basics")}
+                >
+                  {t("帮助")}
+                </button>
+                <button
+                  aria-expanded={toolsOpen}
+                  aria-controls="game-tools"
+                  onClick={() => toggleMobilePanel("tools")}
+                >
+                  {t(toolsOpen ? "收起" : "菜单")}
+                </button>
+              </nav>
+            )}
+          </GameStatus>
           <RouteMap
             game={hud}
             slot={session?.slot ?? 0}
@@ -973,7 +1045,8 @@ function App() {
               {t(MINITOOL ? "这一程，平安抵达。" : "这一程，我们一起走过。")}
             </h2>
             <p>
-              {t(l.name)} · {hud.flips} {t("次转面")}
+              {t(l.name)} · {t(RAIN_DIFFICULTY_LABELS[hud.rainDifficulty])} ·{" "}
+              {hud.flips} {t("次转面")}
             </p>
             {!rankedClear(hud) && (
               <div className="finish-record">
@@ -1073,6 +1146,7 @@ function App() {
               <Leaderboard
                 level={hud.level}
                 mode={hud.mode}
+                rainDifficulty={hud.rainDifficulty}
                 language={language}
                 refresh={`${hud.id}:${rankingStatus === "saved"}`}
               />

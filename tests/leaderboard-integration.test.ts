@@ -28,6 +28,7 @@ test("local Worker verifies clears, publishes top three, replaces faster times a
     });
   const body = {
     version: RANKING_VERSION,
+    rainDifficulty: "normal",
     level: 12,
     replay,
     playerToken: crypto.randomUUID(),
@@ -152,6 +153,8 @@ test("local Worker verifies clears, publishes top three, replaces faster times a
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
+      rulesVersion: RANKING_VERSION,
+      rainDifficulty: "normal",
       capacity: 2,
       level: 0,
       name: "host",
@@ -171,6 +174,8 @@ test("local Worker verifies clears, publishes top three, replaces faster times a
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        rulesVersion: RANKING_VERSION,
+        rainDifficulty: "normal",
         capacity: 2,
         level: 0,
         name: "習\u200b近平",
@@ -183,7 +188,11 @@ test("local Worker verifies clears, publishes top three, replaces faster times a
   const joined = await fetch(`${base}/api/rooms/${created.room.code}/join`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name: "同伴", playerToken: crypto.randomUUID() }),
+    body: JSON.stringify({
+      name: "同伴",
+      playerToken: crypto.randomUUID(),
+      rulesVersion: RANKING_VERSION,
+    }),
   });
   assert.equal(
     joined.status,
@@ -212,6 +221,7 @@ test("chapter 20: local Worker verifies the rebuilt route and rejects the previo
   );
   const body = {
     version: RANKING_VERSION,
+    rainDifficulty: "normal",
     level: 19,
     replay: recorder.snapshot(game),
     playerToken: crypto.randomUUID(),
@@ -242,6 +252,7 @@ test("chapter 40: local Worker verifies the expert finale and rejects the previo
   );
   const body = {
     version: RANKING_VERSION,
+    rainDifficulty: "normal",
     level: 39,
     replay: recorder.snapshot(game),
     playerToken: crypto.randomUUID(),

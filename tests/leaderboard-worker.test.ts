@@ -5,7 +5,17 @@ import { DatabaseSync } from "node:sqlite";
 import { build } from "esbuild";
 import { LEVELS, newGame, type Mode } from "../src/game";
 import { type Room } from "../src/room";
-import { RANKING_VERSION } from "../src/leaderboard";
+import {
+  RANKING_VERSION,
+  boardName,
+  type RankingEntry,
+} from "../src/leaderboard";
+import type {
+  VerifiedScore,
+  RainLeaderboard as RainLeaderboardInstance,
+} from "../server/leaderboard";
+import { CAMPAIGN_VERSION } from "../src/campaign-version";
+import { RAIN_DIFFICULTIES } from "../src/rain-difficulty";
 import { ReplayRecorder } from "../src/replay";
 import { completeLevel } from "./journey";
 import { NAME_REJECTED } from "../src/player-name";
@@ -137,6 +147,7 @@ test("SQLite keeps the global fastest three; faster replacements, ties and persi
     board = new RainLeaderboard(ctx, {});
   const score = (participant: string, timeMs: number, achievedAt = 100) => ({
     version: RANKING_VERSION,
+    rainDifficulty: "normal",
     stars: LEVELS[0].stars.map((_, id) => id),
     participant,
     timeMs,
@@ -151,22 +162,22 @@ test("SQLite keeps the global fastest three; faster replacements, ties and persi
   board.submitVerified(score("C", 2000));
   board.submitVerified(score("D", 5000));
   assert.deepEqual(
-    board.top().map((s: any) => s.names[0]),
+    board.top().map((s: RankingEntry) => s.names[0]),
     ["C", "B", "A"],
   );
   board.submitVerified(score("D", 1000));
   board.submitVerified(score("D", 6000));
   assert.deepEqual(
-    board.top().map((s: any) => s.timeMs),
+    board.top().map((s: RankingEntry) => s.timeMs),
     [1000, 2000, 3000],
   );
   board.submitVerified(score("E", 1000, 200));
   assert.deepEqual(
-    board.top().map((s: any) => s.names[0]),
+    board.top().map((s: RankingEntry) => s.names[0]),
     ["D", "E", "C"],
   );
   assert.deepEqual(new RainLeaderboard(ctx, {}).top(), board.top());
-  assert.ok(board.top().every((s: any) => !("participant" in s)));
+  assert.ok(board.top().every((s: RankingEntry) => !("participant" in s)));
   ctx.db.close();
 });
 
@@ -175,6 +186,7 @@ test("verified score metadata is validated before SQLite can persist malformed r
   const board = new RainLeaderboard(ctx, {});
   const score = {
     version: RANKING_VERSION,
+    rainDifficulty: "normal",
     stars: LEVELS[0].stars.map((_, id) => id),
     participant: "player",
     timeMs: 1000,
@@ -185,6 +197,8 @@ test("verified score metadata is validated before SQLite can persist malformed r
     names: ["Paper"],
   };
   for (const invalid of [
+    { rainDifficulty: undefined },
+    { rainDifficulty: "invalid" },
     { achievedAt: "yesterday" },
     { achievedAt: -1 },
     { achievedAt: 1.5 },
@@ -207,6 +221,207 @@ test("verified score metadata is validated before SQLite can persist malformed r
   ctx.db.close();
 });
 
+test("HTTP rain difficulty selects separate SQLite boards while legacy GET retains normal scores", async () => {
+  const boards = new Map<
+    string,
+    { ctx: ReturnType<typeof context>; board: RainLeaderboardInstance }
+  >();
+  const limiter = { limit: async () => ({ success: true }) };
+  const env = {
+    ALLOWED_ORIGINS: "",
+    ROOM_REQUEST_LIMIT: limiter,
+    SCORE_SUBMISSION_LIMIT: limiter,
+    LEADERBOARDS: {
+      getByName(name: string) {
+        let entry = boards.get(name);
+        if (!entry) {
+          const ctx = context();
+          entry = { ctx, board: new RainLeaderboard(ctx, {}) };
+          boards.set(name, entry);
+        }
+        return entry.board;
+      },
+    },
+  };
+  const recorder = new ReplayRecorder();
+  const game = completeLevel(12, undefined, (g, input) =>
+    recorder.record(g, input),
+  );
+  const body = {
+    version: RANKING_VERSION,
+    level: 12,
+    playerToken: crypto.randomUUID(),
+    replay: recorder.snapshot(game),
+    name: "normal",
+  };
+  const get = (query = "") =>
+    worker.fetch(
+      new Request(
+        `https://game.example/api/leaderboard?level=12&mode=1${query}`,
+      ),
+      env,
+    );
+  const post = (data: unknown) =>
+    worker.fetch(
+      new Request("https://game.example/api/leaderboard", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      }),
+      env,
+    );
+  try {
+    assert.equal(
+      (await post({ ...body, version: 10 })).status,
+      409,
+      "a v10 client without rain difficulty is told to refresh before field validation",
+    );
+    assert.equal((await post(body)).status, 400);
+    assert.equal(
+      (await post({ ...body, rainDifficulty: "invalid" })).status,
+      400,
+    );
+    assert.equal((await get("&rainDifficulty=invalid")).status, 400);
+    assert.equal(boards.size, 0, "invalid difficulty never opens a board");
+    const normal = env.LEADERBOARDS.getByName(boardName(12, 1));
+    normal.submitVerified({
+      version: RANKING_VERSION,
+      rainDifficulty: "normal",
+      participant: "historical-player",
+      id: "historical-clear",
+      level: 12,
+      mode: 1,
+      stars: LEVELS[12].stars.map((_, id) => id),
+      names: ["Old normal"],
+      timeMs: 1,
+      achievedAt: 100,
+    });
+    for (const rainDifficulty of RAIN_DIFFICULTIES) {
+      const response = await post({
+        ...body,
+        rainDifficulty,
+        name: rainDifficulty,
+      });
+      assert.equal(response.status, 200, await response.clone().text());
+      const data = await response.json();
+      assert.equal(data.rainDifficulty, rainDifficulty);
+      assert.ok(
+        data.entries.some(
+          (entry: RankingEntry) => entry.names[0] === rainDifficulty,
+        ),
+      );
+      for (const other of RAIN_DIFFICULTIES)
+        if (other !== rainDifficulty)
+          assert.ok(
+            !data.entries.some(
+              (entry: RankingEntry) => entry.names[0] === other,
+            ),
+          );
+      assert.deepEqual(
+        await (await get(`&rainDifficulty=${rainDifficulty}`)).json(),
+        data,
+      );
+    }
+    const legacy = await (await get()).json();
+    assert.equal(legacy.rainDifficulty, "normal");
+    assert.equal(legacy.entries[0].id, "historical-clear");
+    assert.equal(boards.size, 3);
+  } finally {
+    for (const { ctx } of boards.values()) ctx.db.close();
+  }
+});
+
+test("a pending v10 normal score is durably upgraded before retry and reaches the original board", async () => {
+  const ctx = context();
+  const boardCtx = context();
+  const board = new RainLeaderboard(boardCtx, {});
+  let unavailable = true;
+  const targets: string[] = [];
+  const env = {
+    LEADERBOARDS: {
+      getByName: (name: string) => {
+        targets.push(name);
+        return {
+          submitVerified: async (score: VerifiedScore) => {
+            if (unavailable) throw new Error("temporary outage");
+            return board.submitVerified(score);
+          },
+        };
+      },
+    },
+  };
+  new RainRoom(ctx, env);
+  await ctx.ready();
+  const legacy = {
+    version: 10,
+    participant: "old-team",
+    id: "old-normal-clear",
+    level: 99,
+    mode: 2,
+    names: ["A", "B"],
+    stars: LEVELS[99].stars.map((_, id) => id),
+    timeMs: 12000,
+    achievedAt: 100,
+  };
+  ctx.db
+    .prepare("INSERT INTO score_outbox VALUES(?,?)")
+    .run(legacy.id, JSON.stringify(legacy));
+  const restored = new RainRoom(ctx, env);
+  await ctx.ready();
+  await restored.alarm();
+  const pending = ctx.db.prepare("SELECT data FROM score_outbox").get()!.data;
+  assert.equal(typeof pending, "string");
+  assert.deepEqual(JSON.parse(String(pending)), {
+    ...legacy,
+    version: RANKING_VERSION,
+    rainDifficulty: "normal",
+  });
+  assert.equal(board.top().length, 0);
+  unavailable = false;
+  const retried = new RainRoom(ctx, env);
+  await ctx.ready();
+  await retried.alarm();
+  assert.deepEqual(targets, [boardName(99, 2), boardName(99, 2)]);
+  assert.equal(board.top()[0].id, legacy.id);
+  assert.equal(board.top()[0].timeMs, legacy.timeMs);
+  assert.equal(
+    ctx.db.prepare("SELECT COUNT(*) n FROM score_outbox").get()!.n,
+    0,
+  );
+  ctx.db.close();
+  boardCtx.db.close();
+});
+
+test("rooms saved before rain difficulty retain normal rain and return v10 games to the lobby", async () => {
+  const ctx = context();
+  const object = new RainRoom(ctx, {});
+  await ctx.ready();
+  await object.operate("create", "ABCDEFGH", "", {
+    capacity: 2,
+    level: 99,
+    name: "Paper",
+  });
+  object.room.phase = "game";
+  object.room.game = newGame(2, 99, "v10-game");
+  object.room.game.rulesVersion = 10;
+  const legacy = JSON.stringify(object.room, (key, value) =>
+    key === "rainDifficulty" ? undefined : value,
+  );
+  ctx.db.prepare("UPDATE room SET data=? WHERE id=1").run(legacy);
+  const restored = new RainRoom(ctx, {});
+  await ctx.ready();
+  assert.equal(restored.room.rainDifficulty, "normal");
+  assert.equal(restored.room.phase, "lobby");
+  assert.equal(restored.room.game, null);
+  assert.equal(restored.room.level, 99);
+  assert.equal(restored.room.players.length, 1);
+  const saved = JSON.parse(
+    String(ctx.db.prepare("SELECT data FROM room WHERE id=1").get()!.data),
+  );
+  assert.equal(saved.rainDifficulty, "normal");
+  ctx.db.close();
+});
+
 test("solo RPC derives time from the replay, ignores a claimed time, sanitizes names and rejects invalid runs", () => {
   const ctx = context(),
     board = new RainLeaderboard(ctx, {}),
@@ -217,6 +432,7 @@ test("solo RPC derives time from the replay, ignores a claimed time, sanitizes n
   const body = {
     level: 12,
     version: RANKING_VERSION,
+    rainDifficulty: "normal",
     replay: recorder.snapshot(game),
     name: "<Rain>\u0000",
     timeMs: 1,
@@ -257,6 +473,7 @@ test("historical leaderboard names are masked on read and queued team scores ret
   ]);
   board.submitVerified({
     version: RANKING_VERSION,
+    rainDifficulty: "normal",
     stars: LEVELS[0].stars.map((_, id) => id),
     participant: "old-team",
     id: "queued-clear",
@@ -323,7 +540,7 @@ for (const mode of [2, 3, 6] as Mode[])
     const env = {
       LEADERBOARDS: {
         getByName: () => ({
-          submitVerified: async (score: any) => {
+          submitVerified: async (score: VerifiedScore) => {
             if (unavailable) throw new Error("temporary outage");
             return board.submitVerified(score);
           },
@@ -395,6 +612,7 @@ test("a valid clear without all stars cannot claim a ranked score", () => {
     {
       level: 2,
       version: RANKING_VERSION,
+      rainDifficulty: "normal",
       name: "Paper",
       stars: LEVELS[2].stars.map((_, id) => id),
       replay: recorder.snapshot(game),
@@ -531,7 +749,7 @@ test("HTTP JSON and Bearer parsing accepts case-insensitive standards and reject
       new Request("https://game.example/api/rooms", {
         method: "POST",
         headers: { "Content-Type": contentType },
-        body: "{}",
+        body: JSON.stringify({ rulesVersion: CAMPAIGN_VERSION }),
       }),
       env,
     );
@@ -545,7 +763,7 @@ test("HTTP JSON and Bearer parsing accepts case-insensitive standards and reject
       new Request("https://game.example/api/rooms", {
         method: "POST",
         headers: { "Content-Type": contentType },
-        body: "{}",
+        body: JSON.stringify({ rulesVersion: CAMPAIGN_VERSION }),
       }),
       env,
     );
@@ -658,7 +876,7 @@ test("malformed, oversized, outdated and rate-limited HTTP requests never reach 
     new Request("https://game.example/api/rooms", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: "{}",
+      body: JSON.stringify({ rulesVersion: CAMPAIGN_VERSION }),
     }),
     env,
   );
