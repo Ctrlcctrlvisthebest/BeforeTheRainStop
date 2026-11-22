@@ -33,6 +33,7 @@ interface RuntimeOptions {
     guideEnabled: boolean;
     quality: QualityMode;
     textSize: TextSize;
+    weatherRanges: boolean;
   };
   onStep: (game: Game, input: Input) => void;
   onPickup: () => void;
@@ -67,6 +68,9 @@ export function useGameRuntime(options: RuntimeOptions) {
   useEffect(() => {
     activeScene.current?.setQuality(options.presentation.quality);
   }, [options.presentation.quality]);
+  useEffect(() => {
+    activeScene.current?.setWeatherRanges(options.presentation.weatherRanges);
+  }, [options.presentation.weatherRanges]);
   useEffect(() => {
     if (phase !== "game") return;
     let cancelled = false,
@@ -132,6 +136,7 @@ export function useGameRuntime(options: RuntimeOptions) {
         });
         scene = created;
         activeScene.current = created;
+        created.setWeatherRanges(latest.current.presentation.weatherRanges);
         const prepareCurrentScene = async () => {
           const revision = ++preparationVersion;
           preparing = true;

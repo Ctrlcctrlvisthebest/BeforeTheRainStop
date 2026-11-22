@@ -9,16 +9,15 @@ const bundle = await build({
     contents: `
       import { createRoot } from "react-dom/client";
       import { useState } from "react";
-      import { useGameAudio, MusicControls } from "./src/audio";
+      import { useGameAudio, MusicControls, EffectsControls } from "./src/audio";
       function App() {
         const [language, setLanguage] = useState("zh");
         const audio = useGameAudio(false);
         return <><MusicControls audio={audio} language={language} />
+          <EffectsControls audio={audio} language={language} />
           <button id="start" onClick={() => audio.start()}>Start</button>
           <button id="effect" onClick={() => audio.effect(660)}>Effect</button>
           <button id="cue" onClick={() => audio.cue("bridge-ready")}>Cue</button>
-          <button id="zero-effects" onClick={() => audio.setEffectsVolume(0)}>Zero effects</button>
-          <button id="zero-music" onClick={() => audio.setVolume(0)}>Zero music</button>
           <button id="language" onClick={() => setLanguage(language === "zh" ? "en" : "zh")}>Language</button>
         </>;
       }
@@ -141,27 +140,46 @@ async function page(saved = {}) {
   };
   w.eval(bundle.outputFiles[0].text);
   await settle();
-  w.document.querySelector(".music-options").click();
-  await settle();
   const media = w.document.querySelector("audio");
-  const toggle = () =>
-    w.document.querySelector(".music-control > button").click();
+  const toggle = () => w.document.querySelector(".music-toggle").click();
+  const openOptions = async () => {
+    const button = w.document.querySelector(".music-options");
+    assert.ok(
+      button,
+      "music settings are available only after turning music on",
+    );
+    button.click();
+    await settle();
+    assert.ok(w.document.querySelector(".music-panel"));
+  };
   const select = async (id) => {
-    const selector = w.document.querySelector("select");
+    const selector = w.document.querySelector(".music-panel select");
+    assert.ok(selector, "select a track through the visible music settings");
     selector.value = id;
     selector.dispatchEvent(new w.Event("change", { bubbles: true }));
     await settle();
   };
+  const range = (selector, value) => {
+    const input = w.document.querySelector(selector);
+    assert.ok(input, "adjust volume through its visible slider");
+    const setter = Object.getOwnPropertyDescriptor(
+      w.HTMLInputElement.prototype,
+      "value",
+    ).set;
+    setter.call(input, String(value));
+    input.dispatchEvent(new w.Event("input", { bubbles: true }));
+  };
   const playing = () =>
-    w.document
-      .querySelector(".music-control > button")
-      .getAttribute("aria-pressed") === "true";
+    w.document.querySelector(".music-toggle").getAttribute("aria-pressed") ===
+    "true";
   return {
     w,
     media,
     state,
     toggle,
+    openOptions,
     select,
+    range,
     playing,
     errors,
     close: () => w.close(),
@@ -175,13 +193,28 @@ test("music defaults to the lively score, retains the original, and does not pre
     assert.equal(p.media.preload, "none");
     assert.equal(p.media.loop, true);
     assert.equal(p.w.document.querySelectorAll("audio").length, 1);
+    assert.equal(p.w.document.querySelector(".music-options"), null);
+    assert.equal(p.w.document.querySelector(".music-panel"), null);
+    assert.doesNotMatch(p.w.document.body.textContent, /沿灯而行|檐下的愿望/);
+    assert.equal(
+      p.w.document.querySelector(".music-toggle").textContent,
+      "音乐关",
+    );
+    assert.deepEqual(p.state.calls, []);
+    p.toggle();
+    await settle();
+    assert.equal(
+      p.w.document.querySelector(".music-toggle").textContent,
+      "音乐开",
+    );
+    await p.openOptions();
     assert.deepEqual(
       [...p.w.document.querySelectorAll("option")].map(
         (option) => option.textContent,
       ),
       ["轻快 · 沿灯而行", "原版 · 檐下的愿望"],
     );
-    assert.deepEqual(p.state.calls, []);
+    assert.deepEqual(p.state.calls, [["play", "./audio/lantern-walk.m4a"]]);
     assert.deepEqual(p.errors, []);
   } finally {
     p.close();
@@ -196,12 +229,47 @@ test("saved original, volume and muted preferences survive reopening", async () 
   });
   try {
     assert.equal(p.media.getAttribute("src"), "./audio/rain-wishes.m4a");
-    assert.equal(p.w.document.querySelector("select").value, "rain-wishes");
-    assert.equal(p.w.document.querySelector('input[type="range"]').value, "37");
-    await p.select("lantern-walk");
+    assert.equal(p.w.document.querySelector(".music-options"), null);
+    assert.equal(p.w.document.querySelector(".music-panel"), null);
     assert.equal(p.state.paused, true);
     assert.ok(!p.state.calls.some(([kind]) => kind === "play"));
     assert.equal(p.w.localStorage.getItem("rain-music-enabled"), "false");
+    p.toggle();
+    await settle();
+    await p.openOptions();
+    assert.equal(
+      p.w.document.querySelector(".music-panel select").value,
+      "rain-wishes",
+    );
+    assert.equal(
+      p.w.document.querySelector('.music-panel input[type="range"]').value,
+      "37",
+    );
+    await p.select("lantern-walk");
+    p.range('.music-panel input[type="range"]', 42);
+    await settle();
+    p.toggle();
+    await settle();
+    assert.equal(p.w.document.querySelector(".music-panel"), null);
+    assert.equal(p.w.document.querySelector(".music-options"), null);
+    assert.equal(p.w.document.querySelector("audio"), p.media);
+    p.toggle();
+    await settle();
+    assert.equal(
+      p.w.document.querySelector(".music-panel"),
+      null,
+      "turning music on does not reopen its settings",
+    );
+    await p.openOptions();
+    assert.equal(
+      p.w.document.querySelector(".music-panel select").value,
+      "lantern-walk",
+    );
+    assert.equal(
+      p.w.document.querySelector('.music-panel input[type="range"]').value,
+      "42",
+    );
+    assert.equal(p.w.localStorage.getItem("rain-music-volume"), "42");
     assert.equal(
       p.w.localStorage.getItem("rain-music-track"),
       '"lantern-walk"',
@@ -229,6 +297,7 @@ test("switching during playback uses one player, starts inside the gesture and r
     p.toggle();
     await settle();
     assert.equal(p.playing(), true);
+    await p.openOptions();
     p.media.currentTime = 23;
     p.media.dispatchEvent(new p.w.Event("timeupdate"));
     await settle();
@@ -254,15 +323,26 @@ test("switching during playback uses one player, starts inside the gesture and r
   }
 });
 
-test("a manually paused track stays paused through a selection until play is pressed", async () => {
+test("manually turning music off survives a background round trip until the user turns it on", async () => {
   const p = await page();
   try {
     p.toggle();
     await settle();
+    await p.openOptions();
+    await p.select("rain-wishes");
     p.toggle();
     await settle();
     const playCount = p.state.calls.filter(([kind]) => kind === "play").length;
-    await p.select("rain-wishes");
+    assert.equal(p.w.document.querySelector(".music-panel"), null);
+    assert.equal(p.w.document.querySelector(".music-options"), null);
+    for (const hidden of [true, false]) {
+      Object.defineProperty(p.w.document, "hidden", {
+        configurable: true,
+        value: hidden,
+      });
+      p.w.document.dispatchEvent(new p.w.Event("visibilitychange"));
+      await settle();
+    }
     assert.equal(p.playing(), false);
     assert.equal(
       p.state.calls.filter(([kind]) => kind === "play").length,
@@ -271,6 +351,8 @@ test("a manually paused track stays paused through a selection until play is pre
     p.toggle();
     await settle();
     assert.equal(p.playing(), true);
+    assert.equal(p.w.document.querySelector(".music-panel"), null);
+    assert.equal(p.w.document.querySelector("audio"), p.media);
     assert.deepEqual(p.state.calls.at(-1), ["play", "./audio/rain-wishes.m4a"]);
     assert.deepEqual(p.errors, []);
   } finally {
@@ -281,6 +363,9 @@ test("a manually paused track stays paused through a selection until play is pre
 test("changing language does not reset the selected audio source or playback position", async () => {
   const p = await page();
   try {
+    p.toggle();
+    await settle();
+    await p.openOptions();
     await p.select("rain-wishes");
     p.media.currentTime = 17;
     const calls = p.state.calls.length;
@@ -297,6 +382,32 @@ test("changing language does not reset the selected audio source or playback pos
       p.w.document.querySelector(".music-heading").textContent,
       /Wishes Beneath the Eaves/,
     );
+    assert.equal(
+      p.w.document.querySelector(".music-toggle").textContent,
+      "Music on",
+    );
+    assert.equal(
+      p.w.document.querySelector(".effects-toggle").textContent,
+      "Sound effects on",
+    );
+    p.toggle();
+    await settle();
+    assert.equal(
+      p.w.document.querySelector(".music-toggle").textContent,
+      "Music off",
+    );
+    assert.equal(p.w.document.querySelector(".music-panel"), null);
+    p.w.document.querySelector(".effects-toggle").click();
+    await settle();
+    assert.equal(
+      p.w.document.querySelector(".effects-toggle").textContent,
+      "Sound effects off",
+    );
+    assert.equal(p.w.document.querySelector(".effects-control label"), null);
+    assert.equal(
+      p.w.document.querySelector('.effects-control input[type="range"]'),
+      null,
+    );
     assert.deepEqual(p.errors, []);
   } finally {
     p.close();
@@ -309,6 +420,7 @@ test("a stale play rejection from rapid switching cannot mark the new track as f
     p.state.defer = true;
     p.toggle();
     await settle();
+    await p.openOptions();
     await p.select("rain-wishes");
     await p.select("lantern-walk");
     assert.equal(p.state.requests.length, 3);
@@ -333,6 +445,9 @@ test("a stale play rejection from rapid switching cannot mark the new track as f
 test("returning from the background resumes the currently selected original track", async () => {
   const p = await page();
   try {
+    p.toggle();
+    await settle();
+    await p.openOptions();
     await p.select("rain-wishes");
     Object.defineProperty(p.w.document, "hidden", {
       configurable: true,
@@ -355,9 +470,69 @@ test("returning from the background resumes the currently selected original trac
   }
 });
 
+test("turning music off during a pending play hides its controls and ignores late completion", async () => {
+  const p = await page();
+  try {
+    p.state.defer = true;
+    p.toggle();
+    await settle();
+    assert.equal(p.playing(), true, "loading is an enabled, cancellable state");
+    assert.equal(
+      p.w.document.querySelector(".music-toggle").textContent,
+      "音乐开",
+    );
+    await p.openOptions();
+    p.toggle();
+    await settle();
+    assert.equal(p.playing(), false);
+    assert.equal(p.w.document.querySelector(".music-options"), null);
+    assert.equal(p.w.document.querySelector(".music-panel"), null);
+    p.state.requests[0].resolve();
+    await settle();
+    assert.equal(p.playing(), false);
+    assert.equal(p.state.paused, true);
+    assert.equal(p.w.localStorage.getItem("rain-music-enabled"), "false");
+    assert.equal(p.w.document.querySelector("audio"), p.media);
+    assert.deepEqual(p.errors, []);
+  } finally {
+    p.close();
+  }
+});
+
+test("a failed music request shows retry feedback while keeping its settings hidden", async () => {
+  const p = await page();
+  try {
+    p.state.fail = new p.w.DOMException("cannot decode", "NotSupportedError");
+    p.toggle();
+    await settle();
+    assert.equal(
+      p.w.document.querySelector(".music-toggle").textContent,
+      "音乐关",
+    );
+    assert.equal(p.w.document.querySelector(".music-options"), null);
+    assert.equal(p.w.document.querySelector(".music-panel"), null);
+    assert.match(
+      p.w.document.querySelector('[role="status"]').textContent,
+      /加载失败/,
+    );
+    p.state.fail = null;
+    p.toggle();
+    await settle();
+    assert.equal(p.playing(), true);
+    assert.equal(p.w.document.querySelector('[role="status"]'), null);
+    assert.equal(p.w.document.querySelector("audio"), p.media);
+    assert.deepEqual(p.errors, []);
+  } finally {
+    p.close();
+  }
+});
+
 test("an autoplay rejection leaves a working play button and remembers the selected track", async () => {
   const p = await page();
   try {
+    p.toggle();
+    await settle();
+    await p.openOptions();
     p.state.fail = new p.w.DOMException("gesture needed", "NotAllowedError");
     await p.select("rain-wishes");
     assert.equal(p.playing(), false);
@@ -378,20 +553,52 @@ test("effects unlock and play with BGM disabled, and have an independent mute", 
     "rain-sfx-enabled": true,
   });
   try {
+    const effects = p.w.document.querySelector(".effects-control");
+    assert.ok(effects);
+    assert.equal(
+      p.w.document.querySelector(".music-control .effects-control"),
+      null,
+    );
+    assert.equal(p.w.document.querySelector(".music-options"), null);
+    assert.equal(p.w.document.querySelector(".music-panel"), null);
+    assert.ok(effects.querySelector('input[type="range"]'));
     p.w.document.getElementById("start").click();
     p.w.document.getElementById("effect").click();
     assert.equal(p.state.tones.length, 1);
     assert.equal(p.state.calls.filter(([kind]) => kind === "play").length, 0);
+    p.range('.effects-control input[type="range"]', 27);
+    await settle();
+    assert.equal(p.w.localStorage.getItem("rain-sfx-volume"), "27");
     p.w.document.querySelector(".effects-toggle").click();
     await settle();
+    assert.equal(
+      effects.querySelector(".effects-toggle").getAttribute("aria-pressed"),
+      "false",
+    );
+    assert.equal(effects.querySelector("label"), null);
+    assert.equal(effects.querySelector('input[type="range"]'), null);
+    assert.doesNotMatch(effects.textContent, /\d+%/);
     p.w.document.getElementById("cue").click();
     assert.equal(p.state.tones.length, 1);
     assert.equal(p.w.localStorage.getItem("rain-sfx-enabled"), "false");
     p.toggle();
     await settle();
     assert.equal(p.playing(), true);
+    assert.equal(p.w.document.querySelector(".effects-control"), effects);
     p.w.document.getElementById("effect").click();
     assert.equal(p.state.tones.length, 1);
+    effects.querySelector(".effects-toggle").click();
+    await settle();
+    assert.equal(effects.querySelector('input[type="range"]').value, "27");
+    assert.match(effects.textContent, /27%/);
+    assert.equal(
+      p.playing(),
+      true,
+      "effects do not interrupt background music",
+    );
+    assert.equal(p.w.document.querySelector("audio"), p.media);
+    p.w.document.getElementById("effect").click();
+    assert.equal(p.state.tones.length, 2);
   } finally {
     p.close();
   }
@@ -405,6 +612,10 @@ test("old mute migrates once; effects volume, hidden page and return are indepen
   try {
     assert.equal(migrated.w.localStorage.getItem("rain-sfx-enabled"), "false");
     assert.equal(migrated.w.localStorage.getItem("rain-sfx-volume"), "23");
+    assert.equal(
+      migrated.w.document.querySelector(".effects-control label"),
+      null,
+    );
   } finally {
     migrated.close();
   }
@@ -461,7 +672,7 @@ test("effects preferences persist once per change while unlocking synchronously 
     await settle();
     assert.deepEqual(p.state.storageWrites, [["rain-sfx-enabled", "true"]]);
     p.state.storageWrites.length = 0;
-    p.w.document.getElementById("zero-effects").click();
+    p.range('.effects-control input[type="range"]', 0);
     p.w.document.getElementById("effect").click();
     assert.equal(
       p.state.tones.length,
@@ -471,7 +682,7 @@ test("effects preferences persist once per change while unlocking synchronously 
     await settle();
     assert.deepEqual(p.state.storageWrites, [["rain-sfx-volume", "0"]]);
     p.state.storageWrites.length = 0;
-    p.w.document.getElementById("zero-effects").click();
+    p.range('.effects-control input[type="range"]', 0);
     await settle();
     assert.deepEqual(
       p.state.storageWrites,
@@ -491,13 +702,14 @@ test("zero BGM volume leaves effects audible, and zero effects volume leaves BGM
   try {
     p.w.document.getElementById("start").click();
     await settle();
-    p.w.document.getElementById("zero-music").click();
+    await p.openOptions();
+    p.range('.music-panel input[type="range"]', 0);
     await settle();
     p.w.document.getElementById("effect").click();
     assert.equal(p.state.tones.length, 1);
     assert.equal(p.w.localStorage.getItem("rain-music-volume"), "0");
     assert.equal(p.w.localStorage.getItem("rain-sfx-volume"), "60");
-    p.w.document.getElementById("zero-effects").click();
+    p.range('.effects-control input[type="range"]', 0);
     await settle();
     p.w.document.getElementById("effect").click();
     assert.equal(p.state.tones.length, 1);

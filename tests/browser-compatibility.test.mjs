@@ -59,8 +59,9 @@ const bundle = await build({
           contents: `
         export const warmScene = () => {};
         export const loadScene = async () => ({ PaperScene: class {
-          constructor(canvas, options) { window.testSceneContext = options.onContextStatus; }
-          setQuality() {}
+          constructor(canvas, options) { window.testSceneContext = options.onContextStatus; window.testQuality = options.quality; }
+          setQuality(value) { window.testQuality = value; }
+          setWeatherRanges(enabled) { window.testWeatherRanges = enabled; }
           async prepare(game, slot, preview, language, guide, compact, textSize) {
             window.testPreparedTextSize = textSize;
             window.testPreparingGame = game;
@@ -88,6 +89,7 @@ async function page({
   compact = false,
   touchEvents = true,
   delayPreparation = false,
+  weatherRanges,
 } = {}) {
   const errors = [];
   const virtualConsole = new VirtualConsole();
@@ -120,9 +122,17 @@ async function page({
   };
   w.scrollTo = () => {};
   w.fetch = async () => ({ ok: false, status: 503 });
-  w.HTMLMediaElement.prototype.play = async () => {};
+  w.testAudioPlays = [];
+  w.HTMLMediaElement.prototype.play = async function () {
+    w.testAudioPlays.push(this);
+  };
   w.HTMLMediaElement.prototype.pause = () => {};
   w.localStorage.setItem("rain-language", JSON.stringify(language));
+  if (weatherRanges !== undefined)
+    w.localStorage.setItem(
+      "rain-weather-ranges",
+      JSON.stringify(weatherRanges),
+    );
   let now = 0,
     next = 0;
   const frames = new Map();
@@ -150,7 +160,32 @@ async function page({
     }
     await settle();
   }
-  return { w, errors, tick, close: () => dom.window.close() };
+  const openSettings = async () => {
+    const tools = w.document.querySelector(
+      'button[aria-controls="game-tools"]',
+    );
+    if (compact && tools && tools.getAttribute("aria-expanded") !== "true") {
+      tools.click();
+      await settle();
+    }
+    w.document.querySelector(".settings-button").click();
+    await settle();
+    assert.equal(w.document.querySelector(".settings-scrim").hidden, false);
+    return w.document.querySelector(".settings-panel");
+  };
+  const closeSettings = async () => {
+    w.document.querySelector(".settings-close").click();
+    await settle();
+    assert.equal(w.document.querySelector(".settings-scrim").hidden, true);
+  };
+  return {
+    w,
+    errors,
+    tick,
+    openSettings,
+    closeSettings,
+    close: () => dom.window.close(),
+  };
 }
 
 test("warning help uses its declared topic regardless of language or warning wording", async () => {
@@ -195,7 +230,7 @@ test("mobile text-size changes reach the live scene and context restoration with
     await tick();
     assert.equal(w.testPreparedTextSize, "large");
     assert.equal(w.testRenderedTextSize, "large");
-    d.querySelector('button[aria-controls="game-tools"]').click();
+    await p.openSettings();
     await tick(3);
     const game = w.testGame;
     const time = game.time;
@@ -222,6 +257,181 @@ test("mobile text-size changes reach the live scene and context restoration with
     assert.equal(w.testRenderedTextSize, "standard");
     assert.equal(w.testGame, game);
     assert.equal(game.time, time);
+    assert.deepEqual(p.errors, []);
+  } finally {
+    p.close();
+  }
+});
+
+test("settings retain music and preferences while pausing only the current solo journey", async () => {
+  const p = await page();
+  const { w, tick } = p;
+  const d = w.document;
+  const key = (target, type, key, code = key) => {
+    const event = new w.KeyboardEvent(type, {
+      key,
+      code,
+      bubbles: true,
+      cancelable: true,
+    });
+    target.dispatchEvent(event);
+    return event;
+  };
+  try {
+    const audio = d.querySelector(".music-control audio");
+    assert.ok(audio, "music stays mounted while settings are closed");
+    assert.equal(d.querySelector(".settings-scrim").hidden, true);
+    assert.equal(d.querySelector("nav .music-control"), null);
+    assert.equal(d.querySelector("nav .quality-control"), null);
+    const panel = await p.openSettings();
+    assert.equal(panel.getAttribute("role"), "dialog");
+    const music = panel.querySelector(".music-toggle");
+    const effects = panel.querySelector(".effects-control");
+    assert.equal(music.textContent, "音乐关");
+    assert.equal(panel.querySelector(".music-options"), null);
+    assert.equal(panel.querySelector(".music-panel"), null);
+    assert.ok(effects.querySelector('input[type="range"]'));
+    assert.notEqual(
+      effects.closest(".settings-row"),
+      music.closest(".settings-row"),
+    );
+    effects.querySelector(".effects-toggle").click();
+    await settle();
+    assert.equal(
+      effects.querySelector(".effects-toggle").getAttribute("aria-pressed"),
+      "false",
+    );
+    assert.equal(effects.querySelector("label"), null);
+    assert.equal(effects.querySelector('input[type="range"]'), null);
+    assert.equal(music.textContent, "音乐关");
+    assert.equal(w.testAudioPlays.length, 0);
+    music.click();
+    await settle();
+    assert.equal(music.textContent, "音乐开");
+    assert.equal(w.testAudioPlays.at(-1), audio);
+    assert.equal(
+      panel
+        .querySelector('[aria-label="暂停背景音乐"]')
+        .getAttribute("aria-pressed"),
+      "true",
+    );
+    const ranges = panel.querySelector(
+      '[role="switch"][aria-label="雨风范围提示"]',
+    );
+    assert.equal(ranges.getAttribute("aria-checked"), "false");
+    ranges.click();
+    await settle();
+    assert.equal(ranges.getAttribute("aria-checked"), "true");
+    assert.equal(
+      JSON.parse(w.localStorage.getItem("rain-weather-ranges")),
+      true,
+    );
+    panel.querySelector('.rain-control [role="combobox"]').click();
+    await settle();
+    [...panel.querySelectorAll('.rain-control [role="option"]')]
+      .find((option) => option.textContent.includes("简单"))
+      .click();
+    panel.querySelector('[aria-label="切换玩法引导"]').click();
+    await settle();
+    assert.equal(JSON.parse(w.localStorage.getItem("rain-difficulty")), "easy");
+    assert.equal(JSON.parse(w.localStorage.getItem("rain-guide")), false);
+    await p.closeSettings();
+    assert.equal(d.querySelector(".music-control audio"), audio);
+
+    d.querySelector(".menu button.primary").click();
+    await tick();
+    const game = w.testGame;
+    const preparations = w.testPreparationCount;
+    assert.equal(game.rainDifficulty, "easy");
+    assert.equal(
+      w.testWeatherRanges,
+      true,
+      "saved choice reaches the new scene",
+    );
+    assert.equal(d.querySelector(".music-control audio"), audio);
+    const canvas = d.querySelector("canvas");
+    canvas.focus();
+    key(canvas, "keydown", "d", "KeyD");
+    await tick(3);
+    assert.ok(game.players[0].vx > 0);
+    await p.openSettings();
+    const time = game.time;
+    await tick();
+    assert.equal(game.time, time, "settings pause the solo simulation");
+    assert.equal(panel.querySelector(".rain-control-field").disabled, true);
+    ranges.click();
+    await settle();
+    assert.equal(w.testWeatherRanges, false, "live scene follows the switch");
+    ranges.click();
+    await settle();
+    assert.equal(w.testWeatherRanges, true);
+    const quality = panel.querySelector('.quality-control [role="combobox"]');
+    quality.focus();
+    key(quality, "keydown", "Enter");
+    await settle();
+    key(quality, "keydown", "End");
+    await settle();
+    key(quality, "keydown", "Enter");
+    await settle();
+    assert.equal(w.testQuality, "economy");
+    assert.equal(
+      JSON.parse(w.localStorage.getItem("rain-render-quality")),
+      "economy",
+    );
+    key(quality, "keydown", "Enter");
+    await settle();
+    key(quality, "keydown", "Escape");
+    await settle();
+    assert.equal(quality.getAttribute("aria-expanded"), "false");
+    assert.equal(d.querySelector(".settings-scrim").hidden, false);
+    assert.equal(game.time, time);
+    assert.equal(w.testGame, game);
+    assert.equal(w.testPreparationCount, preparations);
+    const close = panel.querySelector(".settings-close");
+    close.focus();
+    key(close, "keydown", "Escape");
+    await settle();
+    assert.equal(d.querySelector(".settings-scrim").hidden, true);
+    assert.equal(
+      d.querySelector(".panel.help"),
+      null,
+      "Escape does not open help",
+    );
+    await tick(3);
+    assert.ok(game.time > time, "closing settings resumes the same journey");
+    assert.equal(game.players[0].vx, 0, "the old keyboard hold stays released");
+    canvas.focus();
+    key(canvas, "keydown", "ArrowLeft");
+    await tick(3);
+    assert.ok(game.players[0].vx < 0, "a fresh game key works after closing");
+    key(canvas, "keyup", "ArrowLeft");
+    await tick(3);
+    assert.ok(
+      Math.abs(game.players[0].vx) < 1e-9,
+      "releasing left stops movement",
+    );
+    assert.equal(d.querySelector(".music-control audio"), audio);
+    assert.equal(w.testPreparationCount, preparations);
+    assert.deepEqual(p.errors, []);
+  } finally {
+    p.close();
+  }
+});
+
+test("a saved weather-range choice is restored before the first scene is prepared", async () => {
+  const p = await page({ weatherRanges: true });
+  try {
+    const panel = await p.openSettings();
+    assert.equal(
+      panel
+        .querySelector('[aria-label="雨风范围提示"]')
+        .getAttribute("aria-checked"),
+      "true",
+    );
+    await p.closeSettings();
+    p.w.document.querySelector(".menu button.primary").click();
+    await p.tick();
+    assert.equal(p.w.testWeatherRanges, true);
     assert.deepEqual(p.errors, []);
   } finally {
     p.close();
@@ -386,7 +596,10 @@ for (const language of ["zh", "en"])
         );
         assert.equal(translateEligibleText(w), 0);
         const frames = w.testFrames;
-        w.document.querySelector("button.language").click();
+        await p.openSettings();
+        w.document.querySelector(".settings-panel button.language").click();
+        await settle();
+        await p.closeSettings();
         await tick();
         assert.equal(
           w.testGame.id,
@@ -459,15 +672,16 @@ for (const language of ["zh", "en"])
       w.testGame.time = 10;
       await tick();
       const runId = w.testGame.id;
-      const openHelp = () => {
+      const openHelp = async () => {
+        const settings = await p.openSettings();
         const label = language === "zh" ? "操作说明" : "How to play";
-        const button = [...w.document.querySelectorAll("nav button")].find(
-          (button) => button.textContent.includes(label),
+        const button = [...settings.querySelectorAll("button")].find((button) =>
+          button.textContent.includes(label),
         );
         assert.ok(button, "help remains reachable from the live App");
         button.click();
       };
-      openHelp();
+      await openHelp();
       await settle();
       let restart = w.document.querySelector(".panel.help button.primary");
       assert.ok(restart);
@@ -480,7 +694,7 @@ for (const language of ["zh", "en"])
       assert.equal(w.testGame.id, runId, "a rapid double tap cannot restart");
       w.document.querySelector(".panel.help button.close").click();
       await settle();
-      openHelp();
+      await openHelp();
       await settle();
       restart = w.document.querySelector(".panel.help button.primary");
       restart.click();
@@ -548,6 +762,85 @@ async function touchPage(options = {}) {
   });
   return { ...p, left, right, jump, pointer, touch, finger };
 }
+
+test("mobile: control long-press gestures stay local and do not interrupt held movement", async () => {
+  const p = await touchPage();
+  const { w, right, left, touch, finger, tick } = p;
+  try {
+    const label = right.querySelector("span");
+    const gestures = ["contextmenu", "selectstart", "dragstart"];
+    for (const type of gestures)
+      label.addEventListener(type, (event) => event.stopPropagation());
+    const gesture = (type, target) => {
+      const event = new w.Event(type, { bubbles: true, cancelable: true });
+      target.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    const r = finger(label);
+    touch("touchstart", label, [r], [r]);
+    await tick();
+    assert.ok(w.testGame.players[0].vx > 0);
+    const menuButton = w.document.querySelector(
+      'button[aria-controls="game-tools"]',
+    );
+    for (const type of gestures) {
+      assert.equal(gesture(type, label), true, `${type} on nested button text`);
+      assert.equal(
+        gesture(type, menuButton),
+        false,
+        `${type} outside controls`,
+      );
+      await tick(1);
+      assert.ok(
+        w.testGame.players[0].vx > 0,
+        `${type} preserves held movement`,
+      );
+    }
+    touch("touchcancel", w.document.body, [], [r]);
+    await tick();
+    assert.equal(
+      w.testGame.players[0].vx,
+      0,
+      "real cancellation releases right",
+    );
+    const l = finger(left, 8, 30);
+    touch("touchstart", left, [l], [l]);
+    await tick();
+    assert.ok(w.testGame.players[0].vx < 0, "left works after cancellation");
+    touch("touchend", left, [], [l]);
+    await tick();
+    assert.equal(w.testGame.players[0].vx, 0);
+
+    [...w.document.querySelectorAll("nav button")]
+      .find((button) => button.textContent === "返回大厅")
+      .click();
+    await settle();
+    const menu = w.document.querySelector(".menu button.primary");
+    const name = w.document.querySelector(".menu input");
+    assert.ok(menu);
+    assert.ok(name);
+    for (const type of gestures) {
+      assert.equal(
+        gesture(type, menu),
+        false,
+        `${type} remains available in menu`,
+      );
+      assert.equal(
+        gesture(type, name),
+        false,
+        `${type} remains available in input`,
+      );
+      assert.equal(
+        gesture(type, label),
+        false,
+        `${type} removed from old controls`,
+      );
+    }
+    assert.deepEqual(p.errors, []);
+  } finally {
+    p.close();
+  }
+});
 
 test("mobile: lifting outside the button stops movement even without pointerup", async () => {
   const p = await touchPage();

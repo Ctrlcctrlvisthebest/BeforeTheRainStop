@@ -183,6 +183,47 @@ test("editor prepares before starting its clock, uses saved quality and releases
   }
 });
 
+test("editor touch controls suppress long-press gestures only until the preview closes", async () => {
+  const p = await page();
+  try {
+    await p.ready();
+    const control = p.w.document.querySelector(
+      '.preview-controls button[data-touch-field="axis"]',
+    );
+    const gestures = ["contextmenu", "selectstart", "dragstart"];
+    const gesture = (type, target) => {
+      const event = new p.w.Event(type, { bubbles: true, cancelable: true });
+      target.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    for (const type of gestures) {
+      assert.equal(
+        gesture(type, control),
+        true,
+        `${type} on a preview control`,
+      );
+      assert.equal(
+        gesture(type, p.button("暂停")),
+        false,
+        `${type} on preview menu`,
+      );
+    }
+    p.button("返回编辑 Esc").click();
+    await settle();
+    assert.equal(p.w.document.querySelector(".preview-controls"), null);
+    for (const type of gestures)
+      assert.equal(
+        gesture(type, control),
+        false,
+        `${type} removed after close`,
+      );
+    assert.match(p.w.document.body.textContent, /已返回编辑/);
+    assert.deepEqual(p.errors, []);
+  } finally {
+    p.close();
+  }
+});
+
 test("editor context loss freezes simulation, clears a held direction and restores exactly the current run", async () => {
   const p = await page();
   try {

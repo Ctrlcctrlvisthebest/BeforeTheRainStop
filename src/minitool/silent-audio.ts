@@ -5,3 +5,4 @@ export const useGameAudio = (_inGame?: boolean) => ({
   cue: (_name: string) => {},
 });
 export const MusicControls = () => null;
+export const EffectsControls = () => null;

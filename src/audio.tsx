@@ -286,7 +286,12 @@ export function MusicControls({
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState(0);
   const controls = useRef<HTMLDivElement>(null);
+  const playing = audio.state === "playing";
+  const musicOn = playing || audio.state === "loading";
   useEffect(() => setPosition(0), [audio.track.id]);
+  useEffect(() => {
+    if (!musicOn) setOpen(false);
+  }, [musicOn]);
   useEffect(() => {
     if (!open) return;
     const close = (event: PointerEvent) => {
@@ -295,7 +300,6 @@ export function MusicControls({
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);
   }, [open]);
-  const playing = audio.state === "playing";
   return (
     <div className="music-control" ref={controls}>
       <audio
@@ -319,30 +323,29 @@ export function MusicControls({
         }}
       />
       <button
-        className={playing ? "music-active" : ""}
-        aria-label={t(playing ? "暂停背景音乐" : "播放背景音乐")}
-        aria-pressed={playing}
+        className={`music-toggle ${musicOn ? "music-active" : ""}`}
+        aria-label={t(musicOn ? "暂停背景音乐" : "播放背景音乐")}
+        aria-pressed={musicOn}
         onClick={audio.toggle}
       >
-        {t(
-          audio.state === "loading"
-            ? "♪ 加载中…"
-            : playing
-              ? "♪ 音乐开"
-              : audio.state === "error"
-                ? "♪ 重试音乐"
-                : "♪ 播放音乐",
-        )}
+        {t(musicOn ? "音乐开" : "音乐关")}
       </button>
-      <button
-        className="music-options"
-        aria-label={t("音乐设置")}
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-      >
-        ⌄
-      </button>
-      {open && (
+      {musicOn && (
+        <button
+          className="music-options"
+          aria-label={t("音乐设置")}
+          aria-expanded={open}
+          onClick={() => setOpen(!open)}
+        >
+          ⌄
+        </button>
+      )}
+      {audio.state === "error" && (
+        <p className="settings-note" role="status">
+          {t("加载失败，点击音乐按钮重试")}
+        </p>
+      )}
+      {musicOn && open && (
         <section className="music-panel" aria-label={t("音乐设置")}>
           <div className="music-heading">
             <span>♫</span>
@@ -367,15 +370,7 @@ export function MusicControls({
           </label>
           <p>{t(audio.track.description)}</p>
           <div className="music-time">
-            <span>
-              {t(
-                playing
-                  ? "正在播放"
-                  : audio.state === "error"
-                    ? "加载失败，点击音乐按钮重试"
-                    : "点击音乐按钮开始播放",
-              )}
-            </span>
+            <span>{t(playing ? "正在播放" : "正在加载音乐…")}</span>
             <output aria-label={t("音乐播放进度")}>
               {musicTime(position)} / {musicTime(audio.track.duration)}
             </output>
@@ -393,40 +388,50 @@ export function MusicControls({
               onChange={(event) => audio.setVolume(Number(event.target.value))}
             />
           </label>
-          <button
-            type="button"
-            className="effects-toggle"
-            aria-pressed={audio.effectsEnabled}
-            onClick={audio.toggleEffects}
-          >
-            {language === "zh"
-              ? audio.effectsEnabled
-                ? "音效开"
-                : "音效关"
-              : audio.effectsEnabled
-                ? "Sound effects on"
-                : "Sound effects off"}
-          </button>
-          <label>
-            {language === "zh" ? "音效音量" : "Effects volume"}
-            <span>{audio.effectsVolume}%</span>
-            <input
-              aria-label={language === "zh" ? "音效音量" : "Effects volume"}
-              type="range"
-              min="0"
-              max="100"
-              step="1"
-              value={audio.effectsVolume}
-              onChange={(event) =>
-                audio.setEffectsVolume(Number(event.target.value))
-              }
-            />
-          </label>
           <small className="music-note">
             {t("关卡中自动轻放，离开页面时暂停")}
           </small>
         </section>
       )}
     </div>
+  );
+}
+
+export function EffectsControls({
+  audio,
+  language,
+}: {
+  audio: GameAudio;
+  language: Language;
+}) {
+  const t = (text: string) => translate(language, text);
+  return (
+    <section className="effects-control" aria-label={t("音效设置")}>
+      <button
+        type="button"
+        className="effects-toggle"
+        aria-pressed={audio.effectsEnabled}
+        onClick={audio.toggleEffects}
+      >
+        {t(audio.effectsEnabled ? "音效开" : "音效关")}
+      </button>
+      {audio.effectsEnabled && (
+        <label>
+          {t("音效音量")}
+          <span>{audio.effectsVolume}%</span>
+          <input
+            aria-label={t("音效音量")}
+            type="range"
+            min="0"
+            max="100"
+            step="1"
+            value={audio.effectsVolume}
+            onChange={(event) =>
+              audio.setEffectsVolume(Number(event.target.value))
+            }
+          />
+        </label>
+      )}
+    </section>
   );
 }

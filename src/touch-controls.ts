@@ -158,7 +158,8 @@ export function bindTouchControls(
     input.clear();
     change();
   };
-  const preventMenu = (event: Event) => event.preventDefault();
+  const browserActions = ["contextmenu", "selectstart", "dragstart"] as const;
+  const preventBrowserAction = (event: Event) => event.preventDefault();
   // Capture phase also works if an overlay or a disabled button swallows the
   // bubbling release. Non-passive Touch Events prevent synthetic button clicks.
   const touchOptions = { capture: true, passive: false };
@@ -185,7 +186,10 @@ export function bindTouchControls(
   ] as const)
     win.addEventListener(type, clear);
   doc.addEventListener("visibilitychange", clear);
-  root.addEventListener("contextmenu", preventMenu);
+  // Cancel native text dragging and selection before they can interrupt a
+  // held control. Ordinary clicks (including restart) keep their own behavior.
+  for (const type of browserActions)
+    root.addEventListener(type, preventBrowserAction, true);
   return () => {
     for (const type of [
       "touchstart",
@@ -210,7 +214,8 @@ export function bindTouchControls(
     ] as const)
       win.removeEventListener(type, clear);
     doc.removeEventListener("visibilitychange", clear);
-    root.removeEventListener("contextmenu", preventMenu);
+    for (const type of browserActions)
+      root.removeEventListener(type, preventBrowserAction, true);
     clear();
   };
 }

@@ -410,6 +410,10 @@
   font-weight: 400;
   opacity: 0.72;
 }
+.compact .touch-key,
+.compact .touch-key * {
+  -webkit-user-drag: none;
+}
 .compact .touch-axis {
   font-size: calc(32px * var(--text-scale));
 }

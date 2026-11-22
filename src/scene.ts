@@ -2,6 +2,7 @@ import { editionCopy } from "./edition-copy";
 import { mergeDecorations, colorSlab } from "./render-geometry";
 import type { RainCover } from "./rain-occlusion";
 import { RainCurtain, WindLeaves } from "./weather-scene";
+import { WeatherRanges } from "./weather-ranges";
 import { RAIN_RATE_FACTORS } from "./rain-difficulty";
 import {
   disposeObjectTree,
@@ -427,6 +428,8 @@ export class PaperScene {
   private birds: THREE.Group[] = [];
   private rain: RainCurtain | null = null;
   private windLeaves: WindLeaves | null = null;
+  private weatherRanges: WeatherRanges | null = null;
+  private weatherRangesEnabled = false;
   private readonly reducedMotion = matchMedia(
     "(prefers-reduced-motion: reduce)",
   );
@@ -611,6 +614,10 @@ export class PaperScene {
       this.sun.shadow.needsUpdate = true;
     }
     this.rain?.setBudget(settings.rainDrops);
+  }
+  setWeatherRanges(enabled: boolean) {
+    this.weatherRangesEnabled = enabled;
+    if (this.weatherRanges) this.weatherRanges.visible = enabled;
   }
   private build(g: Game) {
     this.quality.resetObservation();
@@ -1059,6 +1066,14 @@ export class PaperScene {
         .rainDrops,
     );
     this.root.add(this.rain);
+    this.weatherRanges = new WeatherRanges(
+      l,
+      WEATHER[g.level],
+      fixedCovers,
+      this.movingPlatforms.length + g.players.length,
+    );
+    this.weatherRanges.visible = this.weatherRangesEnabled;
+    this.root.add(this.weatherRanges);
     // Paper motes make depth readable while the camera turns.
     const dots: number[] = [];
     for (let i = 0; i < 90; i++)
@@ -1565,6 +1580,10 @@ export class PaperScene {
         movingCovers,
         this.reducedMotion.matches,
         RAIN_RATE_FACTORS[g.rainDifficulty],
+      );
+      this.weatherRanges?.update(
+        rainStrength(g.level, g.motionTime),
+        movingCovers,
       );
     }
     let subjectCount = 0;

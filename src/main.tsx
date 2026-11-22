@@ -1,12 +1,10 @@
 import { SafeRestartButton } from "./safe-restart";
 import { AppHeader } from "./app-header";
+import { GameSettings } from "./game-settings";
 import { createGameAudioEvents } from "./game-audio-events";
-import { QualityControls, useQualityPreference } from "./quality-controls";
-import { TextSizeControls, useTextSizePreference } from "./text-size-controls";
-import {
-  RainDifficultyControls,
-  useRainDifficultyPreference,
-} from "./rain-controls";
+import { useQualityPreference } from "./quality-controls";
+import { useTextSizePreference } from "./text-size-controls";
+import { useRainDifficultyPreference } from "./rain-controls";
 import { RAIN_DIFFICULTY_LABELS, type RainDifficulty } from "./rain-difficulty";
 import { RainSelect } from "./rain-select";
 import { TeamControls } from "./team-controls";
@@ -58,7 +56,7 @@ import "./play-layout.css";
 import "./rain-ui.css";
 import { TouchInput, mergeInput, type TouchField } from "./touch-input";
 import { useCompactControls, touchCopy } from "./mobile";
-import { useGameAudio, MusicControls } from "./audio";
+import { useGameAudio } from "./audio";
 import { translate, type Language } from "./i18n";
 import { CROSSINGS } from "./bridges";
 import type { Lesson } from "./guide";
@@ -70,6 +68,10 @@ function App() {
   const compact = useCompactControls();
   const [textSize, setTextSize] = useTextSizePreference(compact);
   const [rainPreference, setRainPreference] = useRainDifficultyPreference();
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [weatherRanges, setWeatherRanges] = useState(
+    () => stored<boolean>("local", "rain-weather-ranges") === true,
+  );
   const [toolsOpen, setToolsOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [language, setLanguage] = useState<Language>(() =>
@@ -167,7 +169,7 @@ function App() {
   );
   const [helpLesson, setHelpLesson] = useState<Lesson>("basics");
   const helpRef = useRef(help);
-  helpRef.current = help || (compact && (toolsOpen || mapOpen));
+  helpRef.current = help || settingsOpen || (compact && (toolsOpen || mapOpen));
   useEffect(() => {
     save("local", "rain-guide", guideEnabled);
   }, [guideEnabled]);
@@ -177,6 +179,7 @@ function App() {
     input.current = idleInput();
   }
   function learn(lesson: Lesson) {
+    setSettingsOpen(false);
     setToolsOpen(false);
     setMapOpen(false);
     clearControls();
@@ -193,8 +196,22 @@ function App() {
     phaseRef.current = p;
     setPhase(p);
     clearControls();
+    setSettingsOpen(false);
     setToolsOpen(false);
     setMapOpen(false);
+  }
+  function openSettings() {
+    clearControls();
+    if (currentSession.current)
+      roomSession.sendInput(game.current.id, input.current);
+    setToolsOpen(false);
+    setMapOpen(false);
+    setHelp(false);
+    setSettingsOpen(true);
+  }
+  function selectWeatherRanges(enabled: boolean) {
+    setWeatherRanges(enabled);
+    save("local", "rain-weather-ranges", enabled);
   }
   function toggleMobilePanel(panel: "tools" | "map") {
     clearControls();
@@ -284,6 +301,7 @@ function App() {
       guideEnabled,
       quality,
       textSize,
+      weatherRanges,
     },
     onStep: (g, value) => replay.record(g, value),
     onPickup: () => sound(660),
@@ -381,6 +399,7 @@ function App() {
     clearControls();
     helpRef.current = false;
     setHelp(false);
+    setSettingsOpen(false);
     setToolsOpen(false);
     setMapOpen(false);
   }
@@ -560,36 +579,14 @@ function App() {
             </a>
           )}
           <button
-            className="language"
-            aria-label={t("切换语言")}
-            onClick={() => setLanguage(language === "zh" ? "en" : "zh")}
+            className="settings-button"
+            aria-label={t("设置")}
+            aria-controls="game-settings"
+            aria-expanded={settingsOpen}
+            onClick={openSettings}
           >
-            中文 / EN
+            {t("设置")}
           </button>
-          <MusicControls audio={audio} language={language} />
-          <QualityControls
-            value={quality}
-            onChange={setQuality}
-            language={language}
-          />
-          <TextSizeControls
-            value={textSize}
-            onChange={setTextSize}
-            language={language}
-          />
-          <RainDifficultyControls
-            value={rainDifficulty}
-            onChange={selectRainDifficulty}
-            language={language}
-            disabled={
-              busy ||
-              isPlaying ||
-              (!!session && (!connected || session.slot !== room?.host))
-            }
-            title={t(
-              "简单 70% · 普通 100% · 困难 130%。联机由房主在出发前选择。",
-            )}
-          />
           {session && room && (
             <TeamControls
               room={room}
@@ -599,16 +596,6 @@ function App() {
               send={(cmd) => roomSession.command(cmd)}
             />
           )}
-          <button
-            aria-label={t("切换玩法引导")}
-            aria-pressed={guideEnabled}
-            onClick={() => setGuideEnabled((v) => !v)}
-          >
-            {t(guideEnabled ? "引导开" : "引导关")}
-          </button>
-          <button onClick={() => (help ? setHelp(false) : learn("basics"))}>
-            {t("操作说明")}
-          </button>
           {isPlaying && (
             <>
               <SafeRestartButton
@@ -628,6 +615,29 @@ function App() {
           )}
         </nav>
       </AppHeader>
+      <GameSettings
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        language={language}
+        onLanguageChange={setLanguage}
+        audio={audio}
+        quality={quality}
+        onQualityChange={setQuality}
+        textSize={textSize}
+        onTextSizeChange={setTextSize}
+        weatherRanges={weatherRanges}
+        onWeatherRangesChange={selectWeatherRanges}
+        rainDifficulty={rainDifficulty}
+        onRainDifficultyChange={selectRainDifficulty}
+        rainLocked={
+          busy ||
+          isPlaying ||
+          (!!session && (!connected || session.slot !== room?.host))
+        }
+        guideEnabled={guideEnabled}
+        onGuideChange={setGuideEnabled}
+        onHelp={() => learn("basics")}
+      />
       {error && (
         <div role="alert" className="toast" onClick={() => setError("")}>
           {t(error)}

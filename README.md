@@ -290,6 +290,14 @@ TEST_SERVER=https://before-the-rain-rooms-github.zoeli2010xl.workers.dev npm run
 
 GitHub Pages 保留原发布工作流，构建从 `.env.production` 的 `VITE_CAMPAIGN_SERVER_URL` 读取 `https://before-the-rain-rooms-github.zoeli2010xl.workers.dev`。普通本地构建的 `.env.production` 使用相同地址。执行 `npm run deploy:server` 会使用 `wrangler.github.jsonc` 发布独立服务；`wrangler.jsonc` 对应旧 Toy 服务，本次不部署它。更新 GitHub 不会自动上传 Toy 包。
 
+### 2.17.0 · 设置页与天气范围提示
+
+- 音乐、音效、画质、字号、雨速、引导、语言和操作说明统一收进设置页；关闭设置保留播放器和当前游戏，单人打开设置时暂停。
+- 新增默认关闭、在本机保存的雨风范围提示：灰蓝标雨区，淡金标风区；保留雨滴与黄色叶子，雨区按遮雨体裁剪，下端收在每关最低平台顶面。
+- 音乐和音效使用独立开关与音量；关闭任一项时隐藏对应调整，重新开启保留原曲目和音量。
+- 触控按键区域阻止浏览器菜单、文字选中和拖动，保留双指、换向及取消后的释放行为。系统自身的超级拖放仍需实机确认。
+- 关卡、历史成绩和联机协议保持兼容；本次只更新前端，无需部署房间服务。
+
 ### 2.16.0 · 字号与雨速
 
 - 字号可选标准、较大（120%）、特大（140%），手机默认较大，本机保存选择。界面、场景路牌、火堆、许愿架、灯门、机关纸签和角色编号同步调整；场景小字至少 10px 起，长句换行并保持在画布内。

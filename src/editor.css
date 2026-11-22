@@ -890,6 +890,9 @@ li {
   align-items: end;
   justify-content: space-between;
   gap: 20px;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 .preview-controls > div {
   display: flex;
@@ -900,7 +903,7 @@ li {
   min-width: 50px;
   min-height: 48px;
   touch-action: none;
-  user-select: none;
+  -webkit-user-drag: none;
   background: #3d5260;
   color: #eee0c3;
   border-color: #bec9c14d;
